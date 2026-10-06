@@ -13686,6 +13686,7 @@ export function heartbeatService(
   async function claimQueuedRun(
     run: typeof heartbeatRuns.$inferSelect,
     companyAgents?: AgentOrgRow[],
+    knownReadiness?: Awaited<ReturnType<typeof getAgentReadiness>>,
   ) {
     if (run.status !== "queued") return run;
     const agent = await getAgent(run.agentId);
@@ -13707,7 +13708,7 @@ export function heartbeatService(
       return null;
     }
 
-    const readiness = await getAgentReadiness(db, options.pluginWorkerManager, agent);
+    const readiness = knownReadiness ?? await getAgentReadiness(db, options.pluginWorkerManager, agent);
     if (readiness.some(provider => provider.state !== "ready")) return null;
 
     const context = parseObject(run.contextSnapshot);
@@ -16055,9 +16056,11 @@ export function heartbeatService(
       );
 
     const agentIds = [...new Set(queuedRuns.map((r) => r.agentId))];
-    for (const agentId of agentIds) {
-      await startNextQueuedRunForAgent(agentId);
-    }
+    // A slow readiness plugin must not hold up other agents' queues.
+    // ponytail: concurrent agent starts; bound fan-out if queues outgrow the DB pool.
+    const results = await Promise.allSettled(agentIds.map(agentId => startNextQueuedRunForAgent(agentId)));
+    const failure = results.find(result => result.status === "rejected");
+    if (failure?.status === "rejected") throw failure.reason;
   }
 
   async function recoverActiveSessionGoals() {
@@ -16395,6 +16398,8 @@ export function heartbeatService(
         )
         .orderBy(asc(heartbeatRuns.createdAt));
       if (queuedRuns.length === 0) return [];
+      const readiness = await getAgentReadiness(db, options.pluginWorkerManager, agent);
+      if (readiness.some(plugin => plugin.state !== "ready")) return [];
 
       const dependencyReadiness = await listQueuedRunDependencyReadiness(
         agent.companyId,
@@ -16474,7 +16479,7 @@ export function heartbeatService(
         if (claimedRuns.length >= availableSlots) break;
         let claimed: typeof heartbeatRuns.$inferSelect | null;
         try {
-          claimed = await claimQueuedRun(queuedRun, companyAgents);
+          claimed = await claimQueuedRun(queuedRun, companyAgents, readiness);
         } catch (err) {
           if (isPermanentClaimRejection(err)) {
             rejectedClaims.push({ run: queuedRun, err });

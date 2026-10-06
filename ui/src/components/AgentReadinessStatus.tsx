@@ -12,7 +12,7 @@ export function AgentReadinessStatus({ agentId, companyId, agentStatus }: {
     queryKey: ["agents", agentId, "readiness", companyId, agentStatus],
     queryFn: () => agentsApi.getReadiness(agentId, companyId),
     enabled: agentStatus !== "pending_approval" && agentStatus !== "terminated",
-    refetchInterval: q => q.state.status === "error" || q.state.data?.some(state => state.state !== "ready") ? 2_000 : false,
+    refetchInterval: q => q.state.status === "error" || q.state.data?.some(state => state.state !== "ready") ? 2_000 : 30_000,
   });
   if (agentStatus === "pending_approval" || agentStatus === "terminated") return null;
   if (query.isError) return <div role="status" className="flex items-center gap-2 text-sm text-destructive">
