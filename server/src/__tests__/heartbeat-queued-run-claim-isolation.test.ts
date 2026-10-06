@@ -15,6 +15,9 @@ import {
 import { heartbeatService } from "../services/heartbeat.ts";
 import { runningProcesses } from "../adapters/index.ts";
 
+const mockReadiness = vi.hoisted(() => vi.fn(async () => [] as Array<{ state: string }>));
+vi.mock("../services/agent-readiness.js", () => ({ getAgentReadiness: mockReadiness }));
+
 const mockAdapterExecute = vi.hoisted(() =>
   vi.fn(async () => ({
     exitCode: 0,
@@ -61,6 +64,7 @@ describeEmbeddedPostgres("heartbeat queued-run claim isolation", () => {
   afterEach(async () => {
     await heartbeat.drainActiveRunExecutions();
     mockAdapterExecute.mockClear();
+    mockReadiness.mockResolvedValue([]);
     runningProcesses.clear();
     // Executed runs write to many company-scoped tables; clear them all.
     await db.execute(sql`truncate table ${companies} cascade`);
@@ -176,6 +180,22 @@ describeEmbeddedPostgres("heartbeat queued-run claim isolation", () => {
       .where(sql`${heartbeatRuns.id} = ${runId}`)
       .then((rows) => rows[0] ?? null);
   }
+
+  it("keeps the same run queued through setup and provider outage, then executes when ready", async () => {
+    const { companyId, agentId } = await insertAgent();
+    const { runId } = await insertClaimableRun(companyId, agentId);
+    for (const state of ["pending", "unavailable", "blocked"]) {
+      mockReadiness.mockResolvedValue([{ state }]);
+      await heartbeat.resumeQueuedRuns();
+      expect(await runStatus(runId)).toMatchObject({ status: "queued" });
+      expect(mockAdapterExecute).not.toHaveBeenCalled();
+    }
+    mockReadiness.mockResolvedValue([{ state: "ready" }]);
+    await heartbeat.resumeQueuedRuns();
+    await heartbeat.drainActiveRunExecutions();
+    expect(await runStatus(runId)).toMatchObject({ status: "succeeded" });
+    expect(mockAdapterExecute).toHaveBeenCalledTimes(1);
+  });
 
   it("cancels a queued run whose claim is rejected instead of failing recovery", async () => {
     const { companyId, agentId } = await insertAgent();

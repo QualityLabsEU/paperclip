@@ -1071,6 +1071,7 @@ export type {
   PluginObjectReferenceRefreshPolicy,
   PluginObjectReferenceProviderDeclaration,
   PaperclipPluginManifestV1,
+  PluginAgentReadiness,
   PluginRecord,
   PluginDatabaseNamespaceRecord,
   PluginMigrationRecord,

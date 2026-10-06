@@ -1,4 +1,5 @@
 import { PrimaryAgentIndicator, SetPrimaryAgentButton } from "@/components/primary-agent/PrimaryAgentPresentation";
+import { AgentReadinessStatus } from "../components/AgentReadinessStatus";
 import { AiConnectionPoolRunDetails } from "@/components/ai-connections/AiConnectionPoolRunDetails";
 import { AgentConnectionInstructions } from "@/features/connections/ConnectionInstructions";
 import type { AgentInstructionCandidate, AgentInstructionsBundle } from "@paperclipai/shared";
@@ -1241,6 +1242,7 @@ export function AgentDetail() {
           </div>
         </div>
       ) : null}
+      <AgentReadinessStatus agentId={agent.id} companyId={agent.companyId} agentStatus={agent.status} />
       {/* Header */}
       <header className="flex flex-wrap items-center justify-between gap-5 border-b border-border pb-6">
         <div className="flex min-w-0 items-center gap-4">
