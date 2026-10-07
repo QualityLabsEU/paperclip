@@ -590,3 +590,9 @@ passed. The five verified encrypted cloud proofs are preserved; the disposable
 EC2 instance was terminated and its unused role, instance profile and security
 group removed. No local Docker was used. These fixture refinements require
 fresh current-head CI and review; they do not complete release qualification.
+
+Fresh review found that the paid workflow did not supply the new Google cells'
+required Gemini key. The key is now mapped only when the selected matrix cell
+requires it, and the workflow credential-boundary regression covers it. All 15
+workflow tests and actionlint pass. Another current-head review and CI run are
+required after this correction.
