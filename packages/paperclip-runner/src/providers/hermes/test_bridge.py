@@ -26,6 +26,17 @@ class Accounting(unittest.TestCase):
 
 
 class ToolPolicy(unittest.TestCase):
+    def test_planning_workflow_mutations_reach_semantic_authority_but_are_not_reads(self):
+        assigned = ["mcp__paperclip__write_document", "mcp__paperclip__request_human_input", "mcp__paperclip__set_task_title", "mcp__paperclip__call_api"]
+        policy = {"permissionMode": "approve-all", "readOnly": True, "paperclipReadOnlyTools": assigned}
+        for name in assigned:
+            self.assertFalse(authorize_tool(name, {}, policy=policy, cwd="/workspace"))
+        for name in ["terminal", "write_file", "mcp__other__write_document", "mcp__paperclip__manage_routine"]:
+            with self.assertRaises(PermissionError):
+                authorize_tool(name, {}, policy=policy, cwd="/workspace")
+        with self.assertRaises(PermissionError):
+            authorize_tool(assigned[0], {}, policy={**policy, "permissionMode": "deny-all"}, cwd="/workspace")
+
     def test_planning_can_report_and_use_only_authoritative_assigned_reads(self):
         policy = {"permissionMode": "approve-reads", "readOnly": True,
                   "paperclipReadTools": ["mcp__paperclip__read_document"]}
@@ -130,7 +141,7 @@ class Restore(unittest.TestCase):
 class Controls(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.state = SimpleNamespace(runtime_lock=threading.Lock(), is_running=True,
-                                     cancel_event=threading.Event(), agent=Mock())
+                                     cancel_event=threading.Event(), agent=Mock(), cwd="/workspace")
         self.manager = Mock()
         self.manager.get_session.return_value = self.state
         self.bridge = ManagedHermesACPAgent(self.manager)
@@ -172,6 +183,47 @@ class Controls(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([u.tool_call_id for u in updates], ["call-a", "call-b", "call-b", "call-a"])
         self.assertEqual(callbacks.tool_call_ids, {})
         self.assertEqual(callbacks.tool_call_meta, {})
+
+    async def test_structured_tool_results_retain_native_content_and_raw_output(self):
+        callbacks = SimpleNamespace(tool_call_ids={}, tool_call_meta={})
+        updates = []
+        with patch("bridge.HermesACPAgent._wire_turn_callbacks", return_value=callbacks), patch("bridge._send_update", side_effect=lambda c, s, l, event: updates.append(event)):
+            self.bridge._wire_turn_callbacks(self.state, "session", Mock(), asyncio.get_running_loop())
+            for call_id, result in [("success", {"marker": "native-result"}), ("failure", {"error": "denied"})]:
+                self.state.agent.tool_start_callback(call_id, "mcp__paperclip__write_document", {})
+                self.state.agent.tool_complete_callback(call_id, "mcp__paperclip__write_document", {}, result)
+        self.assertEqual(json.loads(updates[1].raw_output), {"marker": "native-result"})
+        self.assertTrue(updates[1].content)
+        self.assertEqual(updates[3].status, "failed")
+        self.assertEqual(json.loads(updates[3].raw_output), {"error": "denied"})
+
+    async def test_pre_dispatch_denials_keep_native_ids_and_complete_exactly_once(self):
+        from hermes_cli import middleware
+        callbacks = SimpleNamespace(tool_call_ids={}, tool_call_meta={})
+        updates = []
+        execute = Mock()
+        with patch.dict("os.environ", {"PAPERCLIP_HERMES_POLICY": json.dumps({"permissionMode": "approve-all", "readOnly": True})}), patch("hermes_cli.middleware.run_tool_execution_middleware", side_effect=lambda name, args, run, **kwargs: run(args)), patch("bridge.HermesACPAgent._wire_turn_callbacks", return_value=callbacks), patch("bridge._send_update", side_effect=lambda c, s, l, event: updates.append(event)):
+            self.bridge._wire_turn_callbacks(self.state, "session", Mock(), asyncio.get_running_loop())
+            for call_id in ["denial-a", "denial-b"]:
+                result = middleware.run_tool_execution_middleware("terminal", {"command": "touch proof"}, execute, tool_call_id=call_id)
+                self.state.agent.tool_complete_callback(call_id, "terminal", {}, result)
+        execute.assert_not_called()
+        self.assertEqual([update.tool_call_id for update in updates], ["denial-a", "denial-a", "denial-b", "denial-b"])
+        for update in updates[1::2]:
+            self.assertEqual(update.status, "failed")
+            self.assertIn("planning mode permits", update.raw_output)
+        self.assertEqual(callbacks.tool_call_meta, {})
+
+    async def test_managed_restore_retains_history_without_replaying_it_as_live_output(self):
+        self.bridge._conn = SimpleNamespace(session_update=AsyncMock())
+        history = [{"role": "assistant", "content": "Previous reply"}]
+        state = SimpleNamespace(session_id="session", history=history)
+        await self.bridge._replay_session_history(state)
+        self.bridge._conn.session_update.assert_not_called()
+        self.assertEqual(state.history, history)
+        self.bridge._negotiated = False
+        await self.bridge._replay_session_history(state)
+        self.bridge._conn.session_update.assert_awaited_once()
 
     async def test_capabilities_use_native_sdk_metadata(self):
         response = await self.bridge.initialize(client_capabilities=ClientCapabilities(

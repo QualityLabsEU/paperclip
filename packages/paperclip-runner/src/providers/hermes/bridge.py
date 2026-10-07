@@ -248,6 +248,11 @@ class ManagedHermesACPAgent(HermesACPAgent):
     async def _replay_session_history(self, state):
         if not self._conn:
             raise ValueError("Hermes history replay has no client")
+        if self._negotiated:
+            # Paperclip restores its durable transcript independently. Native
+            # history has already been strictly loaded into the agent; replay
+            # notifications must not be mistaken for this turn's live output.
+            return
         for update in _history_replay_updates(state.history):
             await self._conn.session_update(session_id=state.session_id, update=update)
 
@@ -364,6 +369,7 @@ class ManagedHermesACPAgent(HermesACPAgent):
         # Native start/complete callbacks carry the actual call ID, including
         # overlapping invocations and out-of-order completion of the same tool.
         calls, metadata = callbacks.tool_call_ids, callbacks.tool_call_meta
+        completed_denials = set()
         turn_state = {"saw_completion": True}
 
         def tool_start(call_id, name, args):
@@ -376,16 +382,31 @@ class ManagedHermesACPAgent(HermesACPAgent):
             _send_update(conn, session_id, loop, build_tool_start(call_id, name, args))
 
         def tool_complete(call_id, name, args, result):
+            if call_id in completed_denials:
+                return
             if call_id not in metadata:
                 raise ValueError("Hermes completed an unknown tool call")
             meta = metadata.pop(call_id)
             calls[name].remove(call_id)
             if not calls[name]:
                 calls.pop(name)
-            _send_update(conn, session_id, loop, build_tool_complete(
-                call_id, name, result=result if isinstance(result, str) else json.dumps(result),
-                function_args=args, snapshot=meta["snapshot"],
-            ))
+            result_text = result if isinstance(result, str) else json.dumps(result)
+            try:
+                envelope = json.loads(result_text)
+            except (ValueError, TypeError):
+                envelope = None
+            # Native policy and MCP transport failures use this exact envelope;
+            # an arbitrary successful payload mentioning errors is not a failure.
+            is_error = (isinstance(envelope, dict) and set(envelope) == {"error"}
+                        and isinstance(envelope["error"], str) and bool(envelope["error"]))
+            update = build_tool_complete(
+                call_id, name, result=result_text,
+                function_args=args, snapshot=meta["snapshot"], is_error=is_error,
+            )
+            # Hermes deliberately omits raw output for its polished/structured
+            # cards. ACPX consumes rawOutput for the runner transcript; keep
+            # native content (including diffs) and the original result together.
+            _send_update(conn, session_id, loop, update.model_copy(update={"raw_output": result_text}))
 
         def progress(event, name=None, preview=None, args=None, **details):
             child = details.get("child_session_id") or details.get("subagent_id")
@@ -416,10 +437,10 @@ class ManagedHermesACPAgent(HermesACPAgent):
                 # Both sequential inline tools and concurrent registry tools
                 # cross this native execution boundary, including child agents.
                 def checked(final_args):
-                    return authorized(name, final_args, execute)
+                    return authorized(name, final_args, execute, kwargs.get("tool_call_id"))
                 return self._dispatch_original(name, args, checked, **kwargs)
 
-            def authorized(name, args, execute):
+            def authorized(name, args, execute, call_id):
                 try:
                     read = authorize_tool(name, args, policy=policy, cwd=state.cwd, assigned_skills=assigned)
                     if self._active != (session_id, token) or state.cancel_event.is_set():
@@ -436,7 +457,17 @@ class ManagedHermesACPAgent(HermesACPAgent):
                     finally:
                         tool_policy.reset(scope)
                 except PermissionError as error:
-                    return json.dumps({"error": str(error)})
+                    result = json.dumps({"error": str(error)})
+                    # Policy is evaluated before Hermes's dispatch/start hook.
+                    # Its executor can therefore return a denied result without
+                    # emitting a start, and its later complete hook is too late
+                    # to pair it. Project the denial using the native hook ID.
+                    if isinstance(call_id, str) and call_id:
+                        if call_id not in metadata:
+                            tool_start(call_id, name, args)
+                        tool_complete(call_id, name, args, result)
+                        completed_denials.add(call_id)
+                    return result
             middleware.run_tool_execution_middleware = dispatch
 
         def clarify(question=None, choices=None, multi_select=False, questions=None):

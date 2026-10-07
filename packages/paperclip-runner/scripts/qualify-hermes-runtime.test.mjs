@@ -46,14 +46,17 @@ test("pinned Hermes streams through the production ACPX host using a no-auth loc
       return;
     }
     const toolDone = body.messages.slice(lastUser + 1).some(message => message.role === "tool");
-    if (!toolDone && (userText.includes("NATIVE_TOOL_FIXTURE") || userText.includes("NATIVE_QUESTION_FIXTURE") || userText.includes("NATIVE_MCP_FIXTURE") || userText.includes("NATIVE_MEMORY_FIXTURE"))) {
+    if (!toolDone && (userText.includes("NATIVE_TOOL_FIXTURE") || userText.includes("NATIVE_QUESTION_FIXTURE") || userText.includes("NATIVE_MCP_FIXTURE") || userText.includes("NATIVE_MEMORY_FIXTURE") || userText.includes("NATIVE_PLAN_FIXTURE"))) {
       const question = userText.includes("NATIVE_QUESTION_FIXTURE");
       const bridge = userText.includes("NATIVE_MCP_FIXTURE");
       const memory = userText.includes("NATIVE_MEMORY_FIXTURE");
-      const name = question ? "clarify" : memory ? "memory" : bridge ? body.tools.find(tool => tool.function?.name.endsWith("fixture_probe"))?.function.name ?? "missing_assigned_tool" : "terminal";
+      const plan = userText.includes("NATIVE_PLAN_FIXTURE");
+      const name = question ? "clarify" : memory ? "memory" : bridge ? body.tools.find(tool => tool.function?.name.endsWith("fixture_probe"))?.function.name ?? "missing_assigned_tool"
+        : plan ? body.tools.find(tool => tool.function?.name.endsWith("write_document"))?.function.name ?? "missing_plan_tool" : "terminal";
       const args = question ? { question: "Choose the fixture color", choices: ["Cobalt", "Amber"] }
         : memory ? { action: "add", target: "memory", content: "NATIVE_PERSISTED_MEMORY: Project uses Cobalt." }
         : bridge ? { marker: "assigned-tool-roundtrip" }
+        : plan ? { marker: "planning-workflow-roundtrip" }
         : { command: "printf 'native-hermes-command\\n' > command-proof.txt", timeout: 10 };
       res.write(`data: ${JSON.stringify({ id: "tool-fixture", object: "chat.completion.chunk", model: "hermes-fixture", created: 1, choices: [{ index: 0, delta: { role: "assistant", tool_calls: [{ index: 0, id: `native-${name}`, type: "function", function: { name, arguments: JSON.stringify(args) } }] }, finish_reason: null }] })}\n\n`);
       res.end(`data: ${JSON.stringify({ id: "tool-fixture", choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }], usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } })}\n\ndata: [DONE]\n\n`);
@@ -82,7 +85,7 @@ test("pinned Hermes streams through the production ACPX host using a no-auth loc
     clientCapabilities: acpxProfileClientCapabilities("hermes"),
     systemInstructions: "This is a transport fixture. Reply briefly.",
     semanticTools: {
-      tools: [{ name: "fixture_probe", description: "Return the supplied marker.", inputSchema: { type: "object", properties: { marker: { type: "string" } }, required: ["marker"], additionalProperties: false } }],
+      tools: ["fixture_probe", "write_document"].map(name => ({ name, description: "Return the supplied marker (simulated semantic authority).", inputSchema: { type: "object", properties: { marker: { type: "string" } }, required: ["marker"], additionalProperties: false } })),
       handler: async call => { bridgeCalls.push({ tool: call.tool, arguments: call.arguments }); return { marker: "assigned-tool-returned" }; },
     },
     runtimeContext: { instructions: { workingCopy: { kind: "agent_files", rootPath: agentFiles, entryPath: "AGENTS.md" } }, skills: [], mcp: {} },
@@ -199,4 +202,19 @@ test("pinned Hermes streams through the production ACPX host using a no-auth loc
     refused = true;
   }
   assert.equal(refused, true, "Missing native history was silently replaced with a new conversation");
+  await host?.close({ reason: "planning fixture admission" });
+  host = await AcpxRuntimeHost.open({ ...options, normalizedSessionId: "hermes-planning-test", providerPolicy: { readOnly: true } }, dependencies);
+  const planning = host.startTurn({ text: "NATIVE_PLAN_FIXTURE: Use the assigned plan document tool.", requestId: "planning-turn" });
+  const planningEvents = [];
+  for await (const event of planning.events) planningEvents.push(event);
+  assert.equal((await planning.result).status, "completed");
+  assert.deepEqual(bridgeCalls.at(-1), { tool: "write_document", arguments: { marker: "planning-workflow-roundtrip" } });
+  assert.ok(planningEvents.some(event => (event.type === "tool_call" || event.type === "tool_call_update") && JSON.stringify(event).includes("assigned-tool-returned")), "Structured native tool output was omitted from the transcript");
+  await rm(join(workspace, "command-proof.txt"));
+  const forbidden = host.startTurn({ text: "NATIVE_TOOL_FIXTURE: Run the supplied command while planning.", requestId: "planning-forbidden-turn" });
+  const forbiddenEvents = [];
+  for await (const event of forbidden.events) forbiddenEvents.push(event);
+  assert.equal((await forbidden.result).status, "completed");
+  assert.equal(await readFile(join(workspace, "command-proof.txt"), "utf8").catch(() => null), null, "Planning mode executed a native write");
+  assert.ok(forbiddenEvents.some(event => (event.type === "tool_call" || event.type === "tool_call_update") && JSON.stringify(event).includes("planning mode permits")), `Native policy denial was omitted from the transcript: ${JSON.stringify({ events: forbiddenEvents.filter(event => event.type === "tool_call" || event.type === "tool_call_update"), results: requests.at(-1)?.body.messages.filter(message => message.role === "tool").slice(-1) })}`);
 });

@@ -19,10 +19,10 @@ def authorize_tool(name, args, *, policy, cwd, assigned_skills=()):
     read = (name in READ_TOOLS or name in REPORTING_TOOLS
             or name in policy.get("paperclipReadTools", [])
             or (name == "memory" and args.get("action") in {"read", "view"}))
-    if policy["readOnly"] and not read:
+    if policy["readOnly"] and not read and name not in policy.get("paperclipReadOnlyTools", []):
         # Arbitrary commands, code execution and delegation can write, even when
         # their natural-language description claims they only inspect state.
-        raise PermissionError("Paperclip planning mode permits only read tools")
+        raise PermissionError("Paperclip planning mode permits only native reads and authorized Paperclip workflow tools")
     protected = [Path(p).resolve() for p in policy.get("protectedPaths", [])]
     assigned = [Path(p).resolve() for p in assigned_skills]
 
