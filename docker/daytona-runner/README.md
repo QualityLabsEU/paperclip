@@ -122,17 +122,16 @@ lockfile. Resolve the complete workspace manifest graph in the build context
 before invoking Docker, matching CI when a source commit precedes the lockfile
 bot. The trusted workflow supplies this resolved lockfile as an immutable artifact.
 The complete resolved lockfile must match `PAPERCLIP_RUNNER_LOCK_SHA256` before
-package installation or lifecycle execution. Review and refresh that digest
-with source dependency changes; registry-time resolution drift fails closed.
+package installation or lifecycle execution. Compute that digest from the
+resolved build lock; registry-time resolution drift fails closed.
 The Product E2E workflow resolves one lockfile before the image build. It
 verifies the downloaded artifact, then passes that artifact's SHA-256 as the
 `PAPERCLIP_RUNNER_LOCK_SHA256` build argument. The Dockerfile checks the resolved
-lock against this value before installation. The fixed Dockerfile default is
-for standalone builds; it must not replace a campaign's verified lock digest.
-Refresh the default from the clean tracked lockfile using the exact
-`pnpm install --resolution-only --ignore-scripts --no-frozen-lockfile` command,
-and verify a second resolution preserves the digest. A lockfile left by a
-filtered or incremental install can retain stale importer patch identities.
+lock against this value before installation. Standalone builds must also pass
+the resolved lock's digest, as shown above; the Dockerfile has no default.
+Use the exact `pnpm install --resolution-only --ignore-scripts --no-frozen-lockfile`
+command. A lockfile left by a filtered or incremental install can retain stale
+importer patch identities.
 Refresh exact runtime versions and qualification digests together; do not
 download dependencies when a task starts.
 
