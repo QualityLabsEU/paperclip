@@ -78,7 +78,7 @@ export interface RunnerProfileFixture {
       | "openrouter_rankings_snapshot";
     qualificationId: string;
   };
-  qualificationCandidate?: "cursor" | "copilot" | "pi";
+  qualificationCandidate?: "cursor" | "copilot" | "pi" | "hermes";
   ranking?: {
     rank: number;
     canonicalModelId: string;

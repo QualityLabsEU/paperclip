@@ -92,6 +92,7 @@ describe("live runner fixtures", () => {
   });
 
   it.each([
+    ["runner-acpx-hermes", "extended-harnesses", "hello-complete"],
     ["runner-codex", "hiring-templates", "hire-coder-template-reuse"],
     ["runner-acpx-claude", "hiring-templates", "hire-coder-template-reuse"],
     ["runner-codex", "everyday-workflows", "hire-reuse"],
@@ -110,7 +111,7 @@ describe("live runner fixtures", () => {
           e.environment.id === "local",
       )!;
       const provider =
-        profile === "runner-acpx-claude" ? "anthropic" : profile === "runner-opencode" ? "openrouter" : "openai";
+        profile === "runner-acpx-claude" ? "anthropic" : ["runner-opencode", "runner-acpx-hermes"].includes(profile) ? "openrouter" : "openai";
       let connected = false;
       let agentBody: any;
       const api = {

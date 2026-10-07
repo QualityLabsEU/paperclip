@@ -174,7 +174,7 @@ function nativeProfile(input: {
   provider: "codex" | "opencode" | "acpx";
   model: string;
   credential: RunnerProfileFixture["credential"];
-  acpxAgent?: "claude" | "codex" | "grok" | "cursor" | "copilot" | "pi";
+  acpxAgent?: "claude" | "codex" | "grok" | "cursor" | "copilot" | "pi" | "hermes";
   qualificationCandidate?: RunnerProfileFixture["qualificationCandidate"];
   supportedEnvironments?: readonly (typeof ENVIRONMENT_IDS)[number][];
   modelQualification?: RunnerProfileFixture["modelQualification"];
@@ -338,6 +338,11 @@ export const runnerProfiles: readonly RunnerProfileFixture[] = [
 // Explicit qualification choices from authenticated model discovery, not shipped
 // defaults. Cursor has local/Daytona proof; Copilot and Pi remain pending.
 export const extendedHarnessProfiles: readonly RunnerProfileFixture[] = [
+  nativeProfile({
+    id: "runner-acpx-hermes", label: "Runner Hermes (candidate)", provider: "acpx", acpxAgent: "hermes",
+    qualificationCandidate: "hermes", credential: "OPENROUTER_API_KEY", model: "deepseek/deepseek-v4-flash-0731",
+    modelQualification: { source: "candidate_runner_profile", qualificationId: "hermes:v2026.9.24:openrouter:pending" },
+  }),
   nativeProfile({
     id: "runner-acpx-cursor", label: "Runner Cursor", provider: "acpx", acpxAgent: "cursor",
     qualificationCandidate: "cursor", credential: "CURSOR_AUTH_TOKEN",
@@ -1180,7 +1185,7 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
     description: "Explicit candidate qualification through real Paperclip tools, browser interactions, file edits and restart recovery.",
     groups: ["native"], profiles: extendedHarnessProfiles, environments: runnerEnvironments,
     tasks: [...openRouterBreadthTasks, localIntegrityTasks[1]!, extendedHarnessFileTask],
-    expectedMatrixSize: 30,
+    expectedMatrixSize: 40,
     definitionMetadata: { version: 1, qualification: "pending", scheduling: "explicit-only", admission: "host-exact-candidate-and-model", authenticatedDiscoveryDate: "2026-09-28" },
   },
   {
