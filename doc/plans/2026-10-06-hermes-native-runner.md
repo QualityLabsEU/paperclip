@@ -596,3 +596,54 @@ required Gemini key. The key is now mapped only when the selected matrix cell
 requires it, and the workflow credential-boundary regression covers it. All 15
 workflow tests and actionlint pass. Another current-head review and CI run are
 required after this correction.
+
+### Managed API account qualification, 2026-10-07
+
+The Google credential mapping subsequently passed all 54 current-head CI checks
+(two intentional skips) and fresh Greptile 5/5, with no open threads, at
+`ffd6bbc1ebb10c1c8ef0db875bb88d733f64649d`. The following paid account cases
+use that controller source and the previously verified image source
+`8e31afda4ff3b4c0415bc26f8bb35cec17437741`. Independent tracked-source
+comparison proves their production runtime and dependency sources identical;
+the changes are qualification fixtures, documentation, workflow credential
+mapping, and the image's explicit candidate selection. The runtime-source
+fingerprint is `9d9e39d5390de779c619004ebbce55cc57d2c1aeefead36099903d7db1d3e26a`.
+
+| Managed API account | Exact model | Campaign suffix | Result | Duration |
+| --- | --- | --- | --- | --- |
+| Anthropic | `claude-haiku-4-5-20251001` | `2d55c9944d84` | Passed | 53.780 s |
+| OpenAI | `gpt-5.6-luna` | `4953bfa797ea` | Passed | 58.760 s |
+| xAI | `grok-4.7` | `83fd6210c933` | Passed | 69.960 s |
+| Google | `gemini-2.5-flash` | `ea98e1dd517f` | Failed | 52.511 s |
+
+Each passing case independently verifies six public native-run account/model
+checks, both scoped 200-cent budgets before task creation, one successful native
+run, one final answer, and cleanup. Each has a reviewed final browser screenshot.
+All run on the compatible EC2 Linux amd64 host with catalog environment `local`;
+they do not qualify macOS or Daytona. Token receipts are available, but monetary
+cost remains unpriced. The final screenshots show the existing budget policy
+pausing the test agents after unpriced usage; reported zeros are not free runs.
+
+xAI delivered 41 reasoning deltas and 22 assistant-text deltas before its native
+terminal event. Its final screenshot renders a thought card above the answer.
+These facts prove event delivery and final rendering, not incremental browser
+render timing while the run is active. Raw reasoning is not published.
+
+Google's authenticated catalog listed Gemini 2.5 Flash, but inference returned
+404 because the account had not previously used that model. Google's
+[access notice](https://ai.google.dev/gemini-api/docs/deprecations) confirms the
+restriction. The failed browser attempt, provider error, missing usage, and
+successful cleanup remain retained. Hermes made its native HTTP retry attempts
+inside that single controller turn; the campaign did not dispatch a new paid
+attempt. The fixture now selects `gemini-3.8-flash`, whose authenticated metadata
+supports `generateContent`. That metadata is not a live qualification pass.
+The model correction passed all 94 affected tests and Product E2E TypeScript;
+it requires a new live attempt, fresh CI, and review.
+
+Private proof and campaign archives remain encrypted in the task's restricted
+S3 prefix. Credentials are supplied only through a fresh verified job-bound
+encrypted handoff. Obsolete encrypted key transfers are removed after evidence
+collection. No local Docker is used. Subscription/credential lifecycle, custom
+protocols, Bedrock, the remaining interactions/state/routines, final macOS
+campaign, clean distribution, and actual Daytona gates remain open. Hermes
+continues to be pending qualification.

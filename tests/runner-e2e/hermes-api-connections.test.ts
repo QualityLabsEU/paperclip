@@ -15,10 +15,13 @@ describe("Hermes managed API connection qualification", () => {
     expect(suite.definitionMetadata).toMatchObject({ qualification: "pending", accountMethod: "api_key", accountMode: "responsible_user", coverage: "api-account-native-completion-only", budgetMonthlyCents: 200, maximumAttemptsPerCell: 1 });
     expect(selectRunnerExecutions(parseRunnerSelectors(["--all"])).some(e => e.suite.id === suite.id)).toBe(false);
   });
-  it("pins the exact selected candidate and model in the operator admission", () => {
-    const cell = cells.find(e => e.profile.credential === "XAI_API_KEY")!;
+  it.each([
+    ["XAI_API_KEY", "grok-4.7"],
+    ["GEMINI_API_KEY", "gemini-3.8-flash"],
+  ])("pins the %s candidate and model in the operator admission", (credential, model) => {
+    const cell = cells.find(e => e.profile.credential === credential)!;
     const env = buildRunnerE2EProcessEnvironment({ PAPERCLIP_RUNNER_ACPX_QUALIFICATION: "ambient" }, [cell]);
-    expect(JSON.parse(env.PAPERCLIP_RUNNER_ACPX_QUALIFICATION!)).toEqual([{ agent: "hermes", model: "grok-4.7" }]);
+    expect(JSON.parse(env.PAPERCLIP_RUNNER_ACPX_QUALIFICATION!)).toEqual([{ agent: "hermes", model }]);
     expect(() => buildRunnerE2EProcessEnvironment({}, [{ ...cell, suite: { ...suite, manualOnly: false } }])).toThrow("explicit");
     expect(cells.every(e => e.profile.modelQualification.source === "candidate_runner_profile")).toBe(true);
     expect(buildMatrixJobs(cells).every(job => job.qualificationCandidate === "hermes")).toBe(true);

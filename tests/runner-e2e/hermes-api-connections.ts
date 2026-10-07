@@ -49,7 +49,9 @@ export const hermesApiConnectionChoices = [
   { provider: "anthropic", credential: "ANTHROPIC_API_KEY", model: "claude-haiku-4-5-20251001" },
   { provider: "openai", credential: "OPENAI_API_KEY", model: "gpt-5.6-luna" },
   { provider: "xai", credential: "XAI_API_KEY", model: "grok-4.7" },
-  { provider: "google", credential: "GEMINI_API_KEY", model: "gemini-2.5-flash" },
+  // Google restricts 2.5 models to prior users even when they appear in the catalog.
+  // https://ai.google.dev/gemini-api/docs/deprecations
+  { provider: "google", credential: "GEMINI_API_KEY", model: "gemini-3.8-flash" },
 ] as const satisfies readonly { provider: string; credential: RunnerProfileFixture["credential"]; model: string }[];
 
 export const hermesApiConnectionDefinitionDigest = createHash("sha256").update(
