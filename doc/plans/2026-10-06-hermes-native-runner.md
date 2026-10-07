@@ -460,3 +460,37 @@ The routine/service and native authority selection passed 102 tests, with one
 stale combined-tool count assertion failing. That assertion was corrected to
 40 while retaining explicit membership checks for both operations; its isolated
 real-database rerun passed. The full fresh PR CI and reviews remain required.
+
+### Review follow-up and replayed Linux proof, 2026-10-07
+
+The credential-free Linux run
+[37642068493](https://github.com/paperclipai/paperclip/actions/runs/37642068493)
+passed both native fixtures after master synchronization: Rust PRP/sidecar in
+18.69 seconds and ACPX/native in 91.39 seconds. Its
+[evidence artifact](https://github.com/paperclipai/paperclip/actions/runs/37642068493/artifacts/11492173396)
+records checkout `98d8c1e30f2f69d48fad3ef0785c1adcd82b0ba3`, PR head
+`96585ac7ff5a2bc8032ba5213fcd23b230815c20`, the same runtime versions and
+pinned Linux closure, and no credentials. This remains transport proof only.
+
+Fresh reviews on the replayed routines and native PRs returned 4/5 and found
+three actionable issues. A native routine edit held its execution agent/issue
+locks before waiting for the scheduler's routine lock. Routine locking now
+uses NOWAIT and returns a retryable 409, rolling back the mutation receipt
+before retry. The real scheduled-firing regression exercises contention,
+agent-row access, receipt rollback, and exactly-once retry. Local PostgreSQL
+failed to start before assertions in two bounded attempts; that regression
+still requires a successful CI execution. Server TypeScript compilation passed.
+The read-only host counter reported 466,103 files against a 491,520 limit;
+the startup failures alone do not establish their cause. No paid macOS rerun
+was launched.
+
+The already-tested planning authority, native transcript and restore fixes
+were moved into the core native PR so it works independently of the
+qualification PR. Text attachments also now count JSON escaping and metadata
+at admission, along with the combined message, against a 7 MiB encoded budget.
+TypeScript and Rust reject over-budget content before active-turn state changes.
+This preserves the 16 MiB encrypted frame limit. Verification passed 28 focused
+TypeScript attachment/permission tests, two encrypted-frame tests carrying
+accepted images and escaped documents, the Rust admission regression, and
+Runner TypeScript compilation. The stack still needs fresh CI and review on
+the resulting heads. No merge has occurred, and Hermes remains gated.
