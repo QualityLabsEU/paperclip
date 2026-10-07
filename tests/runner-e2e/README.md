@@ -246,6 +246,8 @@ Shell variables take precedence over the local file. The recognized names are:
 - `KIMI_MODEL_API_KEY` (local-only pending Kimi CLI/ACP profiles)
 - `XAI_API_KEY` (local Grok API-key profile)
 - `GROK_AUTH_JSON` (local native Grok subscription profile)
+- `GEMINI_API_KEY` (Hermes Google API profile)
+- `AWS_BEARER_TOKEN_BEDROCK` (explicit Hermes Bedrock profile; use a short-lived token for the declared region)
 - `DAYTONA_API_KEY`
 - `CURSOR_AUTH_TOKEN` (extended Cursor candidate)
 - `COPILOT_GITHUB_TOKEN` (extended Copilot candidate)
@@ -1540,6 +1542,26 @@ These cells prove API-account native completion only. Subscriptions, custom
 protocols, Bedrock, refresh/revocation, images and live controls need their own
 qualification. The selected candidate metadata drives pre-credential Hermes
 provisioning and image/provider-pack selection for every Hermes profile.
+
+The separate explicit-only `hermes-bedrock-connections` suite declares two
+pending one-turn cells, on local and Daytona, for
+`us.anthropic.claude-haiku-4-5-20251001-v1:0` in `us-east-1`.
+Supply `AWS_BEARER_TOKEN_BEDROCK` ephemerally to the launcher after verifying
+the runtime and AWS identity. This suite creates a personal managed connection
+with Bedrock routing and selects its returned grant explicitly; routed accounts
+do not become responsible-user provider defaults. Public readback before and
+after the task must match the region, protocol, authentication, model catalog
+and account owner. The native run must match the selected connection, grant,
+owner, Hermes harness and exact inference profile. Both 200-cent budget checks,
+the single-attempt rule and normal evidence/cleanup contracts also apply.
+This scope proves Bedrock completion only; it does not qualify credential
+refresh or make a local AWS run equivalent to Daytona. The paid GitHub workflow
+does not provision this short-lived credential; use the explicit CLI path.
+
+```sh
+pnpm test:e2e:runner -- --list --suite hermes-bedrock-connections
+pnpm test:e2e:runner -- --id hermes-bedrock-connections.runner-acpx-hermes-bedrock.local.hello-complete --max-automatic-retries 0
+```
 
 The separate Runner Evals `extended-harnesses` campaign lives in the private
 `paperclip-evals` repository and grades semantic protocol behavior against the

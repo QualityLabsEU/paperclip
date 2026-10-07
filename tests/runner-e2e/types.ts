@@ -1,3 +1,5 @@
+import type { AiProviderRouting } from "../../packages/shared/src/ai-provider-routing.js";
+
 export const CREDENTIAL_NAMES = [
   "OPENAI_API_KEY",
   "ANTHROPIC_API_KEY",
@@ -6,6 +8,7 @@ export const CREDENTIAL_NAMES = [
   "XAI_API_KEY",
   "GROK_AUTH_JSON",
   "GEMINI_API_KEY",
+  "AWS_BEARER_TOKEN_BEDROCK",
   "DAYTONA_API_KEY",
   "CURSOR_AUTH_TOKEN",
   "COPILOT_GITHUB_TOKEN",
@@ -87,6 +90,8 @@ export interface RunnerProfileFixture {
     sourceUrl: string;
   };
   credential: Exclude<CredentialName, "DAYTONA_API_KEY">;
+  /** Value-free routing saved on an explicitly selected managed connection. */
+  managedConnectionRouting?: AiProviderRouting;
   supportedEnvironments: readonly RunnerEnvironmentId[];
   expectedRuntimeMode: RunnerGeneration;
   expectedRuntimeMetadata: {

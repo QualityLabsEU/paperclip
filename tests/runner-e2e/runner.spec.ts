@@ -1,5 +1,5 @@
 import { runPlanTaskFlow } from "./plan-task-flow.js";
-import { captureHermesApiAccountOwner, captureHermesApiBudgets, gradeHermesApiConnection } from "./hermes-api-connections.js";
+import { captureHermesApiAccountOwner, captureHermesApiBudgets, gradeHermesApiConnection, isHermesConnectionSuite } from "./hermes-api-connections.js";
 import { assertNativeCompletionSelection, NATIVE_COMPLETION_PREFLIGHT_ENV, verifyNativeCompletionPreflight } from "./native-completion-admission.js";
 import { assertNativeInstructionSelection, verifyNativeInstructionPreflight, NATIVE_INSTRUCTION_PREFLIGHT_ENV, NATIVE_INSTRUCTION_SUITE, NATIVE_INSTRUCTION_DEFAULT_SHA256 } from "./native-instruction-consolidation.js";
 import { captureNativeDefault, gradeNativeDefault, nativeCompletionWorkspaceDigest } from "./native-completion-defaults.js";
@@ -895,10 +895,12 @@ for (const execution of executions) {
         daytonaImage: process.env.PAPERCLIP_E2E_DAYTONA_IMAGE,
       });
 
-      if (execution.suite.id === "hermes-api-connections") {
+      if (isHermesConnectionSuite(execution.suite.id)) {
         if (!fixtures.aiConnection) throw new Error("Hermes API account is missing before task creation");
         hermesApiAccountOwner = await captureHermesApiAccountOwner({ api, companyId: fixtures.company.id,
-          connectionId: fixtures.aiConnection.connectionId, provider: fixtures.aiConnection.binding.provider });
+          connectionId: fixtures.aiConnection.connectionId, provider: fixtures.aiConnection.binding.provider,
+          ...(execution.profile.managedConnectionRouting ? { expectedRouting: execution.profile.managedConnectionRouting,
+            expectedGrantId: fixtures.aiConnection.binding.mode === "delegated" ? fixtures.aiConnection.binding.grantId : "" } : {}) });
         await writeSanitizedJson(snapshotsDir, "hermes-api-owner-before-execution.json", hermesApiAccountOwner, secrets);
         if (!hermesApiAccountOwner.checks.every(check => check.passed)) throw new Error("Hermes API owner failed admission before task creation");
         const receipt = await captureHermesApiBudgets({ api, companyId: fixtures.company.id, agentId: fixtures.agent.id });
@@ -2877,11 +2879,22 @@ for (const execution of executions) {
           }
         }
       }
-      if (execution.suite.id === "hermes-api-connections") {
+      if (isHermesConnectionSuite(execution.suite.id)) {
         if (!fixtures?.aiConnection || !issue?.id || !hermesApiAccountOwner?.expectedResponsibleUserId) throw new Error("Hermes connection qualification is missing its selected account, expected user or task");
         const checks = gradeHermesApiConnection({ companyId: fixtures.company.id, agentId: fixtures.agent.id,
           issueId: issue.id, connectionId: fixtures.aiConnection.connectionId, provider: fixtures.aiConnection.binding.provider,
-          expectedResponsibleUserId: hermesApiAccountOwner.expectedResponsibleUserId, model: execution.profile.model, runs: selectedRuns });
+          expectedResponsibleUserId: hermesApiAccountOwner.expectedResponsibleUserId, model: execution.profile.model, runs: selectedRuns,
+          accountMode: fixtures.aiConnection.binding.mode,
+          ...(execution.profile.managedConnectionRouting ? { expectedGrantId: fixtures.aiConnection.binding.mode === "delegated" ? fixtures.aiConnection.binding.grantId : "" } : {}) });
+        if (execution.profile.managedConnectionRouting) {
+          const after = await captureHermesApiAccountOwner({ api, companyId: fixtures.company.id,
+            connectionId: fixtures.aiConnection.connectionId, provider: fixtures.aiConnection.binding.provider,
+            expectedRouting: execution.profile.managedConnectionRouting,
+            expectedGrantId: fixtures.aiConnection.binding.mode === "delegated" ? fixtures.aiConnection.binding.grantId : "" });
+          checks.push(...after.checks.map(check => ({ ...check, id: `after-task-${check.id}` })),
+            { id: "account-owner-preserved", passed: after.expectedResponsibleUserId === hermesApiAccountOwner.expectedResponsibleUserId });
+          await writeSanitizedJson(snapshotsDir, "hermes-api-owner-after-execution.json", after, secrets);
+        }
         matcherResults.push(...checks.map(check => ({ matcher: { kind: "json_path" as const, path: `hermesConnection.${check.id}`, expected: true }, passed: check.passed, detail: "Public native run metadata must match the selected managed API account and exact model." })));
         await writeSanitizedJson(snapshotsDir, "hermes-api-connection.json", { checks }, secrets);
         expect(checks.every(check => check.passed), "Hermes managed account and native model attribution").toBe(true);

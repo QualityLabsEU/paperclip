@@ -5,7 +5,7 @@ import { nativeCompletionProfile, NATIVE_COMPLETION_BUDGET_CENTS } from "./nativ
 import { chatConfirmationTasks } from "./chat-cases.js";
 import { buildConnectionSuite } from "./connection-cases.js";
 import { hiringTemplateTasks, hiringTemplateProfile, hiringTemplateDefinitionDigest } from "./hiring-template-cases.js";
-import { HERMES_API_CONNECTION_BUDGET_CENTS, hermesApiConnectionChoices, hermesApiConnectionDefinitionDigest } from "./hermes-api-connections.js";
+import { HERMES_API_CONNECTION_BUDGET_CENTS, hermesApiConnectionChoices, hermesApiConnectionDefinitionDigest, hermesBedrockConnectionChoice } from "./hermes-api-connections.js";
 import { nativeActiveStopTasks } from "./native-active-stop-tasks.js";
 import { cursorNativeTasks } from "./cursor-native-cases.js";
 import { instructionPersistenceTask } from "./instruction-persistence.js";
@@ -180,6 +180,7 @@ function nativeProfile(input: {
   supportedEnvironments?: readonly (typeof ENVIRONMENT_IDS)[number][];
   modelQualification?: RunnerProfileFixture["modelQualification"];
   ranking?: RunnerProfileFixture["ranking"];
+  managedConnectionRouting?: RunnerProfileFixture["managedConnectionRouting"];
 }): RunnerProfileFixture {
   return {
     ...input,
@@ -374,6 +375,15 @@ export const hermesApiConnectionProfiles: readonly RunnerProfileFixture[] = [
     },
   })),
 ];
+
+/** Region-bound Bedrock credentials enter only through a managed connection. */
+export const hermesBedrockConnectionProfile = nativeProfile({
+  id: "runner-acpx-hermes-bedrock", label: "Hermes Bedrock (candidate)",
+  provider: "acpx", acpxAgent: "hermes", qualificationCandidate: "hermes",
+  credential: hermesBedrockConnectionChoice.credential, model: hermesBedrockConnectionChoice.model,
+  managedConnectionRouting: structuredClone(hermesBedrockConnectionChoice.routing),
+  modelQualification: { source: "candidate_runner_profile", qualificationId: "hermes:v2026.9.24:bedrock:us-east-1:discovery-2026-10-07:pending" },
+});
 
 /** Narrow legacy ACP lanes used only by the explicit context-integrity matrix. */
 export const legacyAcpxProfiles: readonly RunnerProfileFixture[] = [
@@ -1216,6 +1226,20 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
     },
   },
   {
+    id: "hermes-bedrock-connections", label: "Hermes managed Bedrock connection", manualOnly: true,
+    description: "One native browser task using an explicitly selected personal Bedrock account, exact inference profile and independently verified region.",
+    groups: ["native"], profiles: [hermesBedrockConnectionProfile], environments: runnerEnvironments,
+    tasks: [{ ...openRouterBreadthTasks.find(task => task.id === "hello-complete")!, automaticRetryPolicy: "single_attempt" }],
+    expectedMatrixSize: 2,
+    definitionMetadata: {
+      version: 1, qualification: "pending", scheduling: "explicit-only", authenticatedDiscoveryDate: "2026-10-07",
+      accountMethod: "api_key", accountMode: "delegated", providerTurns: 1, expectedUserSource: "public-account-owner-before-task",
+      routingSource: "public-selected-account-before-and-after-task", credentialScope: "ephemeral-region-bound-bearer",
+      budgetMonthlyCents: HERMES_API_CONNECTION_BUDGET_CENTS, maximumAttemptsPerCell: 1,
+      coverage: "bedrock-account-native-completion-only", sourceDigest: hermesApiConnectionDefinitionDigest,
+    },
+  },
+  {
     id: "instruction-persistence", label: "Instruction Persistence",
     description: "Agent-owned text and binary files round trip through the editor, survive a server restart and fresh task, and synchronize concurrent edits per file with last-sync-wins.",
     groups: [], profiles: codexContinuityProfiles,
@@ -1595,6 +1619,7 @@ export function suiteDefinitionHash(suite: RunnerSuiteFixture) {
           id: profile.id,
           model: profile.model,
           qualification: profile.modelQualification,
+          ...(profile.managedConnectionRouting ? { managedConnectionRouting: profile.managedConnectionRouting } : {}),
         })),
         environments: suite.environments.map((environment) => ({
           id: environment.id,
@@ -1691,7 +1716,7 @@ function assertNoRawSecretValues(value: unknown, label: string) {
 
 export function validateRunnerCatalog(): MatrixExecution[] {
   const connectionSuite = runnerSuites.find(suite => suite.id === "provider-connections")!;
-  const allProfiles = [...connectionSuite.profiles, ...extendedHarnessProfiles, ...hermesApiConnectionProfiles.filter(p => !extendedHarnessProfiles.some(existing => existing.id === p.id)), ...runnerProfiles, ...legacyAcpxProfiles, ...pendingContextIntegrityProfiles, ...openRouterBreadthProfiles, ...everydayProfiles.filter(p => !runnerProfiles.some(existing => existing.id === p.id))];
+  const allProfiles = [...connectionSuite.profiles, ...extendedHarnessProfiles, hermesBedrockConnectionProfile, ...hermesApiConnectionProfiles.filter(p => !extendedHarnessProfiles.some(existing => existing.id === p.id)), ...runnerProfiles, ...legacyAcpxProfiles, ...pendingContextIntegrityProfiles, ...openRouterBreadthProfiles, ...everydayProfiles.filter(p => !runnerProfiles.some(existing => existing.id === p.id))];
   const allTasks = [
     ...connectionSuite.tasks,
     extendedHarnessFileTask,

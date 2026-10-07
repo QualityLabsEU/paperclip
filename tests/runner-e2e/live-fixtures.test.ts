@@ -97,6 +97,7 @@ describe("live runner fixtures", () => {
     ["runner-acpx-hermes-api-openai", "hermes-api-connections", "hello-complete"],
     ["runner-acpx-hermes-api-xai", "hermes-api-connections", "hello-complete"],
     ["runner-acpx-hermes-api-google", "hermes-api-connections", "hello-complete"],
+    ["runner-acpx-hermes-bedrock", "hermes-bedrock-connections", "hello-complete"],
     ["runner-codex", "hiring-templates", "hire-coder-template-reuse"],
     ["runner-acpx-claude", "hiring-templates", "hire-coder-template-reuse"],
     ["runner-codex", "everyday-workflows", "hire-reuse"],
@@ -116,7 +117,7 @@ describe("live runner fixtures", () => {
       )!;
       const provider =
         profile === "runner-acpx-hermes-api-xai" ? "xai" : profile === "runner-acpx-hermes-api-google" ? "google"
-          : ["runner-acpx-claude", "runner-acpx-hermes-api-anthropic"].includes(profile) ? "anthropic"
+          : ["runner-acpx-claude", "runner-acpx-hermes-api-anthropic", "runner-acpx-hermes-bedrock"].includes(profile) ? "anthropic"
           : ["runner-opencode", "runner-acpx-hermes"].includes(profile) ? "openrouter" : "openai";
       let connected = false;
       let companyBody: any;
@@ -141,7 +142,8 @@ describe("live runner fixtures", () => {
               allAgents: false,
             });
             connected = true;
-            return { connectionId: "managed-account" };
+            expect(data.routing).toEqual(execution.profile.managedConnectionRouting);
+            return { connectionId: "managed-account", grantId: "managed-grant" };
           }
           return { id: "secret" };
         },
@@ -159,7 +161,7 @@ describe("live runner fixtures", () => {
         },
       });
       expect(connected).toBe(true);
-      if (suite === "hermes-api-connections") {
+      if (["hermes-api-connections", "hermes-bedrock-connections"].includes(suite)) {
         expect(companyBody.budgetMonthlyCents).toBe(200);
         expect(agentBody.budgetMonthlyCents).toBe(200);
       }
@@ -167,7 +169,9 @@ describe("live runner fixtures", () => {
       expect(agentBody.runtimeConfig.aiConnection).toEqual({
         provider,
         method: "api_key",
-        mode: "responsible_user",
+        ...(execution.profile.managedConnectionRouting
+          ? { mode: "delegated", connectionId: "managed-account", grantId: "managed-grant" }
+          : { mode: "responsible_user" }),
       });
       expect((fixtures as any).aiConnection.connectionId).toBe(
         "managed-account",

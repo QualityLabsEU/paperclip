@@ -10,6 +10,12 @@ and Daytona, with independent account/model attribution. Its registered cells
 remain pending until their live evidence passes; its API-only scope leaves the
 subscription and lifecycle gates separate.
 
+The same guide registers the separate explicit-only `hermes-bedrock-connections`
+suite for one exact `us-east-1` inference profile on local and Daytona. Its two
+cells remain pending. They verify the explicitly selected personal grant and
+public region/protocol/model routing before and after native completion, using
+a short-lived AWS bearer credential and the existing budget/evidence pipeline.
+
 Paperclip has two live eval families with different questions, owners, and
 evidence. Choose the family before selecting a model, profile, or case.
 

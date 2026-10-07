@@ -1,25 +1,41 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { isDeepStrictEqual } from "node:util";
+import type { AiProviderRouting } from "../../packages/shared/src/ai-provider-routing.js";
 import type { RunnerProfileFixture } from "./types.js";
 
 const record = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const present = (value: unknown) => typeof value === "string" && value.trim().length > 0;
 export const HERMES_API_CONNECTION_BUDGET_CENTS = 200;
+export const isHermesConnectionSuite = (suiteId: string) =>
+  suiteId === "hermes-api-connections" || suiteId === "hermes-bedrock-connections";
+export const hermesBedrockConnectionChoice = {
+  credential: "AWS_BEARER_TOKEN_BEDROCK",
+  model: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  routing: { kind: "bedrock", protocol: "bedrock", auth: "bearer", region: "us-east-1",
+    models: [{ id: "us.anthropic.claude-haiku-4-5-20251001-v1:0" }] },
+} as const satisfies { credential: RunnerProfileFixture["credential"]; model: string; routing: AiProviderRouting };
 
 /** Establish the intended personal-account user independently, before a paid task. */
 export async function captureHermesApiAccountOwner(input: {
   api: { get<T>(path: string): Promise<T> }; companyId: string; connectionId: string; provider: string;
+  expectedRouting?: AiProviderRouting; expectedGrantId?: string;
 }) {
   const listed = await input.api.get<{ currentUserId: string; connections: {
     id: string; companyId: string; provider: string; method: string; ownership: string; ownerUserId?: string; status: string;
+    routing?: AiProviderRouting; grantId?: string;
   }[] }>(`/api/companies/${input.companyId}/ai-connections`);
   const matches = listed.connections.filter(connection => connection.id === input.connectionId);
   const selected = matches[0];
-  return { expectedResponsibleUserId: selected?.ownerUserId ?? null, checks: [
+  return { expectedResponsibleUserId: selected?.ownerUserId ?? null,
+    ...(input.expectedRouting ? { routing: { expected: input.expectedRouting, observed: selected?.routing ?? null } } : {}),
+    checks: [
     { id: "selected-account-public-readback", passed: matches.length === 1 && selected?.companyId === input.companyId && selected.provider === input.provider && selected.method === "api_key" && selected.ownership === "personal" && selected.status === "connected" },
     { id: "authenticated-caller-known", passed: present(listed.currentUserId) },
     { id: "selected-account-owned-by-caller", passed: present(selected?.ownerUserId) && selected?.ownerUserId === listed.currentUserId },
+    ...(input.expectedRouting ? [{ id: "selected-account-routing", passed: isDeepStrictEqual(selected?.routing, input.expectedRouting) }] : []),
+    ...(input.expectedGrantId !== undefined ? [{ id: "selected-account-grant", passed: present(input.expectedGrantId) && selected?.grantId === input.expectedGrantId }] : []),
   ] };
 }
 
@@ -40,6 +56,7 @@ export async function captureHermesApiBudgets(input: {
 /** Grade public run/account/model metadata; a model's completion claim cannot supply it. */
 export function gradeHermesApiConnection(input: {
   companyId: string; agentId: string; issueId: string; connectionId: string; provider: string; model: string; expectedResponsibleUserId: string;
+  accountMode?: "responsible_user" | "delegated"; expectedGrantId?: string;
   runs: readonly {
     companyId: string; agentId: string; status: string; runtimeMode?: string;
     issueId?: string | null; responsibleUserId?: string | null;
@@ -53,7 +70,8 @@ export function gradeHermesApiConnection(input: {
   return [
     { id: "one-successful-native-run", passed: input.runs.length === 1 && run?.status === "succeeded" && run.runtimeMode === "native" },
     { id: "company-agent-task-scope", passed: run?.companyId === input.companyId && run.agentId === input.agentId && run.issueId === input.issueId },
-    { id: "selected-managed-api-account", passed: account.connectionId === input.connectionId && account.provider === input.provider && account.method === "api_key" && account.mode === "responsible_user" },
+    { id: "selected-managed-api-account", passed: account.connectionId === input.connectionId && account.provider === input.provider && account.method === "api_key" && account.mode === (input.accountMode ?? "responsible_user") },
+    ...(input.expectedGrantId !== undefined ? [{ id: "selected-managed-account-grant", passed: present(input.expectedGrantId) && account.grantId === input.expectedGrantId }] : []),
     { id: "responsible-user-attribution", passed: present(input.expectedResponsibleUserId) && run?.responsibleUserId === input.expectedResponsibleUserId && account.responsibleUserId === input.expectedResponsibleUserId },
     { id: "native-hermes-provider", passed: provider.kind === "acpx" && provider.agent === "hermes" && provider.model === input.model },
     { id: "exact-native-model", passed: identity.kind === "acpx" && identity.requestedModel === input.model && identity.effectiveModel === input.model },

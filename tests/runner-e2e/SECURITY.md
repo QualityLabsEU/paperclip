@@ -30,6 +30,18 @@ public structured evidence. Treat changes to the workflow, harness, fixture
 prompts, evidence packager, and publisher as security-sensitive production
 changes.
 
+## Short-lived Bedrock qualification
+
+The explicit-only `hermes-bedrock-connections` suite accepts a short-lived,
+region-bound `AWS_BEARER_TOKEN_BEDROCK` from the launcher. The browser fixture
+posts it through the sensitive public Connections API into encrypted storage;
+the agent selects that exact personal grant. The isolated server inherits no
+ambient `AWS_*` values, including profile, credential-file paths, static keys,
+session tokens or container-role endpoints. The selected bearer joins the
+attempt redaction set. Do not persist it in catalog data or evidence, copy an
+operator's AWS files, create a long-lived key for this fixture, or widen IAM
+permissions. The paid GitHub workflow does not supply this credential.
+
 ## GitHub authorization
 
 Set `RUNNER_E2E_ALLOWED_ACTOR_IDS` to a non-empty JSON array of numeric GitHub

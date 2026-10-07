@@ -709,3 +709,31 @@ because GitHub returned HTTP 429 for the pinned source archive. No native fixtur
 or provider execution occurred. This is retained as a download infrastructure
 failure; it is not evidence of a closure mismatch. The separate credential-free
 AWS build continues against its recorded immutable source.
+
+### Corrected cloud image and Bedrock fixture preparation, 2026-10-07
+
+The corrected credential-free AWS build completed successfully in 11.73 minutes
+at source `d389750b90787ea5240d0f8f4e92396a1d9d20a1`. Its immutable image digest is
+`sha256:5f457b7aed4dc224c77125edb7b17fd1aedc9e7bad0a9ce92d454cecc660e767`.
+The independent collected proof verifies fresh Linux closure
+`6166fadd24dae41b9fdfd994e6c7bc129e9317ed252b7dabdd777b691ab47771`
+and the original frozen dependency-lock SHA
+`f5ee14ee77b1dc7771fe455d619c880fc64b1e62e40a15704addc9f7430e5c50`.
+No provider credentials or local Docker were used. This proves the corrected
+Linux distribution; it does not prove execution-host namespace compatibility,
+browser behavior or Daytona. The ledger reserves $19 of the $25 cap after the
+additional $2 cloud-build reservation; actual billing remains incomplete.
+
+The new explicit-only `hermes-bedrock-connections` suite registers two pending
+completion cells on local and Daytona. Read-only AWS discovery confirmed the
+exact `us.anthropic.claude-haiku-4-5-20251001-v1:0` inference profile is active
+in `us-east-1`. The fixture uses an ephemeral region-bound bearer, a public
+personal Connections account and its explicitly selected grant. It verifies
+the public account's owner, grant, region, protocol, authentication and model
+catalog before task creation and after completion, and grades the actual native
+run's selected account, grant and exact inference profile. The server inherits
+no ambient AWS environment settings. It retains the existing 200-cent company
+and agent budget admission and one-attempt policy. All 129 affected fixture and
+catalog tests, Product E2E TypeScript, two-cell discovery and diff checks passed.
+No Bedrock inference, credential refresh or Daytona execution is claimed from
+this fixture preparation. Hermes remains pending qualification.

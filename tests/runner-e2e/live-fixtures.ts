@@ -1,5 +1,6 @@
 import { NATIVE_COMPLETION_BUDGET_CENTS } from "./native-completion-defaults.js";
-import { HERMES_API_CONNECTION_BUDGET_CENTS } from "./hermes-api-connections.js";
+import { HERMES_API_CONNECTION_BUDGET_CENTS, isHermesConnectionSuite } from "./hermes-api-connections.js";
+import type { AiConnectionBinding } from "../../packages/shared/src/ai-connections.js";
 import path from "node:path";
 import { installedReleaseDaytonaPlugin } from "./installed-release.js";
 import { isManagedHiringCase } from "./chat-cases.js";
@@ -40,11 +41,7 @@ interface AgentRecord {
 }
 interface ManagedAccountFixture {
   connectionId: string;
-  binding: {
-    provider: "openai" | "anthropic" | "openrouter" | "xai" | "google";
-    method: "api_key";
-    mode: "responsible_user";
-  };
+  binding: Extract<AiConnectionBinding, { mode: "responsible_user" | "delegated" }>;
 }
 
 interface ProjectRecord {
@@ -140,7 +137,7 @@ export async function setupLiveFixtures(input: {
       return api.post<CompanyRecord>("/api/companies", {
         name: `Runner E2E ${execution.id} ${input.executionNonce}`,
         description: "Ephemeral paid full-stack runner acceptance fixture",
-        budgetMonthlyCents: execution.suite.id === "hermes-api-connections" ? HERMES_API_CONNECTION_BUDGET_CENTS
+        budgetMonthlyCents: isHermesConnectionSuite(execution.suite.id) ? HERMES_API_CONNECTION_BUDGET_CENTS
           : ["native-completion", "native-instruction-consolidation", "native-connection-guidance"].includes(execution.suite.id)
           || (execution.suite.id === "everyday-workflows" && ["hire-reuse", "delegate-feedback"].includes(execution.task.id)) ? NATIVE_COMPLETION_BUDGET_CENTS
           : execution.suite.id === "task-titles" ? TASK_TITLE_BUDGET_CENTS
@@ -252,7 +249,7 @@ export async function setupLiveFixtures(input: {
       async setup(resolved) {
         const company = value<CompanyRecord>(resolved, "company");
         const key = execution.profile.credential;
-        const provider = key === "ANTHROPIC_API_KEY" ? "anthropic"
+        const provider = key === "ANTHROPIC_API_KEY" || key === "AWS_BEARER_TOKEN_BEDROCK" ? "anthropic"
           : key === "OPENROUTER_API_KEY" ? "openrouter"
           : key === "OPENAI_API_KEY" ? "openai"
           : key === "XAI_API_KEY" ? "xai"
@@ -260,21 +257,26 @@ export async function setupLiveFixtures(input: {
         if (!provider) throw new Error(`Unsupported managed hiring credential ${key}`);
         const apiKey = input.credentials[key];
         if (!apiKey) throw new Error(`Missing credential ${key}`);
-        const account = await api.postSensitive<{ connectionId: string }>(
+        const routing = execution.profile.managedConnectionRouting;
+        const account = await api.postSensitive<{ connectionId: string; grantId: string }>(
           `/api/companies/${company.id}/ai-connections`,
           {
             provider,
             method: "api_key",
             name: `Runner E2E account ${input.executionNonce}`,
             ownership: "personal",
+            ...(routing ? { routing } : {}),
             apiKey,
             agentIds: [],
             allAgents: false,
           },
         );
+        if (routing && !account.grantId) throw new Error("Routed managed connection did not return its personal grant");
         return {
           connectionId: account.connectionId,
-          binding: { provider, method: "api_key", mode: "responsible_user" },
+          binding: routing
+            ? { provider, method: "api_key", mode: "delegated", connectionId: account.connectionId, grantId: account.grantId }
+            : { provider, method: "api_key", mode: "responsible_user" },
         };
       },
     });
@@ -304,7 +306,7 @@ export async function setupLiveFixtures(input: {
         || (execution.suite.id === "everyday-workflows" && ["hire-reuse", "delegate-feedback"].includes(execution.task.id))) {
         agent.budgetMonthlyCents = 1_000;
       }
-      if (execution.suite.id === "hermes-api-connections") agent.budgetMonthlyCents = HERMES_API_CONNECTION_BUDGET_CENTS;
+      if (isHermesConnectionSuite(execution.suite.id)) agent.budgetMonthlyCents = HERMES_API_CONNECTION_BUDGET_CENTS;
       if (managedHiring) {
         const account = value<ManagedAccountFixture>(resolved, "ai-connection");
         const config = agent.adapterConfig as Record<string, unknown>;
