@@ -200,6 +200,7 @@ export interface RunnerSuiteFixture {
 }
 
 export interface MatrixJob {
+  qualificationCandidate?: RunnerProfileFixture["qualificationCandidate"];
   executionId: string;
   suiteId: string;
   profileId: string;

@@ -508,3 +508,70 @@ now covers shared Runner sources, Rust and build manifests, dependency patches,
 and shared workspace inputs. A glob-matching regression verifies those changes
 trigger the native fixture. Paid workflow authorization is unchanged. This
 follow-up requires another exact-head review and CI run.
+
+### Cloud image and live Linux browser proof, 2026-10-07
+
+The trigger-coverage fix passed fresh CI and Greptile 5/5 at qualification head
+`575d3bb665e7eb848f1607797f27635aba2e27f5`. Routines
+`f2c047d07147f710b40b2dffcb097a71676dc8f4` and native integration
+`45f591120dc78a080f347f3d3e4ad4fd05a19993` also have green checks and fresh
+5/5 reviews with no unresolved threads. No PR has been merged. Further fixture
+changes require new exact-head checks and review.
+
+The candidate image built successfully in AWS CodeBuild from
+`8e31afda4ff3b4c0415bc26f8bb35cec17437741`, whose only change from the above
+qualification head selects Hermes in the Dockerfile's candidate-pack default.
+Its independently verified immutable digest is
+`sha256:b8b8a3279e27a58d6cf5269b7e6480914f34bf036d74abb5d1e65b99996ccd6e`.
+The build used a checksum-bound resolved lock, frozen dependencies, no provider
+credentials, Python 3.12.14, ACP 0.9.0, ACPX 0.13.1 and the pinned Hermes release.
+The image remains private and pending qualification. No local Docker build was
+used; Docker Desktop was stopped again when another local process restarted it.
+
+CodeBuild could build the image but its execution filesystem rejected native
+bubblewrap with `Can't open source /: Function not implemented`. That failed
+credential-free probe is retained. The same image passed its unmodified native
+command policy on a disposable EC2 amd64 host, Amazon Linux kernel
+`6.1.188-233.386.amzn2023.x86_64`. The qualifier ran as uid 1001 inside an
+explicitly privileged cloud container: protected files remained hidden,
+assigned skills remained read-only, and allowed workspace writes succeeded.
+This establishes this EC2 host's compatibility; it does not qualify Daytona.
+
+Three real Linux Product E2E cells passed through Chromium, an isolated Paperclip
+server/database, Runnerd, ACPX, native Hermes and managed OpenRouter model
+`deepseek/deepseek-v4-flash-0731`:
+
+| Case | Campaign suffix | Duration | Native runs | Cleanup |
+| --- | --- | --- | --- | --- |
+| `hello-complete` | `71743c4f328f` | 72.351 seconds | 1 | Passed |
+| `question-resume-complete` | `703f08761be6` | 133.251 seconds | 2 | Passed |
+| `plan-approve-complete` | `8662152371fd` | 140.890 seconds | 2 | Passed |
+
+All three results bind the exact image-source commit above. The catalog environment
+is `local`, with a separately recorded AWS EC2 Linux execution host; these are
+not Daytona/remote-target passes. The first case independently verified Done,
+one final answer and a successful native run, with a reviewed final screenshot.
+The second retained the question and final screenshots and verified the answer
+and continuation. The third verified plan approval, continuation and completion,
+with two retained screenshots. Runtime cost is not metered by that local catalog; external
+EC2 cost is separate. Native token usage was available for the completion run
+and one of the two runs in each question/approval workflow. Model cost remains unpriced/incomplete, and
+shared-key aggregate budget readings do not establish exact per-run cost.
+
+The initial cloud browser attempt failed before server bootstrap because the
+disposable controller lacked the compiled plugin SDK. It produced zero agent
+runs, and its failed result and budget readings are retained. Setup now builds
+the SDK and imports the server before model-credential handoff. Each live cell
+has one attempt and no automatic retry. Secrets are passed only after verified
+setup through a fresh job-bound encrypted exchange, without plaintext local
+credential files. Private proof and campaign archives remain in the task's
+restricted S3 evidence prefix with bounded retention; public source/docs contain
+no credentials or raw provider traces.
+
+The new explicit-only `hermes-api-connections` matrix declares ten API-account
+completion cells with independently graded native account/model attribution.
+Authenticated OpenAI, Anthropic, xAI and Google catalog reads succeeded without
+inference. Those discoveries and the new fixture calibration do not constitute
+live provider qualification. The complete original release gates remain open:
+the rest of the live controls, attachments, state/routines, credential lifecycle,
+subscriptions/custom protocols/Bedrock and actual Daytona proof are still required.

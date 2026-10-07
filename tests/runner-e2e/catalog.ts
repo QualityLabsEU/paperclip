@@ -5,6 +5,7 @@ import { nativeCompletionProfile, NATIVE_COMPLETION_BUDGET_CENTS } from "./nativ
 import { chatConfirmationTasks } from "./chat-cases.js";
 import { buildConnectionSuite } from "./connection-cases.js";
 import { hiringTemplateTasks, hiringTemplateProfile, hiringTemplateDefinitionDigest } from "./hiring-template-cases.js";
+import { hermesApiConnectionChoices, hermesApiConnectionDefinitionDigest } from "./hermes-api-connections.js";
 import { nativeActiveStopTasks } from "./native-active-stop-tasks.js";
 import { cursorNativeTasks } from "./cursor-native-cases.js";
 import { instructionPersistenceTask } from "./instruction-persistence.js";
@@ -359,6 +360,19 @@ export const extendedHarnessProfiles: readonly RunnerProfileFixture[] = [
     qualificationCandidate: "pi", credential: "OPENROUTER_API_KEY", model: ACPX_QUALIFICATION_MODELS.pi,
     modelQualification: { source: "candidate_runner_profile", qualificationId: "pi:0.0.33:0.84.2:openrouter" },
   }),
+];
+
+export const hermesApiConnectionProfiles: readonly RunnerProfileFixture[] = [
+  extendedHarnessProfiles.find(profile => profile.qualificationCandidate === "hermes")!,
+  ...hermesApiConnectionChoices.map(choice => nativeProfile({
+    id: `runner-acpx-hermes-api-${choice.provider}`, label: `Hermes ${choice.provider} API (candidate)`,
+    provider: "acpx", acpxAgent: "hermes", qualificationCandidate: "hermes",
+    credential: choice.credential, model: choice.model,
+    modelQualification: {
+      source: "candidate_runner_profile",
+      qualificationId: `hermes:v2026.9.24:${choice.provider}:api:catalog-2026-10-07:pending`,
+    },
+  })),
 ];
 
 /** Narrow legacy ACP lanes used only by the explicit context-integrity matrix. */
@@ -1189,6 +1203,18 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
     definitionMetadata: { version: 1, qualification: "pending", scheduling: "explicit-only", admission: "host-exact-candidate-and-model", authenticatedDiscoveryDate: "2026-09-28" },
   },
   {
+    id: "hermes-api-connections", label: "Hermes managed API connections", manualOnly: true,
+    description: "One native browser task per exact model using an independently selected managed API account; catalog discovery is not inference proof.",
+    groups: ["native"], profiles: hermesApiConnectionProfiles, environments: runnerEnvironments,
+    tasks: [openRouterBreadthTasks.find(task => task.id === "hello-complete")!],
+    expectedMatrixSize: 10,
+    definitionMetadata: {
+      version: 1, qualification: "pending", scheduling: "explicit-only", authenticatedDiscoveryDate: "2026-10-07",
+      accountMethod: "api_key", accountMode: "responsible_user", providerTurns: 1,
+      coverage: "api-account-native-completion-only", sourceDigest: hermesApiConnectionDefinitionDigest,
+    },
+  },
+  {
     id: "instruction-persistence", label: "Instruction Persistence",
     description: "Agent-owned text and binary files round trip through the editor, survive a server restart and fresh task, and synchronize concurrent edits per file with last-sync-wins.",
     groups: [], profiles: codexContinuityProfiles,
@@ -1664,7 +1690,7 @@ function assertNoRawSecretValues(value: unknown, label: string) {
 
 export function validateRunnerCatalog(): MatrixExecution[] {
   const connectionSuite = runnerSuites.find(suite => suite.id === "provider-connections")!;
-  const allProfiles = [...connectionSuite.profiles, ...extendedHarnessProfiles, ...runnerProfiles, ...legacyAcpxProfiles, ...pendingContextIntegrityProfiles, ...openRouterBreadthProfiles, ...everydayProfiles.filter(p => !runnerProfiles.some(existing => existing.id === p.id))];
+  const allProfiles = [...connectionSuite.profiles, ...extendedHarnessProfiles, ...hermesApiConnectionProfiles.filter(p => !extendedHarnessProfiles.some(existing => existing.id === p.id)), ...runnerProfiles, ...legacyAcpxProfiles, ...pendingContextIntegrityProfiles, ...openRouterBreadthProfiles, ...everydayProfiles.filter(p => !runnerProfiles.some(existing => existing.id === p.id))];
   const allTasks = [
     ...connectionSuite.tasks,
     extendedHarnessFileTask,

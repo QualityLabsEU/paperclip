@@ -4,6 +4,12 @@ The explicit-only [live provider connection suite](../tests/runner-e2e/PROVIDER-
 is a Product E2E workflow for fresh subscription/API-key/gateway connections,
 with attended login and independent artifact checks against local or staging targets.
 
+The explicit-only [Hermes managed API suite](../tests/runner-e2e/README.md#extended-acp-harnesses-explicit-only)
+checks native completion through five selected managed API accounts on local
+and Daytona, with independent account/model attribution. Its registered cells
+remain pending until their live evidence passes; its API-only scope leaves the
+subscription and lifecycle gates separate.
+
 Paperclip has two live eval families with different questions, owners, and
 evidence. Choose the family before selecting a model, profile, or case.
 

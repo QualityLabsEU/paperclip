@@ -93,6 +93,10 @@ describe("live runner fixtures", () => {
 
   it.each([
     ["runner-acpx-hermes", "extended-harnesses", "hello-complete"],
+    ["runner-acpx-hermes-api-anthropic", "hermes-api-connections", "hello-complete"],
+    ["runner-acpx-hermes-api-openai", "hermes-api-connections", "hello-complete"],
+    ["runner-acpx-hermes-api-xai", "hermes-api-connections", "hello-complete"],
+    ["runner-acpx-hermes-api-google", "hermes-api-connections", "hello-complete"],
     ["runner-codex", "hiring-templates", "hire-coder-template-reuse"],
     ["runner-acpx-claude", "hiring-templates", "hire-coder-template-reuse"],
     ["runner-codex", "everyday-workflows", "hire-reuse"],
@@ -111,7 +115,9 @@ describe("live runner fixtures", () => {
           e.environment.id === "local",
       )!;
       const provider =
-        profile === "runner-acpx-claude" ? "anthropic" : ["runner-opencode", "runner-acpx-hermes"].includes(profile) ? "openrouter" : "openai";
+        profile === "runner-acpx-hermes-api-xai" ? "xai" : profile === "runner-acpx-hermes-api-google" ? "google"
+          : ["runner-acpx-claude", "runner-acpx-hermes-api-anthropic"].includes(profile) ? "anthropic"
+          : ["runner-opencode", "runner-acpx-hermes"].includes(profile) ? "openrouter" : "openai";
       let connected = false;
       let agentBody: any;
       const api = {

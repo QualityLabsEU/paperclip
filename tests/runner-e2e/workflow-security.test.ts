@@ -59,7 +59,7 @@ describe("public repository paid workflow security", () => {
   it("provisions selected Hermes assets before credentials and uses the same selection for image identity and packs", async () => {
     const workflow = await readFile(path.join(repositoryRoot, ".github/workflows/runner-full-stack-e2e.yml"), "utf8");
     const catalog = workflow.slice(workflow.indexOf("  catalog:"), workflow.indexOf("  daytona_image:"));
-    expect(catalog).toContain('if any(.include[]; .profileId == "runner-acpx-hermes") then "hermes" else "" end');
+    expect(catalog).toContain('if any(.include[]; .qualificationCandidate == "hermes") then "hermes" else "" end');
     expect(catalog.indexOf("Validate selectors and emit matrix")).toBeLessThan(catalog.indexOf("Compute Daytona image content ID"));
     expect(catalog).toContain('"--candidate-providers=$CANDIDATE_PROVIDERS"');
     const image = workflow.slice(workflow.indexOf("  daytona_image:"), workflow.indexOf("  build_runner_artifacts:"));
@@ -70,7 +70,7 @@ describe("public repository paid workflow security", () => {
     expect(pack).toContain('"--candidate-providers=$CANDIDATE_PROVIDERS"');
     expect(pack).not.toContain("secrets.");
     const paid = workflow.slice(workflow.indexOf("  test:"), workflow.indexOf("  aggregate:"));
-    expect(paid).toContain("matrix.environmentId == 'local' && matrix.profileId == 'runner-acpx-hermes'");
+    expect(paid).toContain("matrix.environmentId == 'local' && matrix.qualificationCandidate == 'hermes'");
     const setup = paid.indexOf("Provision pinned Hermes before the paid local test");
     expect(setup).toBeGreaterThan(0);
     expect(setup).toBeLessThan(paid.indexOf("secrets.OPENROUTER_API_KEY"));

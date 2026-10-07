@@ -1,4 +1,5 @@
 import { runPlanTaskFlow } from "./plan-task-flow.js";
+import { gradeHermesApiConnection } from "./hermes-api-connections.js";
 import { assertNativeCompletionSelection, NATIVE_COMPLETION_PREFLIGHT_ENV, verifyNativeCompletionPreflight } from "./native-completion-admission.js";
 import { assertNativeInstructionSelection, verifyNativeInstructionPreflight, NATIVE_INSTRUCTION_PREFLIGHT_ENV, NATIVE_INSTRUCTION_SUITE, NATIVE_INSTRUCTION_DEFAULT_SHA256 } from "./native-instruction-consolidation.js";
 import { captureNativeDefault, gradeNativeDefault, nativeCompletionWorkspaceDigest } from "./native-completion-defaults.js";
@@ -111,6 +112,8 @@ interface RunRecord {
   id: string;
   companyId: string;
   agentId: string;
+  issueId?: string | null;
+  responsibleUserId?: string | null;
   status: string;
   runtimeMode?: string;
   continuationAttempt?: number;
@@ -2862,6 +2865,15 @@ for (const execution of executions) {
             await writeSanitizedJson(snapshotsDir, "native-document-navigation.json", { href, documentKey: document.key, revisionId: document.latestRevisionId, opened }, secrets);
           }
         }
+      }
+      if (execution.suite.id === "hermes-api-connections") {
+        if (!fixtures?.aiConnection || !issue?.id) throw new Error("Hermes connection qualification is missing its selected account or task");
+        const checks = gradeHermesApiConnection({ companyId: fixtures.company.id, agentId: fixtures.agent.id,
+          issueId: issue.id, connectionId: fixtures.aiConnection.connectionId, provider: fixtures.aiConnection.binding.provider,
+          model: execution.profile.model, runs: selectedRuns });
+        matcherResults.push(...checks.map(check => ({ matcher: { kind: "json_path" as const, path: `hermesConnection.${check.id}`, expected: true }, passed: check.passed, detail: "Public native run metadata must match the selected managed API account and exact model." })));
+        await writeSanitizedJson(snapshotsDir, "hermes-api-connection.json", { checks }, secrets);
+        expect(checks.every(check => check.passed), "Hermes managed account and native model attribution").toBe(true);
       }
       if (runsCompletionUpdateProbe(execution) && credentials.OPENAI_API_KEY) {
         const qualification = completionQualityStatus(completionQuality);

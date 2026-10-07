@@ -40,7 +40,7 @@ interface AgentRecord {
 interface ManagedAccountFixture {
   connectionId: string;
   binding: {
-    provider: "openai" | "anthropic" | "openrouter";
+    provider: "openai" | "anthropic" | "openrouter" | "xai" | "google";
     method: "api_key";
     mode: "responsible_user";
   };
@@ -252,7 +252,9 @@ export async function setupLiveFixtures(input: {
         const key = execution.profile.credential;
         const provider = key === "ANTHROPIC_API_KEY" ? "anthropic"
           : key === "OPENROUTER_API_KEY" ? "openrouter"
-          : key === "OPENAI_API_KEY" ? "openai" : null;
+          : key === "OPENAI_API_KEY" ? "openai"
+          : key === "XAI_API_KEY" ? "xai"
+          : key === "GEMINI_API_KEY" ? "google" : null;
         if (!provider) throw new Error(`Unsupported managed hiring credential ${key}`);
         const apiKey = input.credentials[key];
         if (!apiKey) throw new Error(`Missing credential ${key}`);

@@ -336,7 +336,7 @@ jobs:
             echo "needs_runner_typescript=$(jq -r '[.include[] | select((.profileId == "runner-opencode") or (.profileId | startswith("runner-acpx-")) or (.suiteId == "openrouter-model-breadth"))] | length > 0' <<< "$catalog_json")"
             echo "needs_native_binaries=$(jq -r '[.include[] | select((.profileId | startswith("runner-")) or (.suiteId == "openrouter-model-breadth"))] | length > 0' <<< "$catalog_json")"
             echo "needs_remote_provider_pack=$(jq -r '[.include[] | select((.environmentId == "daytona") and ((.profileId == "runner-opencode") or (.profileId | startswith("runner-acpx-"))))] | length > 0' <<< "$catalog_json")"
-            echo "candidate_providers=$(jq -r 'if any(.include[]; .profileId == "runner-acpx-hermes") then "hermes" else "" end' <<< "$catalog_json")"
+            echo "candidate_providers=$(jq -r 'if any(.include[]; .qualificationCandidate == "hermes") then "hermes" else "" end' <<< "$catalog_json")"
             echo "execution_ids=$(jq -c '.executionIds' <<< "$catalog_json")"
           } >> "$GITHUB_OUTPUT"
           if ! [[ "$MAX_PARALLEL_LIMIT" =~ ^[1-9][0-9]*$ ]] || [ "$MAX_PARALLEL_LIMIT" -gt 100 ]; then
@@ -905,7 +905,7 @@ jobs:
         run: node packages/paperclip-runner/scripts/materialize-opencode-binary.mjs
 
       - name: Provision pinned Hermes before the paid local test
-        if: matrix.environmentId == 'local' && matrix.profileId == 'runner-acpx-hermes'
+        if: matrix.environmentId == 'local' && matrix.qualificationCandidate == 'hermes'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends python3-venv bubblewrap

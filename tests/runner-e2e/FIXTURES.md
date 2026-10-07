@@ -293,6 +293,15 @@ the model's claimed result by reading the actual final bytes, and also exercises
 remote copy-back. Keep candidate admission scoped to the selected model and the
 isolated operator environment; ordinary agent configuration must not enable it.
 
+`hermes-api-connections` reuses the one-turn completion journey for five managed
+API providers on local and Daytona. Its independent oracle reads the public run
+ledger and native checkpoint model metadata, requiring exactly one successful
+native run with the fixture's company, agent, task, account, method and
+responsible user. Calibration rejects foreign accounts/companies/tasks/users,
+wrong providers/methods/models/harnesses, missing evidence and extra runs. The suite's
+definition includes the account/runner harness source digest. Its API-only scope
+does not substitute for subscription or lifecycle qualification.
+
 ## Persistent agent files
 
 The `instruction_persistence` flow uses production managed storage and public file

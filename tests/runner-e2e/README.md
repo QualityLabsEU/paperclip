@@ -1512,6 +1512,27 @@ materialized under the runner package, and build the TypeScript sidecar before
 local execution. Daytona additionally requires that branch's immutable Linux
 candidate image and the matching controller-owned provider pack described in
 [`docker/daytona-runner/README.md`](../../docker/daytona-runner/README.md).
+The explicit-only `hermes-api-connections` suite adds ten one-turn completion
+cells: managed OpenRouter, Anthropic, OpenAI, xAI and Google API accounts on
+local and Daytona. Select one exact execution ID. The October 7 authenticated
+catalog choices are pending inference qualification, and no production default
+changes. Each fixture creates its personal account through the public
+Connections API, removes agent credential overrides, and independently checks
+the native run's company/task/agent scope, responsible user, selected account,
+provider/method, native Hermes harness and requested/effective model. Missing or mismatched metadata
+fails even when the answer is correct. The report retains the checks alongside
+the ordinary completion, screenshot, token/cost and cleanup evidence.
+
+```sh
+pnpm test:e2e:runner -- --list --suite hermes-api-connections
+pnpm test:e2e:runner -- --id hermes-api-connections.runner-acpx-hermes-api-anthropic.local.hello-complete --max-automatic-retries 0
+```
+
+These cells prove API-account native completion only. Subscriptions, custom
+protocols, Bedrock, refresh/revocation, images and live controls need their own
+qualification. The selected candidate metadata drives pre-credential Hermes
+provisioning and image/provider-pack selection for every Hermes profile.
+
 The separate Runner Evals `extended-harnesses` campaign lives in the private
 `paperclip-evals` repository and grades semantic protocol behavior against the
 mock control plane. Neither suite substitutes for the other.
