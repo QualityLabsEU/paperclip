@@ -119,6 +119,13 @@ entry. The runner CLI accepts `--candidate-profile hermes`.
 ```sh
 pnpm --filter @paperclipai/paperclip-runner build:typescript
 pnpm --filter @paperclipai/paperclip-runner test:hermes:transport
+```
+
+The browser campaign definitions and implementation record are supplied by
+[qualification PR #15436](https://github.com/paperclipai/paperclip/pull/15436).
+Apply that companion PR before running its commands:
+
+```sh
 pnpm test:e2e:runner -- --list --suite extended-harnesses
 pnpm test:e2e:runner -- --id extended-harnesses.runner-acpx-hermes.local.hello-complete
 ```
@@ -127,8 +134,8 @@ The opt-in transport tests execute the pinned native process against a
 deterministic HTTP model fixture. It is not paid-model, browser or Daytona
 qualification. One test exercises the ACPX host directly; the other includes
 TypeScript, Rust PRP, the packaged sidecar, image delivery and semantic task
-completion. The Product E2E catalog contains five local and five Daytona
+completion. The companion Product E2E catalog contains five local and five Daytona
 Hermes cells using a managed OpenRouter connection. Each connection method,
 native control, attachment, persistence, remote restoration and permission mode
 must pass its release criterion with inspectable live evidence before promotion.
-See the [implementation record](../../../doc/plans/2026-10-06-hermes-native-runner.md).
+The implementation record is included in that qualification PR.

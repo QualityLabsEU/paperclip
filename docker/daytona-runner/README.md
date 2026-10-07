@@ -57,11 +57,15 @@ The fleet image is currently amd64-only because the pinned Cursor and GitHub CLI
 checksums cover amd64.
 
 ```bash
+# Resolve the target manifest/patch changes without committing the bot-owned lock.
+pnpm install --resolution-only --ignore-scripts --no-frozen-lockfile
+lock_sha="$(shasum -a 256 pnpm-lock.yaml | cut -d ' ' -f 1)"
 content_id="$(pnpm --silent test:e2e:runner:image-id)"
 docker buildx build \
   --platform linux/amd64 \
   --build-arg PAPERCLIP_RUNNER_CONTENT_ID="${content_id}" \
   --build-arg PAPERCLIP_RUNNER_SOURCE_REVISION="$(git rev-parse HEAD)" \
+  --build-arg PAPERCLIP_RUNNER_LOCK_SHA256="${lock_sha}" \
   --tag "paperclip-daytona-runner:e2e-content-${content_id}" \
   --load \
   --file docker/daytona-runner/Dockerfile \

@@ -30,13 +30,14 @@ COPY packages ./packages
 COPY server/package.json ./server/package.json
 COPY ui/package.json ./ui/package.json
 COPY cli/package.json ./cli/package.json
-# The complete resolved lock (including transitive integrity hashes) is reviewed.
-# Reject registry-time drift BEFORE installing packages or running lifecycle code.
-# Refresh this digest together with source/provider dependency changes.
-ARG PAPERCLIP_RUNNER_LOCK_SHA256=f5ee14ee77b1dc7771fe455d619c880fc64b1e62e40a15704addc9f7430e5c50
+# The caller supplies the digest of its resolved, immutable target lockfile.
+# The repository lock bot owns committed lock updates; branch workflows resolve
+# and verify their target lock before copying it into this build context.
+ARG PAPERCLIP_RUNNER_LOCK_SHA256
 # pnpm 9 subtracts PNPM_WORKERS from available CPUs; it is not a worker count.
 # Subtract all available CPUs to select its minimum (one tarball worker).
 RUN export PNPM_WORKERS="$(node -p 'require("node:os").availableParallelism()')" \
+    && test "${#PAPERCLIP_RUNNER_LOCK_SHA256}" = 64 \
     && printf '%s  pnpm-lock.yaml\n' "${PAPERCLIP_RUNNER_LOCK_SHA256}" > /tmp/provider-lock.sha256 \
     && sha256sum -c /tmp/provider-lock.sha256 \
     && pnpm install --frozen-lockfile --filter '@paperclipai/paperclip-runner...'
