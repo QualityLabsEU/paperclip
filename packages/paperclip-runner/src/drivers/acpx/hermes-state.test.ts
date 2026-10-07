@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readFile, rm, symlink, link, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, rm, symlink, link, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -45,5 +45,20 @@ describe("Hermes managed learned state", () => {
   it("requires managed agent storage", async () => {
     const f = await fixture();
     await expect(stageHermesAgentState(f.home, null)).rejects.toThrow(/managed agent-file storage/);
+  });
+  it("discards unfinished transfers during staging and collection without learning their contents", async () => {
+    const f = await fixture();
+    const state = await stageHermesAgentState(f.home, f.context);
+    const leftover = ".paperclip-hermes-transfer-00000000-0000-4000-8000-000000000001.tmp";
+    await writeFile(join(f.home, "memories/MEMORY.md"), "Complete memory");
+    await writeFile(join(f.home, "memories", leftover), "Incomplete memory");
+    await writeFile(join(f.agent, "hermes/memories/MEMORY.md.paperclip-state.tmp"), "Old incomplete transfer");
+    await state.collect();
+    expect(await readdir(join(f.agent, "hermes/memories"))).toEqual(["MEMORY.md"]);
+    expect(await readFile(join(f.agent, "hermes/memories/MEMORY.md"), "utf8")).toBe("Complete memory");
+    await writeFile(join(f.agent, "hermes/memories", leftover), "Incomplete saved transfer");
+    await stageHermesAgentState(f.home, f.context);
+    expect(await readdir(join(f.home, "memories"))).toEqual(["MEMORY.md"]);
+    expect(await readdir(join(f.agent, "hermes/memories"))).toEqual(["MEMORY.md"]);
   });
 });

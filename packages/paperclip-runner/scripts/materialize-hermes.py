@@ -7,6 +7,8 @@ import json
 import os
 import shutil
 import sys
+import sysconfig
+import subprocess
 from pathlib import Path
 
 source, destination, provider = map(Path, sys.argv[1:])
@@ -23,6 +25,23 @@ def copy_tree(origin, target, excluded=()):
 
 
 copy_tree(Path(sys.base_prefix), destination / "python", ("include", "share"))
+# uv rewrites sysconfig to its installation home. That path differs between
+# local consumers, root image builds and the Daytona runtime user. Normalize
+# this build metadata so the verified closure is relocatable and reproducible.
+prefixes = {sys.base_prefix, str(Path(sys.base_prefix).resolve()), sysconfig.get_config_var("prefix")}
+for metadata in (destination / "python/lib/python3.12").glob("_sysconfigdata_*.py"):
+    text = metadata.read_text()
+    for prefix in sorted((p for p in prefixes if isinstance(p, str)), key=len, reverse=True):
+        text = text.replace(prefix, "/paperclip-hermes/python")
+    metadata.write_text(text)
+if sys.platform == "darwin":
+    # uv also rewrites the Mach-O install name. Restore a relative identity and
+    # a deterministic ad-hoc signature after changing its load command.
+    library = destination / "python/lib/libpython3.12.dylib"
+    if not shutil.which("install_name_tool") or not shutil.which("codesign"):
+        raise ValueError("Hermes provisioning requires macOS Command Line Tools (install_name_tool and codesign)")
+    subprocess.run(["install_name_tool", "-id", "@rpath/libpython3.12.dylib", str(library)], check=True)
+    subprocess.run(["codesign", "--force", "--sign", "-", "--identifier", "paperclip.hermes.libpython3.12", "--timestamp=none", str(library)], check=True)
 site = destination / "python/lib/python3.12/site-packages"
 site.mkdir(parents=True, exist_ok=True)
 # Do not retain editable-install locators, virtualenv hooks, or provenance files

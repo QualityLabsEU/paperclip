@@ -6,6 +6,7 @@ are adapted to the runner; inference, tools and conversation history are Hermes.
 from __future__ import annotations
 
 import asyncio
+from urllib.parse import urlsplit, urlunsplit
 import concurrent.futures
 import json
 import math
@@ -187,7 +188,16 @@ class ManagedSessionManager(SessionManager):
             if kwargs.get("model") not in (None, model["default"]):
                 raise ValueError("Hermes restored model differs from the selected connection")
             for argument, field in (("requested_provider", "provider"), ("base_url", "base_url"), ("api_mode", "api_mode")):
-                if kwargs.get(argument) is not None and kwargs[argument] != runtime.get(field):
+                actual, expected = kwargs.get(argument), runtime.get(field)
+                if argument == "base_url" and isinstance(actual, str) and isinstance(expected, str):
+                    # SDK clients normalize a base URL by appending a slash.
+                    # Compare only that normalization; query, host and protocol
+                    # remain exact and Paperclip pins the connection fingerprint.
+                    def normalize(url):
+                        parts = urlsplit(url)
+                        return urlunsplit(parts._replace(path=parts.path.rstrip("/")))
+                    actual, expected = normalize(actual), normalize(expected)
+                if actual is not None and actual != expected:
                     raise ValueError("Hermes restored route differs from the selected connection")
         agent = super()._make_agent(**kwargs)
         agent.ephemeral_system_prompt = os.environ.get("PAPERCLIP_HERMES_SYSTEM_INSTRUCTIONS", "")

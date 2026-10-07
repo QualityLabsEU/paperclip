@@ -1,3 +1,5 @@
+import type { NativeUserAttachment } from "./user-attachments.js";
+
 export interface NativeRunIdentity {
   runId: string;
   sessionId: string;
@@ -48,7 +50,7 @@ export interface NativeSessionCapabilities {
 export interface NativeUserMessage {
   role: "user";
   text: string;
-  attachments?: import("./user-attachments.js").NativeUserAttachment[];
+  attachments?: NativeUserAttachment[];
 }
 import type { TypedEventFamilyCapability } from "../provider-events.js";
 

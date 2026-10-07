@@ -41,9 +41,14 @@ export async function stageManagedHermesCredential(input: {
       if (closed) return Promise.resolve();
       if (closing) return closing;
       closing = (async () => {
+      const errors: unknown[] = [];
+      const attempt = async (operation: () => Promise<void>) => {
+        try { await operation(); } catch (error) { errors.push(error); }
+      };
       // The runtime host calls close only after verified provider exit. Retain
       // a private refresh handoff for the controller's existing Hermes merge
       // predicate, then scrub auth.json before releasing the process fence.
+      await attempt(async () => {
       if (inline && (input.retainRefresh?.() ?? true)) {
         const auth = await open(join(input.agentHomeDirectory, "auth.json"), constants.O_RDONLY | constants.O_NOFOLLOW).catch((error) => {
           if (error.code === "ENOENT") return null;
@@ -71,15 +76,18 @@ export async function stageManagedHermesCredential(input: {
           } finally { await auth.close(); }
         }
       }
+      });
       // Hermes diagnostics can contain account/authentication fields. They are
       // disposable, unlike session history, and must not outlive this owner.
       // close is invoked only after the provider has been contained.
       for (const name of ["logs", "auth.json.corrupt", "auth.lock"]) {
-        await rm(join(input.agentHomeDirectory, name), { recursive: true, force: true });
+        await attempt(() => rm(join(input.agentHomeDirectory, name), { recursive: true, force: true }));
       }
-      await input.beforeRelease?.();
-      await lease.close();
-      closed = true;
+      await attempt(async () => { await input.beforeRelease?.(); });
+      // Persistence errors must remain visible, but cannot retain credentials
+      // or their ownership fence after the provider has verifiably exited.
+      await attempt(async () => { await lease.close(); closed = true; });
+      if (errors.length) throw new AggregateError(errors, "Hermes state save or credential cleanup failed");
       })().finally(() => { closing = null; });
       return closing;
     },

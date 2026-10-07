@@ -103,6 +103,20 @@ class Restore(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "compacted session history is missing"):
             manager._restore("parent")
 
+    def test_restore_accepts_sdk_base_url_normalization_but_rejects_routing_changes(self):
+        manager = ManagedSessionManager()
+        config = {"model": {"provider": "custom:paperclip", "default": "exact-model"}}
+        route = {"provider": "custom:paperclip", "base_url": "https://example.test/v1?route=a", "api_mode": "chat_completions"}
+        agent = SimpleNamespace()
+        with patch("hermes_cli.config.load_config", return_value=config), patch("hermes_cli.runtime_provider.resolve_runtime_provider", return_value=route), patch("acp_adapter.session.SessionManager._make_agent", return_value=agent) as native:
+            manager._make_agent(model="exact-model", base_url="https://example.test/v1/?route=a", api_mode="chat_completions")
+            native.assert_called_once()
+            for change in [{"model": "other"}, {"base_url": "https://example.test/v2?route=a"}, {"base_url": "https://example.test/v1?route=b"}, {"requested_provider": "other"}, {"api_mode": "responses"}]:
+                native.reset_mock()
+                with self.assertRaises(ValueError):
+                    manager._make_agent(**{"model": "exact-model", "base_url": route["base_url"], "api_mode": "chat_completions", **change})
+                native.assert_not_called()
+
     def test_failed_native_flush_cannot_be_reported_as_durable(self):
         db = Mock()
         manager = ManagedSessionManager(db=db)

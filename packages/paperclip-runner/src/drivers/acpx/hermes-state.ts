@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import { lstat, mkdir, open, readdir, rename, rm } from "node:fs/promises";
 import { dirname, join, resolve, relative } from "node:path";
@@ -6,6 +7,7 @@ import type { NativeRuntimeContextSnapshot } from "../../contracts/runtime-conte
 /** Only these native files belong to an agent. Sessions, auth and configuration
  * belong to the isolated conversation home and never cross this boundary. */
 const DIRECTORIES = ["memories", "skills"] as const;
+const TEMPORARY_NAME = /^\.paperclip-hermes-transfer-[a-f0-9-]{36}\.tmp$/;
 const MAX_FILE_BYTES = 256 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 2 * 1024 * 1024 * 1024;
 
@@ -48,6 +50,11 @@ async function inventory(root: string): Promise<Map<string, number>> {
       if (stat.isDirectory() && !stat.isSymbolicLink()) await walk(path);
       else {
         if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1 || stat.size > MAX_FILE_BYTES) throw new Error("Hermes learned state must contain bounded regular files");
+        // Reserved transfer files may survive a crash. Validate before
+        // removing them so symlinks/hardlinks still fail closed.
+        if (TEMPORARY_NAME.test(entry.name) || entry.name.endsWith(".paperclip-state.tmp")) {
+          await rm(path); continue;
+        }
         total += stat.size;
         if (total > MAX_TOTAL_BYTES) throw new Error("Hermes learned state exceeds managed storage limits");
         files.set(relative(root, path), stat.size);
@@ -68,7 +75,7 @@ async function mirrorDirectory(source: string, destination: string) {
     let directory = destination;
     for (const part of parts) { directory = join(directory, part); await ensureDirectory(directory); }
     const input = await open(join(source, name), constants.O_RDONLY | constants.O_NOFOLLOW);
-    const temporary = `${target}.paperclip-state.tmp`;
+    const temporary = join(dirname(target), `.paperclip-hermes-transfer-${randomUUID()}.tmp`);
     try {
       const before = await input.stat({ bigint: true });
       if (!before.isFile() || before.nlink !== 1n || before.size !== BigInt(size)) throw new Error("Hermes state changed during collection");
