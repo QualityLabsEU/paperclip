@@ -1461,17 +1461,14 @@ immutable Daytona image; no private hooks or fixture database writes are used.
 
 ## Extended ACP harnesses (explicit only)
 
-`--suite extended-harnesses` declares 40 Product E2E cells: Cursor, Copilot,
-Pi and Hermes on local and Daytona, each exercising authenticated completion,
+`--suite extended-harnesses` declares 30 Product E2E cells: Cursor, Copilot,
+and Pi on local and Daytona, each exercising authenticated completion,
 question/answer continuation, revision-bound semantic plan approval, restart
 with pending input, and file edit plus independent byte validation. The file
 case uses a public project workspace so Daytona copy-back is graded too.
 These are candidate definitions, not a claim of provider qualification. Native
 provider-specific questions, plan decisions, restrictive permissions and steering
 need their separate conformance/qualification evidence.
-Hermes uses an existing managed OpenRouter connection through the ordinary
-connection fixture. It remains pending qualification; the native transport
-fixture does not substitute for these browser and remote workflows.
 
 ```sh
 pnpm test:e2e:runner -- --list --suite extended-harnesses

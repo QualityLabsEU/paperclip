@@ -18,13 +18,19 @@ export async function stageHermesAgentState(home: string, context: NativeRuntime
   await assertDirectory(agentRoot);
   const stateRoot = join(agentRoot, "hermes");
   await ensureDirectory(stateRoot);
-  for (const name of DIRECTORIES) await mirrorDirectory(join(stateRoot, name), join(home, name));
+  const agentIdentity = await directoryIdentity(agentRoot);
+  const stateIdentity = await directoryIdentity(stateRoot);
+  const assertRoots = async () => {
+    await assertIdentity(agentRoot, agentIdentity);
+    await assertIdentity(stateRoot, stateIdentity);
+  };
+  for (const name of DIRECTORIES) await mirrorDirectory(join(stateRoot, name), join(home, name), assertRoots);
   return {
     async collect() {
       // Called after verified process exit and before the controller collects
       // the existing working copy. Its usual authorization and save receipt apply.
-      await assertDirectory(agentRoot);
-      for (const name of DIRECTORIES) await mirrorDirectory(join(home, name), join(stateRoot, name));
+      await assertRoots();
+      for (const name of DIRECTORIES) await mirrorDirectory(join(home, name), join(stateRoot, name), assertRoots);
     },
   };
 }
@@ -32,6 +38,15 @@ export async function stageHermesAgentState(home: string, context: NativeRuntime
 async function assertDirectory(path: string) {
   const stat = await lstat(path);
   if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error("Hermes state contains an unsafe directory");
+}
+async function directoryIdentity(path: string) {
+  await assertDirectory(path);
+  const stat = await lstat(path, { bigint: true });
+  return { dev: stat.dev, ino: stat.ino };
+}
+async function assertIdentity(path: string, expected: { dev: bigint; ino: bigint }) {
+  const actual = await directoryIdentity(path);
+  if (actual.dev !== expected.dev || actual.ino !== expected.ino) throw new Error("Hermes state directory identity changed");
 }
 async function ensureDirectory(path: string) {
   await mkdir(path, { mode: 0o700 }).catch(error => { if (error.code !== "EEXIST") throw error; });
@@ -64,21 +79,41 @@ async function inventory(root: string): Promise<Map<string, number>> {
   await walk(root);
   return files;
 }
-async function mirrorDirectory(source: string, destination: string) {
+async function mirrorDirectory(source: string, destination: string, assertRoots: () => Promise<void>) {
+  await assertRoots();
   await ensureDirectory(source);
   await ensureDirectory(destination);
   const files = await inventory(source);
   const previous = await inventory(destination);
+  const sourceIdentity = await directoryIdentity(source);
+  const destinationIdentity = await directoryIdentity(destination);
+  const assertBoundRoots = async () => {
+    await assertRoots();
+    await assertIdentity(source, sourceIdentity);
+    await assertIdentity(destination, destinationIdentity);
+  };
   for (const [name, size] of files) {
+    await assertBoundRoots();
     const target = join(destination, name);
     const parts = relative(destination, dirname(target)).split(/[\\/]/).filter(Boolean);
     let directory = destination;
-    for (const part of parts) { directory = join(directory, part); await ensureDirectory(directory); }
+    const parents: { path: string; identity: { dev: bigint; ino: bigint } }[] = [];
+    for (const part of parts) {
+      await assertBoundRoots();
+      for (const parent of parents) await assertIdentity(parent.path, parent.identity);
+      directory = join(directory, part); await ensureDirectory(directory);
+      parents.push({ path: directory, identity: await directoryIdentity(directory) });
+    }
+    const assertDestination = async () => {
+      await assertBoundRoots();
+      for (const parent of parents) await assertIdentity(parent.path, parent.identity);
+    };
     const input = await open(join(source, name), constants.O_RDONLY | constants.O_NOFOLLOW);
     const temporary = join(dirname(target), `.paperclip-hermes-transfer-${randomUUID()}.tmp`);
     try {
       const before = await input.stat({ bigint: true });
       if (!before.isFile() || before.nlink !== 1n || before.size !== BigInt(size)) throw new Error("Hermes state changed during collection");
+      await assertDestination();
       const output = await open(temporary, "wx", 0o600);
       try {
         const buffer = Buffer.alloc(Math.min(size + 1, 64 * 1024));
@@ -93,8 +128,20 @@ async function mirrorDirectory(source: string, destination: string) {
       } finally { await output.close(); }
       const after = await input.stat({ bigint: true });
       if (before.mtimeNs !== after.mtimeNs || before.ctimeNs !== after.ctimeNs || before.size !== after.size) throw new Error("Hermes state changed during collection");
+      await assertDestination();
       await rename(temporary, target);
-    } finally { await input.close(); await rm(temporary, { force: true }); }
+    } finally {
+      await input.close();
+      await assertDestination();
+      await rm(temporary, { force: true });
+    }
   }
-  for (const name of previous.keys()) if (!files.has(name)) await rm(join(destination, name));
+  for (const name of previous.keys()) if (!files.has(name)) {
+    await assertBoundRoots();
+    let directory = destination;
+    for (const part of relative(destination, dirname(join(destination, name))).split(/[\\/]/).filter(Boolean)) {
+      directory = join(directory, part); await assertDirectory(directory);
+    }
+    await rm(join(destination, name));
+  }
 }

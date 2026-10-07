@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readFile, readdir, rm, symlink, link, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, rename, rm, symlink, link, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -45,6 +45,22 @@ describe("Hermes managed learned state", () => {
   it("requires managed agent storage", async () => {
     const f = await fixture();
     await expect(stageHermesAgentState(f.home, null)).rejects.toThrow(/managed agent-file storage/);
+  });
+  it.each(["symlink", "replacement"])("rejects a %s state parent without changing the redirected files", async kind => {
+    const f = await fixture();
+    const state = await stageHermesAgentState(f.home, f.context);
+    const outside = join(f.root, "outside");
+    await mkdir(outside); await mkdir(join(outside, "memories")); await mkdir(join(outside, "skills"));
+    await writeFile(join(outside, "memories/MEMORY.md"), "Outside memory");
+    await writeFile(join(outside, "memories/keep.md"), "Must not be deleted");
+    await writeFile(join(f.home, "memories/MEMORY.md"), "Native change");
+    await rename(join(f.agent, "hermes"), join(f.agent, "original-hermes"));
+    if (kind === "symlink") await symlink(outside, join(f.agent, "hermes"));
+    else await rename(outside, join(f.agent, "hermes"));
+    await expect(state.collect()).rejects.toThrow(/unsafe directory|identity changed/);
+    const redirected = kind === "symlink" ? outside : join(f.agent, "hermes");
+    expect(await readFile(join(redirected, "memories/MEMORY.md"), "utf8")).toBe("Outside memory");
+    expect(await readFile(join(redirected, "memories/keep.md"), "utf8")).toBe("Must not be deleted");
   });
   it("discards unfinished transfers during staging and collection without learning their contents", async () => {
     const f = await fixture();

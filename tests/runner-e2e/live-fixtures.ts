@@ -241,8 +241,7 @@ export async function setupLiveFixtures(input: {
     },
   });
 
-  const managedHiring = isManagedHiringCase(execution.suite.id, execution.task.id)
-    || execution.profile.qualificationCandidate === "hermes";
+  const managedHiring = isManagedHiringCase(execution.suite.id, execution.task.id);
   if (managedHiring) {
     registry.register<ManagedAccountFixture>({
       id: "ai-connection",
