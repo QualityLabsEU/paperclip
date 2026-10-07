@@ -9,6 +9,7 @@ import { stageManagedHermesCredential } from "./hermes-credentials.js";
 import { stageHermesAgentState } from "./hermes-state.js";
 import { claudeNativeSkillPrompt } from "./native-skill-prompt.js";
 import { nativeMcpLaunchBinding } from "../native-mcp.js";
+import { parseNativeUserAttachments, validateNativeUserMessageSize } from "../../contracts/user-attachments.js";
 
 import type {
   AcpElicitationHandler,
@@ -818,10 +819,12 @@ export class AcpxRuntimeHost {
     const text = claudeNativeSkillPrompt(
       boundedTurnText(input.text), this.#claudeSkillNames,
     );
+    const attachments = parseNativeUserAttachments(input.attachments);
+    validateNativeUserMessageSize(text, attachments);
     const turn = this.#runtime.startTurn({
       text,
       requestId,
-      ...(input.attachments ? { attachments: input.attachments } : {}),
+      ...(attachments.length ? { attachments } : {}),
       ...(input.signal ? { signal: input.signal } : {}),
       ...(input.onElicitation ? { onElicitation: input.onElicitation } : {}),
       ...(input.onPermissionRequest ? { onPermissionRequest: input.onPermissionRequest } : {}),

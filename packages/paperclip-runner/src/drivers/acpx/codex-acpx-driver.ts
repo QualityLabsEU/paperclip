@@ -40,6 +40,7 @@ import {
 import { PAPERCLIP_RUNTIME_REQUEST_SCHEMA_V2 } from "../../contracts/question-set.js";
 import type { NativeAcpxPermissionMode } from "../../contracts/native-execution.js";
 import type { NativeUserMessage } from "../../contracts/types.js";
+import { parseNativeUserAttachments, validateNativeUserMessageSize } from "../../contracts/user-attachments.js";
 import type {
   PrpEvent,
   PrpStructuredRunResult,
@@ -861,6 +862,7 @@ class CodexAcpxSession implements HarnessSession {
     message: NativeUserMessage;
   }): Promise<{ turnId: string }> {
     this.#assertOpen();
+    validateNativeUserMessageSize(input.message.text, parseNativeUserAttachments(input.message.attachments));
     if (this.#activeTurnId) {
       throw new Error("Codex ACPX session already has an active turn");
     }

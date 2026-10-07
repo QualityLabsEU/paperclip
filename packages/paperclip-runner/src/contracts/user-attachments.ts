@@ -4,11 +4,20 @@ export type NativeUserAttachment = { schema: "paperclip.user_attachment.v1"; nam
   | { kind: "text"; mediaType: "text/plain" | "text/markdown"; text: string });
 export const MAX_NATIVE_ATTACHMENT_BYTES = 2 * 1024 * 1024;
 export const MAX_NATIVE_ATTACHMENTS_TOTAL_BYTES = 4 * 1024 * 1024;
+// turn.start fits in the 16 MiB secure frame after ciphertext hex encoding.
+// Reserve 1 MiB of its plaintext allowance for command/session framing. Count
+// JSON bytes, since escapes can multiply otherwise valid text content.
+export const MAX_NATIVE_USER_MESSAGE_JSON_BYTES = 7 * 1024 * 1024;
+export function validateNativeUserMessageSize(text: string, attachments: NativeUserAttachment[]): void {
+  if (attachments.length && Buffer.byteLength(JSON.stringify({ text, attachments })) > MAX_NATIVE_USER_MESSAGE_JSON_BYTES) {
+    throw new Error("Message and attachments exceed the encoded content limit; shorten the message or remove an attachment");
+  }
+}
 export function parseNativeUserAttachments(value: unknown): NativeUserAttachment[] {
   if (value === undefined) return [];
   if (!Array.isArray(value) || value.length > 8) throw new Error("At most eight native attachments are supported");
   let total = 0;
-  return value.map(raw => {
+  const attachments = value.map(raw => {
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("Invalid native attachment");
     const a = raw as Record<string, unknown>;
     const keys = a.kind === "image" ? ["schema", "name", "kind", "mediaType", "data"] : ["schema", "name", "kind", "mediaType", "text"];
@@ -30,9 +39,12 @@ export function parseNativeUserAttachments(value: unknown): NativeUserAttachment
     if (!bytes || bytes > MAX_NATIVE_ATTACHMENT_BYTES || total > MAX_NATIVE_ATTACHMENTS_TOTAL_BYTES) throw new Error("Native attachments exceed the per-file or total content limit");
     return structuredClone(a) as NativeUserAttachment;
   });
+  validateNativeUserMessageSize("", attachments);
+  return attachments;
 }
 export function acpxAttachmentInput(text: string, value: unknown) {
   const attachments = parseNativeUserAttachments(value);
+  validateNativeUserMessageSize(text, attachments);
   const images = attachments.flatMap(a => a.kind === "image" ? [{ mediaType: a.mediaType, data: a.data }] : []);
   return {
     text: text + attachments.map(a => a.kind === "text" ? `\n\nAttached document (${JSON.stringify(a.name)}):\n${a.text}` : "").join(""),

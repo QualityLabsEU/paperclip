@@ -70,7 +70,9 @@ changes within the same run are rejected.
 - Reasoning and assistant text use distinct message identities. Native tool
   call IDs preserve overlapping calls and edit snapshots.
 - Images accept PNG, JPEG, WebP and GIF; documents accept UTF-8 text/Markdown.
-  Limits are eight attachments, 2 MiB per item and 4 MiB total. The controller
+  Limits are eight attachments, 2 MiB per item and 4 MiB total. The combined
+  message and attachments also have a 7 MiB JSON-encoded limit, including
+  escaping and metadata, to fit the encrypted Runner command frame. The controller
   authorizes and reads content before the turn; URLs and arbitrary local paths
   are rejected. Models without image support can reject image input.
 - The negotiated `_meta.paperclipHermes.version = 1` extension uses ACP wire

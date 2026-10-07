@@ -24,6 +24,7 @@ import { createCapabilityRunnerdCodexTransport, createCapabilityRunnerdProviderE
 import { ACPX_CREDENTIAL_BINDING_ENV, createAcpxSidecarHostEnvironment } from "../drivers/acpx/environment.js";
 import { validatePrpEvent } from "../protocol/replay-contract.js";
 import { digestPaperclipSemanticContent } from "../semantic-tools/receipts.js";
+import { parseNativeUserAttachments, validateNativeUserMessageSize } from "../contracts/user-attachments.js";
 import {
   DurablePrpControlPlane,
   durableRecoveryInternals,
@@ -2419,17 +2420,22 @@ describe("DurablePrpControlPlane", () => {
     } finally { await core.stop(); rmSync(root, { recursive: true, force: true }); }
   });
 
-  it("delivers attachment-sized turn input through the encrypted command frame", async () => {
+  it.each(["images", "escaped text"])("delivers admitted %s attachments through the encrypted command frame", async kind => {
     const root = mkdtempSync(resolve(tmpdir(), "paperclip-attachment-frame-"));
     const core = new DurablePrpControlPlane({ stateDirectory: root, identity,
       expectedRunnerVersion, expectedRunnerDigest });
     try {
       await core.start();
       const client = (await authenticate(core, core.issueBootstrapTicket()))!;
-      const data = Buffer.alloc(2 * 1024 * 1024).toString("base64");
-      const payload = { text: "Inspect both images", attachments: [
-        { kind: "image", data }, { kind: "image", data },
-      ] };
+      const bytes = Buffer.alloc(2 * 1024 * 1024);
+      Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]).copy(bytes);
+      const image = { schema: "paperclip.user_attachment.v1", name: "image.png", kind: "image", mediaType: "image/png", data: bytes.toString("base64") };
+      const document = { schema: "paperclip.user_attachment.v1", name: "notes.txt", kind: "text", mediaType: "text/plain" };
+      const attachments = parseNativeUserAttachments(kind === "images" ? [image, image] : [
+        { ...document, text: "\\".repeat(2 * 1024 * 1024) }, { ...document, text: "a".repeat(2 * 1024 * 1024) },
+      ]);
+      const payload = { text: "\\".repeat(128 * 1024), attachments };
+      validateNativeUserMessageSize(payload.text, attachments);
       const pending = receiveSecure(client);
       core.queueCommand("turn.start", payload, undefined, true);
       const wire = await pending;

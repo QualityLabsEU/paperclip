@@ -25,6 +25,8 @@ use crate::stable_identity::{is_stable_id, DURABLE_STABLE_ID_CHARS, SHORT_STABLE
 const MAX_ID_CHARS: usize = 240;
 const MAX_MODEL_CHARS: usize = 240;
 const MAX_SYSTEM_INSTRUCTIONS_BYTES: usize = 1024 * 1024;
+// Matches the TS attachment contract; retain command/encrypted-frame headroom.
+const MAX_NATIVE_USER_MESSAGE_JSON_BYTES: usize = 7 * 1024 * 1024;
 const MAX_JSON_SAFE_INTEGER: u64 = 9_007_199_254_740_991;
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -355,32 +357,7 @@ impl AcpxProviderSession {
         working_directory: &Path,
         attachments: Option<&Value>,
     ) -> Result<Value, LocalRunnerError> {
-        if let Some(value) = attachments {
-            let entries = value
-                .as_array()
-                .ok_or_else(|| LocalRunnerError::invalid("Native attachments must be an array"))?;
-            if self.config.agent != "hermes"
-                || entries.len() > 8
-                || value.to_string().len() > 12 * 1024 * 1024
-            {
-                return Err(LocalRunnerError::invalid(
-                    "Native attachments are unsupported or exceed their bound",
-                ));
-            }
-            for entry in entries {
-                if entry.get("schema").and_then(Value::as_str)
-                    != Some("paperclip.user_attachment.v1")
-                    || !matches!(
-                        entry.get("kind").and_then(Value::as_str),
-                        Some("image" | "text")
-                    )
-                {
-                    return Err(LocalRunnerError::invalid(
-                        "Native attachment contract is invalid",
-                    ));
-                }
-            }
-        }
+        validate_turn_attachments(&self.config.agent, message, attachments)?;
         self.ensure_open()?;
         if self.runtime_retired {
             return Err(LocalRunnerError::invalid(
@@ -1479,6 +1456,47 @@ fn validate_turn_message(value: &str) -> Result<(), LocalRunnerError> {
     Ok(())
 }
 
+fn validate_turn_attachments(
+    agent: &str,
+    message: &str,
+    attachments: Option<&Value>,
+) -> Result<(), LocalRunnerError> {
+    let Some(value) = attachments else {
+        return Ok(());
+    };
+    let entries = value
+        .as_array()
+        .ok_or_else(|| LocalRunnerError::invalid("Native attachments must be an array"))?;
+    if agent != "hermes" || entries.len() > 8 {
+        return Err(LocalRunnerError::invalid(
+            "Native attachments are unsupported or exceed their bound",
+        ));
+    }
+    if !entries.is_empty()
+        && json!({"text":message,"attachments":value})
+            .to_string()
+            .len()
+            > MAX_NATIVE_USER_MESSAGE_JSON_BYTES
+    {
+        return Err(LocalRunnerError::invalid(
+            "Message and attachments exceed the encoded content limit; shorten the message or remove an attachment",
+        ));
+    }
+    for entry in entries {
+        if entry.get("schema").and_then(Value::as_str) != Some("paperclip.user_attachment.v1")
+            || !matches!(
+                entry.get("kind").and_then(Value::as_str),
+                Some("image" | "text")
+            )
+        {
+            return Err(LocalRunnerError::invalid(
+                "Native attachment contract is invalid",
+            ));
+        }
+    }
+    Ok(())
+}
+
 fn validate_input_resolution(
     question_set: &Value,
     resolution: &Value,
@@ -1529,6 +1547,34 @@ fn with_cleanup_error(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn attachment_admission_counts_json_escapes_and_combined_message() {
+        use super::*;
+        let attachment = |text: String| {
+            json!({"schema":"paperclip.user_attachment.v1",
+            "kind":"text","mediaType":"text/plain","name":"notes.txt","text":text})
+        };
+        for character in ["\\", "\u{0001}"] {
+            let value = json!([
+                attachment(character.repeat(2 * 1024 * 1024)),
+                attachment(character.repeat(2 * 1024 * 1024))
+            ]);
+            assert!(validate_turn_attachments("hermes", "Read", Some(&value)).is_err());
+        }
+        let value = json!([attachment("a".repeat(2 * 1024 * 1024))]);
+        assert!(validate_turn_attachments("hermes", "Read", Some(&value)).is_ok());
+        assert!(
+            validate_turn_attachments("hermes", &"\u{0001}".repeat(1024 * 1024), Some(&value))
+                .is_err()
+        );
+        let fixed = json!({"text":"","attachments":value}).to_string().len();
+        let boundary = "a".repeat(MAX_NATIVE_USER_MESSAGE_JSON_BYTES - fixed);
+        assert!(validate_turn_attachments("hermes", &boundary, Some(&value)).is_ok());
+        assert!(validate_turn_attachments("hermes", &(boundary + "a"), Some(&value)).is_err());
+        assert!(validate_turn_attachments("codex", "Read", Some(&value)).is_err());
+        assert!(validate_turn_attachments("codex", "Read", None).is_ok());
+    }
+
     #[test]
     fn turn_controls_require_exact_live_pi_capability_fields() {
         use super::*;
