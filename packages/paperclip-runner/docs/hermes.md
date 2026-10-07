@@ -60,6 +60,11 @@ excluded from recovery copies. Only `hermes/memories` and `hermes/skills` enter
 managed agent-file storage. Session databases stay private to a normalized
 conversation. Assigned Paperclip skills remain separate protected inputs.
 
+Between turns, authenticated run attachment refreshes the registered agent-file
+working copy and assigned tool bindings. The session still pins prompt, bundle,
+skill, connection, model, and permission identities. Unknown policy changes and
+changes within the same run are rejected.
+
 ## Interaction contract
 
 - Reasoning and assistant text use distinct message identities. Native tool
@@ -75,6 +80,7 @@ conversation. Assigned Paperclip skills remain separate protected inputs.
 - Steering requires an explicit native acknowledgement. Follow-ups remain in
   the durable Paperclip queue. Stop cancels native work and pending input before
   bounded provider-process cleanup.
+- Restored history is recorded without becoming new assistant text or live tools.
 - Restoration requires nonempty native history and follows the native
   compaction chain. Missing history and failed persistence are errors.
 - Usage is a per-prompt delta. Native price calculations are labeled estimates;
@@ -96,6 +102,12 @@ idempotency key. Listing/inspection use existing authorized read APIs.
 
 Scheduled firings create ordinary Paperclip work with routine provenance and
 retain existing ownership, budget, pause, concurrency and duplicate-fire rules.
+
+Provisioning requires uv 0.12.17 and, on macOS, Command Line Tools for
+`install_name_tool` plus `codesign`. The Python closure normalizes interpreter
+installation paths so local consumers and image builds reproduce the same pin.
+Credential cleanup runs after verified exit even when learned-state collection
+fails; save failures remain visible through normal runtime errors.
 
 ## Qualification
 

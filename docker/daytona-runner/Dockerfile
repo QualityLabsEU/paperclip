@@ -33,7 +33,7 @@ COPY cli/package.json ./cli/package.json
 # The complete resolved lock (including transitive integrity hashes) is reviewed.
 # Reject registry-time drift BEFORE installing packages or running lifecycle code.
 # Refresh this digest together with source/provider dependency changes.
-ARG PAPERCLIP_RUNNER_LOCK_SHA256=c63e2e731c27744e3de3a7dc8b3e115465ffe8c42e87c2a14e7d8927163f1b13
+ARG PAPERCLIP_RUNNER_LOCK_SHA256=f5ee14ee77b1dc7771fe455d619c880fc64b1e62e40a15704addc9f7430e5c50
 # pnpm 9 subtracts PNPM_WORKERS from available CPUs; it is not a worker count.
 # Subtract all available CPUs to select its minimum (one tarball worker).
 RUN export PNPM_WORKERS="$(node -p 'require("node:os").availableParallelism()')" \

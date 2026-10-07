@@ -1097,6 +1097,19 @@ diff --git a/dist/runtime.js b/dist/runtime.js
  		const active = owner.activeTurn;
  		if (active) {
  			const { task, turn } = active;
+@@ -833,9 +880,7 @@
+ 			if (turn.connectionUpdates) {
+ 				turn.connectionUpdates.push(notification);
+-				this.emitRuntimeTurnEvent(task, {
+-					jsonrpc: "2.0",
+-					method: "session/update",
+-					params: notification
+-				});
++				// ACP load/resume replays saved history before accepting a prompt.
++				// Retain it in the session projection without publishing it as new
++				// turn output, including tool calls and interruption metadata.
+ 				return;
+ 			}
 @@ -863,6 +910,9 @@
  		projection.checkpoint.request();
  	}

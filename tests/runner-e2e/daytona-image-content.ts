@@ -303,7 +303,7 @@ if (invokedPath && import.meta.url === pathToFileURL(invokedPath).href) {
   const arguments_ = process.argv.slice(2);
   const candidateFlag = arguments_[0];
   if (arguments_.length > 1 || (candidateFlag !== undefined && !candidateFlag.startsWith("--candidate-providers="))) {
-    throw new Error("Expected only --candidate-providers=cursor,copilot,pi");
+    throw new Error("Expected only --candidate-providers=cursor,copilot,pi,hermes");
   }
   const candidateProviders = candidateFlag?.slice("--candidate-providers=".length).split(",").filter(Boolean) ?? [];
   computeDaytonaImageContentId({ candidateProviders })

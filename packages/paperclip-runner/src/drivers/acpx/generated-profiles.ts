@@ -35,12 +35,12 @@ export const QUALIFIED_ACPX_PROFILE_DATA = {
     "protocolVersion": 1,
     "acpxVersion": "0.13.1",
     "agent": "cursor",
-    "agentProfileVersion": 15,
+    "agentProfileVersion": 16,
     "agentServerPackage": "cursor-agent",
     "agentServerVersion": "2026.09.26-dd393fe",
     "agentRuntimePackage": null,
     "agentRuntimeVersion": null,
-    "commandDigest": "sha256:aaf20b110eb6e1de8bbea655157682ef0576416f7d80d6a02715805cbbfabde1",
+    "commandDigest": "sha256:d4d2e4f4542e8b4e1e86698ddbc617bf704221637bacb1f0b779a41bf5c649b9",
     "permissionPolicy": "interactive"
   },
   "copilot": {
