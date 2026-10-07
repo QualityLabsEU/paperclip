@@ -2419,6 +2419,26 @@ describe("DurablePrpControlPlane", () => {
     } finally { await core.stop(); rmSync(root, { recursive: true, force: true }); }
   });
 
+  it("delivers attachment-sized turn input through the encrypted command frame", async () => {
+    const root = mkdtempSync(resolve(tmpdir(), "paperclip-attachment-frame-"));
+    const core = new DurablePrpControlPlane({ stateDirectory: root, identity,
+      expectedRunnerVersion, expectedRunnerDigest });
+    try {
+      await core.start();
+      const client = (await authenticate(core, core.issueBootstrapTicket()))!;
+      const data = Buffer.alloc(2 * 1024 * 1024).toString("base64");
+      const payload = { text: "Inspect both images", attachments: [
+        { kind: "image", data }, { kind: "image", data },
+      ] };
+      const pending = receiveSecure(client);
+      core.queueCommand("turn.start", payload, undefined, true);
+      const wire = await pending;
+      expect(wire?.kind).toBe("command");
+      expect((wire!.payload as any).payload).toEqual(payload);
+      client.socket.destroy();
+    } finally { await core.stop(); rmSync(root, { recursive: true, force: true }); }
+  });
+
   it("reports an oversized semantic result without exposing its content or redispatching", async () => {
     const root = mkdtempSync(resolve(tmpdir(), "paperclip-result-limit-"));
     const handler = vi.fn(async () => ({ result: { privateContent: "x".repeat(600_000) } }));

@@ -33,7 +33,7 @@ COPY cli/package.json ./cli/package.json
 # The complete resolved lock (including transitive integrity hashes) is reviewed.
 # Reject registry-time drift BEFORE installing packages or running lifecycle code.
 # Refresh this digest together with source/provider dependency changes.
-ARG PAPERCLIP_RUNNER_LOCK_SHA256=d3c4cffe7d127d99789cf354c5275246526f5396d2a86ce0d387352f68a2394b
+ARG PAPERCLIP_RUNNER_LOCK_SHA256=c63e2e731c27744e3de3a7dc8b3e115465ffe8c42e87c2a14e7d8927163f1b13
 # pnpm 9 subtracts PNPM_WORKERS from available CPUs; it is not a worker count.
 # Subtract all available CPUs to select its minimum (one tarball worker).
 RUN export PNPM_WORKERS="$(node -p 'require("node:os").availableParallelism()')" \
@@ -44,6 +44,14 @@ ARG PAPERCLIP_RUNNER_SOURCE_REVISION
 # Optional qualification assets; this never promotes candidate profiles.
 ARG PAPERCLIP_RUNNER_CANDIDATE_PROVIDERS=
 RUN test -n "${PAPERCLIP_RUNNER_SOURCE_REVISION}"
+RUN case ",${PAPERCLIP_RUNNER_CANDIDATE_PROVIDERS}," in \
+      *,hermes,*) apt-get update && apt-get install -y --no-install-recommends python3-venv \
+        && python3 -m venv /tmp/hermes-build \
+        && /tmp/hermes-build/bin/pip install --no-cache-dir uv==0.12.17 \
+        && PATH="/tmp/hermes-build/bin:${PATH}" node packages/paperclip-runner/scripts/provision-hermes.mjs \
+          /workspace/packages/paperclip-runner/provider-assets/hermes/linux-x64 \
+        && rm -rf /tmp/hermes-build /var/lib/apt/lists/* ;; \
+    esac
 RUN export PNPM_WORKERS="$(node -p 'require("node:os").availableParallelism()')" \
     && pnpm --filter @paperclipai/paperclip-runner build:typescript \
     && PAPERCLIP_RUNNER_SOURCE_REVISION="${PAPERCLIP_RUNNER_SOURCE_REVISION}" \
@@ -57,6 +65,10 @@ RUN export PNPM_WORKERS="$(node -p 'require("node:os").availableParallelism()')"
 FROM daytonaio/sandbox:0.8.0@sha256:eadf88e4391072b7ad4bed27d9cadfc9fe9d8ed375d9219d34c2ccb518f213e3
 
 USER root
+
+# Native Hermes command tools apply the runner protected-path policy to children.
+RUN apt-get update && apt-get install -y --no-install-recommends bubblewrap \
+    && rm -rf /var/lib/apt/lists/*
 
 ENV PAPERCLIP_RUNNER_PROVIDER_PACK_ROOT=/opt/paperclip-runner/provider-pack
 ENV PATH=${PAPERCLIP_RUNNER_PROVIDER_PACK_ROOT}/node_modules/.bin:/usr/local/share/nvm/current/bin:/usr/local/python/current/bin:/usr/local/py-utils/bin:${PATH}

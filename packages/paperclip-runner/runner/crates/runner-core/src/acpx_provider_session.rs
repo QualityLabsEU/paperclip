@@ -236,7 +236,9 @@ fn verified_turn_controls(
     };
     let controls: AcpxTurnControlCapabilities = serde_json::from_value(value.clone())
         .map_err(|_| LocalRunnerError::invalid("ACPX negotiated turn controls are malformed"))?;
-    if agent != "pi" && (controls.steering || controls.queued_follow_up) {
+    if ((agent != "pi" && agent != "hermes") && (controls.steering || controls.queued_follow_up))
+        || (agent == "hermes" && controls.queued_follow_up)
+    {
         return Err(LocalRunnerError::invalid(
             "ACPX profile cannot advertise these turn controls",
         ));
@@ -343,6 +345,42 @@ impl AcpxProviderSession {
         message: &str,
         working_directory: &Path,
     ) -> Result<Value, LocalRunnerError> {
+        self.start_turn_with_attachments(turn_id, message, working_directory, None)
+    }
+
+    pub fn start_turn_with_attachments(
+        &mut self,
+        turn_id: &str,
+        message: &str,
+        working_directory: &Path,
+        attachments: Option<&Value>,
+    ) -> Result<Value, LocalRunnerError> {
+        if let Some(value) = attachments {
+            let entries = value
+                .as_array()
+                .ok_or_else(|| LocalRunnerError::invalid("Native attachments must be an array"))?;
+            if self.config.agent != "hermes"
+                || entries.len() > 8
+                || value.to_string().len() > 12 * 1024 * 1024
+            {
+                return Err(LocalRunnerError::invalid(
+                    "Native attachments are unsupported or exceed their bound",
+                ));
+            }
+            for entry in entries {
+                if entry.get("schema").and_then(Value::as_str)
+                    != Some("paperclip.user_attachment.v1")
+                    || !matches!(
+                        entry.get("kind").and_then(Value::as_str),
+                        Some("image" | "text")
+                    )
+                {
+                    return Err(LocalRunnerError::invalid(
+                        "Native attachment contract is invalid",
+                    ));
+                }
+            }
+        }
         self.ensure_open()?;
         if self.runtime_retired {
             return Err(LocalRunnerError::invalid(
@@ -425,7 +463,12 @@ impl AcpxProviderSession {
         }
         let response = match self.transport.request(
             GeneratedAcpxSidecarCommand::TurnStart,
-            json!({"turnId":turn_id,"message":message}),
+            match attachments {
+                Some(attachments) => {
+                    json!({"turnId":turn_id,"message":message,"attachments":attachments})
+                }
+                None => json!({"turnId":turn_id,"message":message}),
+            },
         ) {
             Ok(response) => response,
             Err(error) => return Err(self.fail_closed(error)),

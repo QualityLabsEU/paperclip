@@ -7457,9 +7457,11 @@ it("resolves explicit skills to the remote provider home and rejects unassigned 
 });
 
 
-it("admits only exact live Pi turn controls", () => {
+it("admits only exact negotiated Pi and Hermes turn controls", () => {
   expect(parseAcpxTurnControlCapabilities(undefined, "pi")).toEqual({ steering: false, queuedFollowUp: false });
   expect(parseAcpxTurnControlCapabilities({ steering: true, queuedFollowUp: true }, "pi")).toEqual({ steering: true, queuedFollowUp: true });
+  expect(parseAcpxTurnControlCapabilities({ steering: true, queuedFollowUp: false }, "hermes")).toEqual({ steering: true, queuedFollowUp: false });
+  expect(() => parseAcpxTurnControlCapabilities({ steering: true, queuedFollowUp: true }, "hermes")).toThrow("cannot advertise");
   for (const value of [null, [], {}, { steering: 1, queuedFollowUp: false }, { steering: true, queuedFollowUp: "true" }, { steering: true, queuedFollowUp: true, arbitrary: true }]) {
     expect(() => parseAcpxTurnControlCapabilities(value, "pi")).toThrow("malformed");
   }

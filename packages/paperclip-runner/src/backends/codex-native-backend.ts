@@ -114,7 +114,7 @@ function createTransportBackedNativeSessionBackend(
   }
   const driverIdentity = transportDriverIdentity(input);
   const isCodex = input.provider.kind === "codex";
-  const preparedContext = input.schema === NATIVE_EXECUTION_INPUT_SCHEMA;
+  const preparedContext = (input.schema === NATIVE_EXECUTION_INPUT_SCHEMA || input.schema === "paperclip.native-execution-input.v6");
   const supportsCollaborativePlanning =
     isCodex ||
     input.provider.kind === "opencode" ||

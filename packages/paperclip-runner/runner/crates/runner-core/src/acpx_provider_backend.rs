@@ -1391,7 +1391,12 @@ impl AcpxCommandExecutor {
             .session
             .as_mut()
             .expect("ACPX session exists before turn start")
-            .start_turn(&provider_turn_id, text, &working_directory)
+            .start_turn_with_attachments(
+                &provider_turn_id,
+                text,
+                &working_directory,
+                payload.get("attachments"),
+            )
         {
             let state = self
                 .state

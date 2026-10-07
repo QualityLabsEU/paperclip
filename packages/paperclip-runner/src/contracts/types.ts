@@ -48,6 +48,7 @@ export interface NativeSessionCapabilities {
 export interface NativeUserMessage {
   role: "user";
   text: string;
+  attachments?: import("./user-attachments.js").NativeUserAttachment[];
 }
 import type { TypedEventFamilyCapability } from "../provider-events.js";
 

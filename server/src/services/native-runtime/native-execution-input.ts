@@ -8,6 +8,7 @@ import type {
   NativeCodexApprovalPolicy,
   NativeExecutionInputV5,
   NativeExecutionInputV6,
+  NativeExecutionInputV7,
   DotBindingSnapshot,
   NativeCompletionSource,
   NativeInteractionResponseEnvelope,
@@ -72,6 +73,7 @@ export interface BuildNativeExecutionInput {
   provider?: "codex" | "opencode" | "claude_managed" | "aws_agentcore" | "acpx" | "openai_dot";
   dotBinding?: DotBindingSnapshot;
   acpxAgent?: NativeAcpxAgent;
+  hermesConnectionFingerprint?: string;
   codexApprovalPolicy?: NativeCodexApprovalPolicy;
   codexReasoningEffort?: string;
   opencodePermissionMode?: NativeOpenCodePermissionMode;
@@ -106,9 +108,10 @@ export interface BuildNativeExecutionInput {
   runtimeContext: NativeRuntimeContextSnapshot;
 }
 export function buildNativeExecutionInput(input: BuildNativeExecutionInput & { provider: "openai_dot"; dotBinding: DotBindingSnapshot }): NativeExecutionInputV6;
+export function buildNativeExecutionInput(input: BuildNativeExecutionInput & { provider: "acpx"; acpxAgent: "hermes" }): NativeExecutionInputV7;
 export function buildNativeExecutionInput(input: BuildNativeExecutionInput & { provider?: Exclude<BuildNativeExecutionInput["provider"], "openai_dot"> }): NativeExecutionInputV5;
-export function buildNativeExecutionInput(input: BuildNativeExecutionInput): NativeExecutionInputV5 | NativeExecutionInputV6;
-export function buildNativeExecutionInput(input: BuildNativeExecutionInput): NativeExecutionInputV5 | NativeExecutionInputV6 {
+export function buildNativeExecutionInput(input: BuildNativeExecutionInput): NativeExecutionInputV5 | NativeExecutionInputV6 | NativeExecutionInputV7;
+export function buildNativeExecutionInput(input: BuildNativeExecutionInput): NativeExecutionInputV5 | NativeExecutionInputV6 | NativeExecutionInputV7 {
   if (input.issue.workMode !== "standard" && input.issue.workMode !== "planning" && input.issue.workMode !== "ask") {
     throw new Error("native_execution_input_invalid: issue work mode must be standard, planning, or ask");
   }
@@ -198,7 +201,7 @@ export function buildNativeExecutionInput(input: BuildNativeExecutionInput): Nat
     ? verifiedCompletionSources(input.turnContext, input.completionContract.sources ?? [])
     : [];
   const prepared = {
-    schema: "paperclip.native-execution-input.v5",
+    schema: input.acpxAgent === "hermes" ? "paperclip.native-execution-input.v7" : "paperclip.native-execution-input.v5",
     ...((input.initialCommunicationGuidance || input.freshSessionHandoff) ? {
       initialCommunicationGuidance: [input.initialCommunicationGuidance, input.freshSessionHandoff].filter(Boolean).join("\n\n"),
     } : {}),
@@ -272,6 +275,7 @@ export function buildNativeExecutionInput(input: BuildNativeExecutionInput): Nat
       : input.provider === "acpx"
       ? {
           kind: "acpx",
+          ...(input.acpxAgent === "hermes" ? { connectionFingerprint: input.hermesConnectionFingerprint } : {}),
           agent: acpxProfile!.agent,
           model: input.model,
           permissionMode: input.acpxPermissionMode ?? "approve-all",
@@ -320,7 +324,7 @@ export function buildNativeExecutionInput(input: BuildNativeExecutionInput): Nat
     schema: "paperclip.native-execution-input.v6", provider: { kind: "openai_dot", model: null, binding: input.dotBinding },
     workspace: { access: "none", cwd: null, repoUrl: null, repoRef: null, branchName: null },
     session: { ...prepared.session, driverKind: "openai_dot_mcp", lifecyclePolicy: { mode: "per_turn", idleTimeoutMs: null } }
-  } : prepared) as NativeExecutionInputV5 | NativeExecutionInputV6;
+  } : prepared) as NativeExecutionInputV5 | NativeExecutionInputV6 | NativeExecutionInputV7;
 }
 
 

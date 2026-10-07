@@ -32,8 +32,9 @@ Cursor CLI 2026.10.01-e373342, and GitHub CLI 2.102.0 in the sandbox layer.
 The native Cursor provider uses its separately verified distribution, pinned to
 2026.09.26-dd393fe; it does not use the sandbox layer’s global Cursor executable.
 Grok CLI 1.0.46 supports the current
-[Grok 4.7](https://docs.x.ai/developers/grok-4-7) model family. Hermes stays
-at 0.19.0, the newest release on PyPI.
+[Grok 4.7](https://docs.x.ai/developers/grok-4-7) model family. The legacy Hermes
+CLI remains at 0.19.0. The separate native runner candidate pins Hermes
+`v2026.9.24` and its Python/ACP/MCP dependencies in a verified provider asset.
 
 Keep the patched ACP bridge versions separate from their CLI runtime pins.
 Their executable digests do not change when only the runtime dependency
@@ -135,11 +136,17 @@ download dependencies when a task starts.
 
 Provider branches can build their pinned assets with
 `node packages/paperclip-runner/scripts/build-provider-pack.mjs /absolute/pack --candidate-providers=cursor`
-(or `copilot` or `pi`). The source revision must include the named provider's
+(or `copilot`, `pi` or `hermes`). The source revision must include the named provider's
 builder. Assets are installed at build time under `provider-assets/<provider>/<platform>-<architecture>`.
 The pack manifest binds each complete asset tree. Runtime admission separately
 checks the provider's source-owned closure pins and copies a verified launch snapshot.
 A pack with candidate assets does not qualify or enable that provider.
+
+The Hermes candidate build provisions Python 3.12.14 and the locked native
+runtime before publishing its pack. Command tools require bubblewrap plus kernel
+namespace support; default Docker namespace restrictions are insufficient.
+Verify this on the actual Daytona target before promoting the candidate. See
+[Hermes deployment and qualification](../../packages/paperclip-runner/docs/hermes.md).
 
 For an isolated Linux x64 Daytona qualification image, pass
 `--build-arg PAPERCLIP_RUNNER_CANDIDATE_PROVIDERS=cursor` with the normal build arguments.
