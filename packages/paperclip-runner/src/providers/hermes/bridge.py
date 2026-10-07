@@ -24,6 +24,7 @@ from policy import authorize_tool, REPORTING_TOOLS
 from tool_process import tool_policy, install_tool_process_policy
 
 EXTENSION_VERSION = 1
+ANSWER_MAX_LENGTH = 65536
 USAGE_COUNTERS = ("input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens", "reasoning_tokens", "total_tokens", "estimated_cost_usd")
 
 
@@ -74,6 +75,7 @@ def question_set(question, choices=None, multi_select=False, questions=None):
         ):
             raise ValueError("Invalid Hermes question choices")
         entry = {"id": item.get("qid", f"q{i}"), "prompt": text, "required": True,
+                 "textValidation": {"maxLength": ANSWER_MAX_LENGTH},
                  "answerMode": ("multi_select" if item.get("multi_select") else "single_select") if options else "text"}
         if options:
             entry["options"] = [{"id": f"o{j}", "label": label} for j, label in enumerate(options)]
@@ -103,7 +105,9 @@ def native_answers(form, response, batch):
         for name in ("text", "customText"):
             value = answer.get(name)
             if value is not None:
-                if not isinstance(value, str) or len(value) > 65536:
+                # Match the canonical form's JavaScript string length, including
+                # astral characters and unpaired surrogates, for custom text too.
+                if not isinstance(value, str) or len(value.encode("utf-16-le", errors="surrogatepass")) // 2 > ANSWER_MAX_LENGTH:
                     raise ValueError("Invalid Hermes text answer")
                 if value.strip():
                     parts.append(value)

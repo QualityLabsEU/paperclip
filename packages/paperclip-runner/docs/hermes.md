@@ -69,6 +69,9 @@ changes within the same run are rejected.
 
 - Reasoning and assistant text use distinct message identities. Native tool
   call IDs preserve overlapping calls and edit snapshots.
+- Native questions publish a 65,536-character limit for text and custom
+  answers. The form, canonical response validation and bridge count UTF-16
+  code units consistently, so an accepted answer can resume the native callback.
 - Images accept PNG, JPEG, WebP and GIF; documents accept UTF-8 text/Markdown.
   Limits are eight attachments, 2 MiB per item and 4 MiB total. The combined
   message and attachments also have a 7 MiB JSON-encoded limit, including

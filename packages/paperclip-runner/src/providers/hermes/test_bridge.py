@@ -61,6 +61,21 @@ class ToolPolicy(unittest.TestCase):
 
 
 class Questions(unittest.TestCase):
+    def test_published_answer_limit_matches_native_text_and_custom_answers(self):
+        for options, multi_select in [(None, False), (["A"], False), (["A"], True)]:
+            form = question_set("Which?", options, multi_select)
+            self.assertEqual(form["questions"][0]["textValidation"], {"maxLength": 65536})
+            field = "customText" if options else "text"
+            for value, accepted in [("x" * 65536, True), ("x" * 65537, False), ("x" * 70000, False),
+                                    ("\U0001f600" * 32768, True), ("\U0001f600" * 32769, False)]:
+                with self.subTest(options=options, multi_select=multi_select, length=len(value)):
+                    response = {"outcome": "answered", "answers": {"q0": {field: value}}}
+                    if accepted:
+                        self.assertEqual(native_answers(form, response, False), [value] if multi_select else value)
+                    else:
+                        with self.assertRaisesRegex(ValueError, "Invalid Hermes text answer"):
+                            native_answers(form, response, False)
+
     def test_batches_preserve_native_question_ids_and_multiple_answers(self):
         form = question_set(None, questions=[
             {"qid": "q0", "question": "Which?", "choices": ["A", "B"], "multi_select": True},

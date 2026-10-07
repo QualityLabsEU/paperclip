@@ -19,6 +19,22 @@ describe("Hermes native extensions", () => {
     expect(result.input.cancel()).toEqual({ outcome: "cancelled" });
     expect(result.input.resolve({ action: "submit", response: { schema: "paperclip.question_response.v1", answers: { q0: { text: "Because" } } } })).toEqual({ outcome: "answered", answers: { q0: { text: "Because" } } });
   });
+  it.each(["text", "single_select", "multi_select"])("enforces the native %s limit before returning an answer", async answerMode => {
+    const result = await adapter().request("_hermes/ask_questions", { version: 1, sessionId: "session", turnToken: "token", input: {
+      schema: "paperclip.question_set.v1", questions: [{ id: "q0", prompt: "Why?", required: true, answerMode,
+        textValidation: { maxLength: 65_536 },
+        ...(answerMode === "text" ? {} : { options: [{ id: "o0", label: "A" }], customAnswer: { enabled: true } }),
+      }],
+    } });
+    if (!("input" in result)) throw new Error("Missing canonical question form");
+    const response = (value: string) => ({ action: "submit" as const, response: { schema: "paperclip.question_response.v1" as const,
+      answers: { q0: answerMode === "text" ? { text: value } : { customText: value } },
+    } });
+    expect(result.input.resolve(response("😀".repeat(32_768)))).toMatchObject({ outcome: "answered" });
+    for (const value of ["x".repeat(65_537), "x".repeat(70_000), "😀".repeat(32_769)]) {
+      expect(() => result.input.resolve(response(value))).toThrow("at most 65536 characters");
+    }
+  });
   it("preserves estimated-cost provenance without inventing billed cost", async () => {
     const events = await adapter().notification("_hermes/usage", { version: 1, sessionId: "session", tokens: "reported", cost: "estimated", estimatedUsd: 0.012 });
     events.forEach(validateAcpxRichEvent);
