@@ -27,6 +27,8 @@ describe("public repository paid workflow security", () => {
     expect(fixtures).toContain("PAPERCLIP_HERMES_QUALIFY=1");
     expect(fixtures).not.toMatch(/(?:API_KEY|TOKEN|AUTH_JSON|KEEP)/);
     expect(workflow.indexOf("Provision the pinned Python closure")).toBeLessThan(workflow.indexOf("Run native fixtures"));
+    expect(workflow.indexOf("Qualify the job's provider Node interpreter")).toBeLessThan(workflow.indexOf("Run native fixtures"));
+    expect(workflow).toContain("fs.chmodSync(process.execPath, mode & ~0o022)");
     expect(workflow).toContain("no paid model, browser or Daytona proof");
     const upload = workflow.slice(workflow.indexOf("      - name: Upload fixture evidence"));
     expect(upload).toContain("hermes-native-evidence/");

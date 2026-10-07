@@ -403,6 +403,18 @@ excluding private native homes. Its actual execution result must be checked;
 the workflow declaration alone is not Linux proof. The protected paid workflow
 and its default-branch authorization remain unchanged by this addition.
 
+The first Linux CI attempt provisioned the exact pinned closure and passed the
+native ACPX fixture in 94.21 seconds, including native command tools, planning,
+images, questions, controls, memory and strict recovery. The Rust fixture failed
+before native launch because GitHub's Node interpreter was group-writable.
+The workflow now removes only group/world write bits from its own interpreter,
+matching the existing paid workflow's setup step. The launch verifier is
+unchanged; both native fixtures must pass on a new attempt. The corresponding
+ordinary PR run recorded a timeout in the unchanged chat retry denial-feedback
+browser test, followed by simultaneous runner shutdowns across other jobs.
+Their failures remain recorded and need fresh CI. Repository-wide typecheck
+and build pass on startup runtime head `2cf45fa7ff52b08215c726cf10b7d8353e69892a`.
+
 The three draft PRs had green CI and fresh Greptile 5/5 at routines
 `3745f3c5a46bda7778ee132682d1b7ae23b088c1`, native
 `0dea682031f8e35631faee7a05519ed4dce80d07`, and qualification

@@ -46,6 +46,17 @@ jobs:
         with:
           version: 9.15.4
 
+      - name: Qualify the job's provider Node interpreter
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const mode = fs.statSync(process.execPath).mode & 0o777;
+          fs.chmodSync(process.execPath, mode & ~0o022);
+          if ((fs.statSync(process.execPath).mode & 0o022) !== 0) {
+            throw new Error('provider Node interpreter remains group- or world-writable');
+          }
+          NODE
+
       - name: Install workspace dependencies
         run: |
           set -euo pipefail
