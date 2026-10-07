@@ -422,3 +422,41 @@ The three draft PRs had green CI and fresh Greptile 5/5 at routines
 failed an unchanged signoff mock-heartbeat browser case; inspection and the
 failed-job-only rerun passed. Startup changes require new checks and review.
 Hermes remains pending qualification throughout.
+
+### Linux transport proof and master synchronization, 2026-10-07
+
+The follow-up credential-free Linux amd64 run
+[37638866523](https://github.com/paperclipai/paperclip/actions/runs/37638866523)
+passed both production native fixtures: Rust PRP/sidecar in 17.16 seconds and
+ACPX/native in 88.01 seconds. Its
+[evidence artifact](https://github.com/paperclipai/paperclip/actions/runs/37638866523/artifacts/11491541694)
+records checkout merge SHA `12417c5b911c3102cba3247665e5ba94d632d9d1`, whose
+parents are native head `0dea682031f8e35631faee7a05519ed4dce80d07` and
+qualification head `689d0fa2cc2201f4643634f0fdb6da91922a7cc3`.
+Ubuntu 22.04.5, Node 24.21.0, Python 3.12.14, ACP 0.9.0 and ACPX 0.13.1
+reproduced the pinned Hermes Linux closure. No provider credentials or paid
+model were used. This proves native transport on Linux; paid browser and
+Daytona qualification remain outstanding.
+
+The full ordinary PR run
+[37638866778](https://github.com/paperclipai/paperclip/actions/runs/37638866778)
+passed on that qualification head, including all browser shards, server and
+workspace suites, typecheck, build, native runner checks and canary dry run.
+Greptile reviewed that exact head at 5/5 with no open feedback. The first two
+PRs also retained green CI and fresh 5/5 at their previously recorded heads.
+
+Master then advanced with task monitors and Claude asset-path restoration,
+creating a generated-contract conflict in the routines PR. The stack is being
+replayed on master `083073703086dd699f3f2bfd852e56c7150c2d09` before any merge. Combined contracts retain both
+live routine management and task monitors (46 live operations, 29 shared,
+57 canonical); provider policy retains Claude authenticated asset paths and
+Hermes authenticated run grants. Runtime closure pins and qualification
+bridge bytes are unchanged. Fresh verification is required for the replayed
+heads. Paid failures remain failures, and Hermes stays gated.
+
+Local replay verification passed repository-wide typecheck and build, UI token
+gates, 37 catalog/admission tests, and 658 Rust test executions with two ignored.
+The routine/service and native authority selection passed 102 tests, with one
+stale combined-tool count assertion failing. That assertion was corrected to
+40 while retaining explicit membership checks for both operations; its isolated
+real-database rerun passed. The full fresh PR CI and reviews remain required.
