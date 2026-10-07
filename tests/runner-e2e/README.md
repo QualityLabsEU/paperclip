@@ -1522,6 +1522,9 @@ the native run's company/task/agent scope, responsible user, selected account,
 provider/method, native Hermes harness and requested/effective model. Missing or mismatched metadata
 fails even when the answer is correct. The report retains the checks alongside
 the ordinary completion, screenshot, token/cost and cleanup evidence.
+Each cell admits one attempt and configures 200-cent company and agent budgets.
+Public budget readback must pass before task creation. Unpriced model usage
+remains unknown; this configured limit is not an exact billing receipt.
 
 ```sh
 pnpm test:e2e:runner -- --list --suite hermes-api-connections

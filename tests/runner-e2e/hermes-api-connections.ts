@@ -5,6 +5,21 @@ import type { RunnerProfileFixture } from "./types.js";
 const record = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const present = (value: unknown) => typeof value === "string" && value.trim().length > 0;
+export const HERMES_API_CONNECTION_BUDGET_CENTS = 200;
+
+/** Read both public budgets before creating the paid task. Unknown usage stays unknown. */
+export async function captureHermesApiBudgets(input: {
+  api: { get<T>(path: string): Promise<T> }; companyId: string; agentId: string;
+}) {
+  const [company, agent] = await Promise.all([
+    input.api.get<{ id: string; budgetMonthlyCents: unknown }>(`/api/companies/${input.companyId}`),
+    input.api.get<{ id: string; companyId: string; budgetMonthlyCents: unknown }>(`/api/agents/${input.agentId}`),
+  ]);
+  return { budgetMonthlyCents: HERMES_API_CONNECTION_BUDGET_CENTS, checks: [
+    { id: "company-budget", passed: company.id === input.companyId && company.budgetMonthlyCents === HERMES_API_CONNECTION_BUDGET_CENTS },
+    { id: "agent-budget", passed: agent.id === input.agentId && agent.companyId === input.companyId && agent.budgetMonthlyCents === HERMES_API_CONNECTION_BUDGET_CENTS },
+  ] };
+}
 
 /** Grade public run/account/model metadata; a model's completion claim cannot supply it. */
 export function gradeHermesApiConnection(input: {

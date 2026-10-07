@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { runnerMatrix, runnerSuites, suiteDefinitionHash } from "./catalog.js";
 import { buildMatrixJobs, parseRunnerSelectors, selectRunnerExecutions } from "./selectors.js";
 import { buildRunnerE2EProcessEnvironment } from "./harness-env.js";
-import { gradeHermesApiConnection } from "./hermes-api-connections.js";
+import { captureHermesApiBudgets, gradeHermesApiConnection } from "./hermes-api-connections.js";
 
 describe("Hermes managed API connection qualification", () => {
   const suite = runnerSuites.find(s => s.id === "hermes-api-connections")!;
@@ -11,8 +11,8 @@ describe("Hermes managed API connection qualification", () => {
     expect(cells).toHaveLength(10);
     expect(suite.manualOnly).toBe(true);
     expect(new Set(cells.map(e => e.environment.id))).toEqual(new Set(["local", "daytona"]));
-    expect(cells.every(e => e.task.id === "hello-complete" && e.task.expectedRunCount === 1)).toBe(true);
-    expect(suite.definitionMetadata).toMatchObject({ qualification: "pending", accountMethod: "api_key", accountMode: "responsible_user", coverage: "api-account-native-completion-only" });
+    expect(cells.every(e => e.task.id === "hello-complete" && e.task.expectedRunCount === 1 && e.task.automaticRetryPolicy === "single_attempt")).toBe(true);
+    expect(suite.definitionMetadata).toMatchObject({ qualification: "pending", accountMethod: "api_key", accountMode: "responsible_user", coverage: "api-account-native-completion-only", budgetMonthlyCents: 200, maximumAttemptsPerCell: 1 });
     expect(selectRunnerExecutions(parseRunnerSelectors(["--all"])).some(e => e.suite.id === suite.id)).toBe(false);
   });
   it("pins the exact selected candidate and model in the operator admission", () => {
@@ -37,6 +37,19 @@ describe("Hermes managed API connection qualification", () => {
   };
   it("accepts independently observed account/model metadata", () => {
     expect(gradeHermesApiConnection(valid).every(check => check.passed)).toBe(true);
+  });
+  it.each(["valid", "company-budget", "agent-budget", "company-scope", "agent-scope", "agent-company"])("checks %s through public budget readback before a paid task", async fault => {
+    const company = { id: "company", budgetMonthlyCents: fault === "company-budget" ? 0 : 200 };
+    const agent = { id: "agent", companyId: "company", budgetMonthlyCents: fault === "agent-budget" ? 0 : 200 };
+    if (fault === "company-scope") company.id = "foreign";
+    if (fault === "agent-scope") agent.id = "foreign";
+    if (fault === "agent-company") agent.companyId = "foreign";
+    const paths: string[] = [];
+    const receipt = await captureHermesApiBudgets({ companyId: "company", agentId: "agent", api: {
+      async get<T>(url: string) { paths.push(url); return (url === "/api/companies/company" ? company : agent) as T; },
+    } });
+    expect(new Set(paths)).toEqual(new Set(["/api/companies/company", "/api/agents/agent"]));
+    expect(receipt.checks.every(check => check.passed)).toBe(fault === "valid");
   });
   it.each(["company", "task", "account", "provider", "method", "user", "model", "harness", "missing", "extra-run"])("rejects %s evidence even with a successful answer", fault => {
     const wrong = structuredClone(valid), run = wrong.runs[0]!;

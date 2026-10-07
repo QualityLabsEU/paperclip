@@ -5,7 +5,7 @@ import { nativeCompletionProfile, NATIVE_COMPLETION_BUDGET_CENTS } from "./nativ
 import { chatConfirmationTasks } from "./chat-cases.js";
 import { buildConnectionSuite } from "./connection-cases.js";
 import { hiringTemplateTasks, hiringTemplateProfile, hiringTemplateDefinitionDigest } from "./hiring-template-cases.js";
-import { hermesApiConnectionChoices, hermesApiConnectionDefinitionDigest } from "./hermes-api-connections.js";
+import { HERMES_API_CONNECTION_BUDGET_CENTS, hermesApiConnectionChoices, hermesApiConnectionDefinitionDigest } from "./hermes-api-connections.js";
 import { nativeActiveStopTasks } from "./native-active-stop-tasks.js";
 import { cursorNativeTasks } from "./cursor-native-cases.js";
 import { instructionPersistenceTask } from "./instruction-persistence.js";
@@ -1206,11 +1206,12 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
     id: "hermes-api-connections", label: "Hermes managed API connections", manualOnly: true,
     description: "One native browser task per exact model using an independently selected managed API account; catalog discovery is not inference proof.",
     groups: ["native"], profiles: hermesApiConnectionProfiles, environments: runnerEnvironments,
-    tasks: [openRouterBreadthTasks.find(task => task.id === "hello-complete")!],
+    tasks: [{ ...openRouterBreadthTasks.find(task => task.id === "hello-complete")!, automaticRetryPolicy: "single_attempt" }],
     expectedMatrixSize: 10,
     definitionMetadata: {
       version: 1, qualification: "pending", scheduling: "explicit-only", authenticatedDiscoveryDate: "2026-10-07",
       accountMethod: "api_key", accountMode: "responsible_user", providerTurns: 1,
+      budgetMonthlyCents: HERMES_API_CONNECTION_BUDGET_CENTS, maximumAttemptsPerCell: 1,
       coverage: "api-account-native-completion-only", sourceDigest: hermesApiConnectionDefinitionDigest,
     },
   },

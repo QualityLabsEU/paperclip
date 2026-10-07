@@ -301,6 +301,8 @@ responsible user. Calibration rejects foreign accounts/companies/tasks/users,
 wrong providers/methods/models/harnesses, missing evidence and extra runs. The suite's
 definition includes the account/runner harness source digest. Its API-only scope
 does not substitute for subscription or lifecycle qualification.
+The task permits one attempt. Both public 200-cent budgets must match the fixture
+scope before task creation; unlimited or foreign budget records fail admission.
 
 ## Persistent agent files
 

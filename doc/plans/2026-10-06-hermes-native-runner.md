@@ -537,7 +537,7 @@ explicitly privileged cloud container: protected files remained hidden,
 assigned skills remained read-only, and allowed workspace writes succeeded.
 This establishes this EC2 host's compatibility; it does not qualify Daytona.
 
-Three real Linux Product E2E cells passed through Chromium, an isolated Paperclip
+All five core Linux Product E2E cells passed through Chromium, an isolated Paperclip
 server/database, Runnerd, ACPX, native Hermes and managed OpenRouter model
 `deepseek/deepseek-v4-flash-0731`:
 
@@ -546,16 +546,21 @@ server/database, Runnerd, ACPX, native Hermes and managed OpenRouter model
 | `hello-complete` | `71743c4f328f` | 72.351 seconds | 1 | Passed |
 | `question-resume-complete` | `703f08761be6` | 133.251 seconds | 2 | Passed |
 | `plan-approve-complete` | `8662152371fd` | 140.890 seconds | 2 | Passed |
+| `structured-question-restart-resume` | `87eaa1dd7deb` | 137.277 seconds | 2 | Passed |
+| `file-edit-validate` | `758fe67e2613` | 132.001 seconds | 1 | Passed |
 
-All three results bind the exact image-source commit above. The catalog environment
+All five results bind the exact image-source commit above. The catalog environment
 is `local`, with a separately recorded AWS EC2 Linux execution host; these are
 not Daytona/remote-target passes. The first case independently verified Done,
 one final answer and a successful native run, with a reviewed final screenshot.
 The second retained the question and final screenshots and verified the answer
 and continuation. The third verified plan approval, continuation and completion,
-with two retained screenshots. Runtime cost is not metered by that local catalog; external
+with two reviewed screenshots. The fourth verified retained question state and
+conversation continuation after a real controller restart, with three screenshots.
+The file case checked the actual final file bytes and command validation, with
+one screenshot. Runtime cost is not metered by that local catalog; external
 EC2 cost is separate. Native token usage was available for the completion run
-and one of the two runs in each question/approval workflow. Model cost remains unpriced/incomplete, and
+and one of the two runs in each question/approval/restart workflow. Model cost remains unpriced/incomplete, and
 shared-key aggregate budget readings do not establish exact per-run cost.
 
 The initial cloud browser attempt failed before server bootstrap because the
@@ -570,8 +575,18 @@ no credentials or raw provider traces.
 
 The new explicit-only `hermes-api-connections` matrix declares ten API-account
 completion cells with independently graded native account/model attribution.
+Each permits one attempt and configures 200-cent company and agent budgets.
+Public readback must verify both budgets and their scope before task creation;
+unpriced usage stays unknown and does not become an exact billing receipt.
 Authenticated OpenAI, Anthropic, xAI and Google catalog reads succeeded without
 inference. Those discoveries and the new fixture calibration do not constitute
 live provider qualification. The complete original release gates remain open:
 the rest of the live controls, attachments, state/routines, credential lifecycle,
 subscriptions/custom protocols/Bedrock and actual Daytona proof are still required.
+
+The final API fixture support suite passed 1,833 Vitest tests (one skipped) and
+all 128 companion Node assertions. Product E2E TypeScript and `git diff --check`
+passed. The five verified encrypted cloud proofs are preserved; the disposable
+EC2 instance was terminated and its unused role, instance profile and security
+group removed. No local Docker was used. These fixture refinements require
+fresh current-head CI and review; they do not complete release qualification.

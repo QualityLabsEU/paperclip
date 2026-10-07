@@ -1,5 +1,5 @@
 import { runPlanTaskFlow } from "./plan-task-flow.js";
-import { gradeHermesApiConnection } from "./hermes-api-connections.js";
+import { captureHermesApiBudgets, gradeHermesApiConnection } from "./hermes-api-connections.js";
 import { assertNativeCompletionSelection, NATIVE_COMPLETION_PREFLIGHT_ENV, verifyNativeCompletionPreflight } from "./native-completion-admission.js";
 import { assertNativeInstructionSelection, verifyNativeInstructionPreflight, NATIVE_INSTRUCTION_PREFLIGHT_ENV, NATIVE_INSTRUCTION_SUITE, NATIVE_INSTRUCTION_DEFAULT_SHA256 } from "./native-instruction-consolidation.js";
 import { captureNativeDefault, gradeNativeDefault, nativeCompletionWorkspaceDigest } from "./native-completion-defaults.js";
@@ -894,6 +894,11 @@ for (const execution of executions) {
         daytonaImage: process.env.PAPERCLIP_E2E_DAYTONA_IMAGE,
       });
 
+      if (execution.suite.id === "hermes-api-connections") {
+        const receipt = await captureHermesApiBudgets({ api, companyId: fixtures.company.id, agentId: fixtures.agent.id });
+        await writeSanitizedJson(snapshotsDir, "hermes-api-budgets-before-execution.json", receipt, secrets);
+        if (!receipt.checks.every(check => check.passed)) throw new Error("Hermes API budgets failed admission before task creation");
+      }
       if (["native-completion", NATIVE_INSTRUCTION_SUITE].includes(execution.suite.id)) {
         const receipt = await captureNativeDefault({ api, agentId: fixtures.agent.id, companyId: fixtures.company.id });
         const grade = gradeNativeDefault(receipt, execution.suite.id === NATIVE_INSTRUCTION_SUITE ? NATIVE_INSTRUCTION_DEFAULT_SHA256 : undefined);

@@ -119,10 +119,11 @@ describe("live runner fixtures", () => {
           : ["runner-acpx-claude", "runner-acpx-hermes-api-anthropic"].includes(profile) ? "anthropic"
           : ["runner-opencode", "runner-acpx-hermes"].includes(profile) ? "openrouter" : "openai";
       let connected = false;
+      let companyBody: any;
       let agentBody: any;
       const api = {
         async post(url: string, data: any) {
-          if (url === "/api/companies") return { id: "company", name: "Test" };
+          if (url === "/api/companies") { companyBody = data; return { id: "company", name: "Test" }; }
           if (url.endsWith("/agents")) {
             agentBody = data;
             return { id: "lead", ...data };
@@ -158,6 +159,10 @@ describe("live runner fixtures", () => {
         },
       });
       expect(connected).toBe(true);
+      if (suite === "hermes-api-connections") {
+        expect(companyBody.budgetMonthlyCents).toBe(200);
+        expect(agentBody.budgetMonthlyCents).toBe(200);
+      }
       expect(agentBody.adapterConfig.env).toBeUndefined();
       expect(agentBody.runtimeConfig.aiConnection).toEqual({
         provider,

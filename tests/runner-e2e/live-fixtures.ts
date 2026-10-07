@@ -1,4 +1,5 @@
 import { NATIVE_COMPLETION_BUDGET_CENTS } from "./native-completion-defaults.js";
+import { HERMES_API_CONNECTION_BUDGET_CENTS } from "./hermes-api-connections.js";
 import path from "node:path";
 import { installedReleaseDaytonaPlugin } from "./installed-release.js";
 import { isManagedHiringCase } from "./chat-cases.js";
@@ -139,7 +140,8 @@ export async function setupLiveFixtures(input: {
       return api.post<CompanyRecord>("/api/companies", {
         name: `Runner E2E ${execution.id} ${input.executionNonce}`,
         description: "Ephemeral paid full-stack runner acceptance fixture",
-        budgetMonthlyCents: ["native-completion", "native-instruction-consolidation", "native-connection-guidance"].includes(execution.suite.id)
+        budgetMonthlyCents: execution.suite.id === "hermes-api-connections" ? HERMES_API_CONNECTION_BUDGET_CENTS
+          : ["native-completion", "native-instruction-consolidation", "native-connection-guidance"].includes(execution.suite.id)
           || (execution.suite.id === "everyday-workflows" && ["hire-reuse", "delegate-feedback"].includes(execution.task.id)) ? NATIVE_COMPLETION_BUDGET_CENTS
           : execution.suite.id === "task-titles" ? TASK_TITLE_BUDGET_CENTS
           : execution.suite.id === "stock-harness" ? 1_000 : 0,
@@ -302,6 +304,7 @@ export async function setupLiveFixtures(input: {
         || (execution.suite.id === "everyday-workflows" && ["hire-reuse", "delegate-feedback"].includes(execution.task.id))) {
         agent.budgetMonthlyCents = 1_000;
       }
+      if (execution.suite.id === "hermes-api-connections") agent.budgetMonthlyCents = HERMES_API_CONNECTION_BUDGET_CENTS;
       if (managedHiring) {
         const account = value<ManagedAccountFixture>(resolved, "ai-connection");
         const config = agent.adapterConfig as Record<string, unknown>;
