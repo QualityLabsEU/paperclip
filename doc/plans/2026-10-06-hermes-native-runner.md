@@ -647,3 +647,43 @@ collection. No local Docker is used. Subscription/credential lifecycle, custom
 protocols, Bedrock, the remaining interactions/state/routines, final macOS
 campaign, clean distribution, and actual Daytona gates remain open. Hermes
 continues to be pending qualification.
+
+### API completion results and question-limit correction, 2026-10-07
+
+The remaining API completion cases passed on the same verified AWS Linux image:
+
+| Managed API account | Exact model | Controller source | Campaign suffix | Duration |
+| --- | --- | --- | --- | --- |
+| OpenRouter | `deepseek/deepseek-v4-flash-0731` | `ffd6bbc1ebb10c1c8ef0db875bb88d733f64649d` | `b530ea3f1d95` | 62.134 s |
+| Google | `gemini-3.8-flash` | `f0dca1e1815f767a55e644d2eecc4cc91a166519` | `b819f9665567` | 60.466 s |
+
+Both satisfy the same six native account/model checks, two pre-turn budget checks,
+one successful native run, final-answer and cleanup assertions. Their final browser
+screenshots were reviewed. Google's earlier 2.5 failure remains retained as a
+separate provider/model attempt. All five selected API providers therefore have
+completion evidence at those recorded sources; this does not establish the broader
+release gates. The private campaign archives remain encrypted and the disposable
+host was terminated. Its unused role, instance profile and security group were
+removed. The qualification ledger reserves $17 of the authorized $25 cap, including
+both Google attempts; reservations do not establish actual spend.
+
+At `f0dca1e1815f767a55e644d2eecc4cc91a166519`, all 54 checks passed with two
+intentional skips and fresh Greptile 5/5. A subsequent native-PR review identified
+a question-limit mismatch: the canonical form accepted answers exceeding the
+bridge's 65,536-character bound. Native commit
+`de39c85a7` publishes the bound for text and custom answers and counts UTF-16 code
+units consistently with canonical validation. All 21 pinned Python bridge tests,
+11 affected TypeScript tests, runner TypeScript and diff checks passed. Boundary
+coverage includes overlong answers and astral Unicode in all three answer modes.
+
+The corrected bridge changes the verified runtime bytes. Fresh pinned macOS
+provisioning verified closure
+`690b3b84a543b04a47a6859969bd613ced61d68776d80b57c85ca424bde31829`.
+The Linux closure pin is
+`6166fadd24dae41b9fdfd994e6c7bc129e9317ed252b7dabdd777b691ab47771`,
+derived by independently verifying every original pinned file and changing only
+`bridge.py`. Fresh Linux provisioning/CI and the updated cloud image still require
+verification. The earlier image digest and live results retain their original
+sources and closure; they are not results for the corrected runtime. The stacked
+qualification commits were replayed without changing their patches. Both updated
+PR heads require fresh checks and review. Hermes remains pending qualification.
