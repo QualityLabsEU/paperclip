@@ -494,3 +494,17 @@ TypeScript attachment/permission tests, two encrypted-frame tests carrying
 accepted images and escaped documents, the Rust admission regression, and
 Runner TypeScript compilation. The stack still needs fresh CI and review on
 the resulting heads. No merge has occurred, and Hermes remains gated.
+
+The complete affected native tool-authority suite subsequently passed all 26
+tests with supported Node 24 and local PostgreSQL permissions. A negative proof
+restored only the previous blocking lock temporarily: the concurrency regression
+failed at its expected contention timeout. The committed NOWAIT fix was restored
+with no remaining worktree changes. All 143 affected ACPX lifecycle tests and
+the current generated profile, protocol, sidecar and surface checks also passed.
+
+The qualification review at `c99b2c86748e06600d853adaf5a7483aa16ed8ca` returned
+5/5 but noted a native CI trigger coverage gap. The credential-free workflow
+now covers shared Runner sources, Rust and build manifests, dependency patches,
+and shared workspace inputs. A glob-matching regression verifies those changes
+trigger the native fixture. Paid workflow authorization is unchanged. This
+follow-up requires another exact-head review and CI run.

@@ -15,6 +15,28 @@ const everydayOracleImage =
   "python@sha256:9d2e5553305c7c7b0097999bb17187c69b921ccd6bc9d40e4bb5ebe652c00285";
 
 describe("public repository paid workflow security", () => {
+  it("runs native Hermes fixtures for shared sources, patches, and build inputs", async () => {
+    const workflow = await readFile(path.join(repositoryRoot, ".github/workflows/runner-hermes-native.yml"), "utf8");
+    const filter = workflow.slice(workflow.indexOf("    paths:"), workflow.indexOf("  workflow_dispatch:"));
+    const patterns = [...filter.matchAll(/^      - (.+)$/gmu)].map(match => match[1]!);
+    const triggers = (file: string) => patterns.some(pattern => path.matchesGlob(file, pattern));
+    for (const file of [
+      "patches/acpx@0.13.1.patch",
+      "packages/paperclip-runner/src/contracts/user-attachments.ts",
+      "packages/paperclip-runner/src/backends/codex-native-backend.ts",
+      "packages/paperclip-runner/src/control-plane/durable-prp-control-plane.ts",
+      "packages/paperclip-runner/runner/crates/runner-core/src/durable/runner.rs",
+      "packages/paperclip-runner/runner/Cargo.lock",
+      "packages/paperclip-runner/package.json",
+      "packages/paperclip-runner/scripts/build-verified-provider-entrypoints.mjs",
+      "packages/paperclip-eval-kernel/src/index.ts",
+      "packages/adapter-utils/src/paperclip-runner-permissions.ts",
+      "packages/shared/src/ai-connections.ts",
+      "package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", "tsconfig.json",
+      "tests/runner-e2e/provision-hermes-linux.sh",
+    ]) expect(triggers(file), `Missing native fixture trigger: ${file}`).toBe(true);
+    expect(triggers("README.md")).toBe(false);
+  });
   it("keeps native Hermes PR fixtures outside paid authority and strips their child environment", async () => {
     const workflow = await readFile(path.join(repositoryRoot, ".github/workflows/runner-hermes-native.yml"), "utf8");
     expect(workflow).toContain("pull_request:");

@@ -4,13 +4,17 @@ on:
   pull_request:
     paths:
       - .github/workflows/runner-hermes-native.yml
-      - packages/paperclip-runner/src/providers/hermes/**
-      - packages/paperclip-runner/src/drivers/acpx/**
-      - packages/paperclip-runner/src/live/runnerd-*.ts
-      - packages/paperclip-runner/runner/crates/runner-core/src/acpx_*.rs
-      - packages/paperclip-runner/scripts/*hermes*
-      - packages/paperclip-runner/acpx-profiles.json
+      - packages/paperclip-runner/**
+      - packages/paperclip-eval-kernel/**
+      - packages/adapter-utils/**
+      - packages/shared/**
+      - patches/**
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - tsconfig*.json
       - tests/runner-e2e/provision-hermes-linux.sh
+      - tests/runner-e2e/workflow-security.test.ts
   workflow_dispatch:
 
 permissions:
