@@ -15,6 +15,23 @@ const everydayOracleImage =
   "python@sha256:9d2e5553305c7c7b0097999bb17187c69b921ccd6bc9d40e4bb5ebe652c00285";
 
 describe("public repository paid workflow security", () => {
+  it("keeps native Hermes PR fixtures outside paid authority and strips their child environment", async () => {
+    const workflow = await readFile(path.join(repositoryRoot, ".github/workflows/runner-hermes-native.yml"), "utf8");
+    expect(workflow).toContain("pull_request:");
+    expect(workflow).not.toContain("pull_request_target:");
+    expect(workflow).not.toMatch(/\bsecrets\.|\benvironment:|\bwrite\b/);
+    expect(workflow).toContain("contents: read");
+    expect(workflow).toContain("persist-credentials: false");
+    const fixtures = workflow.slice(workflow.indexOf("      - name: Run native fixtures"), workflow.indexOf("      - name: Record source"));
+    expect(fixtures).toContain('env -i PATH="$PATH" HOME="$RUNNER_TEMP/hermes-fixture-home"');
+    expect(fixtures).toContain("PAPERCLIP_HERMES_QUALIFY=1");
+    expect(fixtures).not.toMatch(/(?:API_KEY|TOKEN|AUTH_JSON|KEEP)/);
+    expect(workflow.indexOf("Provision the pinned Python closure")).toBeLessThan(workflow.indexOf("Run native fixtures"));
+    expect(workflow).toContain("no paid model, browser or Daytona proof");
+    const upload = workflow.slice(workflow.indexOf("      - name: Upload fixture evidence"));
+    expect(upload).toContain("hermes-native-evidence/");
+    expect(upload).not.toMatch(/hermes-fixture-home|provider-assets|runtimeDirectory/);
+  });
   it("provisions selected Hermes assets before credentials and uses the same selection for image identity and packs", async () => {
     const workflow = await readFile(path.join(repositoryRoot, ".github/workflows/runner-full-stack-e2e.yml"), "utf8");
     const catalog = workflow.slice(workflow.indexOf("  catalog:"), workflow.indexOf("  daytona_image:"));

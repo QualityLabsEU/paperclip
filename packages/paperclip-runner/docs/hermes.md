@@ -67,6 +67,13 @@ working copy and assigned tool bindings. The session still pins prompt, bundle,
 skill, connection, model, and permission identities. Unknown policy changes and
 changes within the same run are rejected.
 
+Native session admission has a 60-second bound for the verified private Python
+copy and ACP initialization. The controller allows 75 seconds around cold
+startup, recovery and later-turn restoration. Once a turn is accepted, its
+start-event deadline remains 30 seconds. Ordinary commands, cancellation and
+process cleanup retain their existing bounds; this startup allowance does not
+extend the task's execution deadline.
+
 ## Interaction contract
 
 - Reasoning and assistant text use distinct message identities. Native tool
@@ -146,3 +153,9 @@ Hermes cells using a managed OpenRouter connection. Each connection method,
 native control, attachment, persistence, remote restoration and permission mode
 must pass its release criterion with inspectable live evidence before promotion.
 The implementation record is included in that qualification PR.
+
+The `Hermes Native Transport` PR workflow runs the same native fixtures on Linux
+amd64 with a stripped provider environment and deterministic loopback endpoints.
+Its CI artifacts include exact source/runtime provenance and fixture logs. This
+is credential-free transport and host-sandbox evidence; it does not replace
+paid-provider, browser, subscription or Daytona qualification.

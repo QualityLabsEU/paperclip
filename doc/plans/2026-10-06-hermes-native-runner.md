@@ -23,7 +23,8 @@ Keep the existing Hermes local/gateway adapters compatible.
 - [x] Complete final Rust/regression checks and resolve or classify failures.
 - [ ] Browser acceptance, Linux/Daytona execution and connection-method qualification.
 - [x] Reviewable draft PR stack, green CI and fresh Greptile 5/5 on the implementation heads.
-- [ ] Complete the final local aggregate test invocation and release qualification.
+- [x] Complete the final local aggregate test invocation and classify its failures.
+- [ ] Complete live release qualification.
 
 ## Qualification evidence
 
@@ -60,8 +61,8 @@ because fixtures pass.
   Native cron and gateway messaging are disabled.
 - Pending Hermes choice in existing runner configuration; existing connection,
   model, permission and transcript components. Ten Product E2E candidate cells
-  (five local, five Daytona) are registered. Four local cases have passing paid
-  attempts; the complete release matrix has not passed.
+  (five local, five Daytona) are registered. All five local cases have passing
+  paid attempts across different heads; the complete release matrix has not passed.
 
 ## Evidence and outstanding release gates
 
@@ -342,3 +343,70 @@ cross-task memory/learned skills, routine firing and deduplication, and actual
 Linux amd64/Daytona execution and restoration. Exact approved Connection names
 and a compatible remote execution environment are still needed. The existing
 standalone Hermes local/gateway adapters retain their contracts.
+
+### Final-head campaign and startup follow-up, 2026-10-07
+
+The campaign `hermes-local-paid-20261007-final-head` correctly recorded source
+`a54d04785b62e2190f4e13647bf75ae510449d98` and passed **1/5** cases. It used
+the same managed OpenRouter account, exact model and macOS browser/Runner path:
+
+| Case | Result | Failure or limitation |
+| --- | --- | --- |
+| Hello/completion | Pass | Done, exact final answer and cleanup passed |
+| Question/resume | Fail | `session.open` exceeded its 30-second command deadline; cleanup passed |
+| Plan/approve/complete | Fail | Reasoning streamed but the 120-second turn deadline expired; cleanup passed |
+| Structured question/restart/resume | Fail | The isolated server hit system `ENFILE`; cleanup failed |
+| File edit/validation | Fail | Dispatch was interrupted after the resource failure; process-group cleanup identity was uncertain |
+
+The file case's underlying task later reached success, but its independent
+fixture oracle and cleanup did not pass. Its recorded failure is unchanged.
+The owned launcher and remaining isolated server/database were retired with
+verified exit. Failed private recovery roots remain preserved because their
+original cleanup receipts failed. No additional paid campaign was launched.
+The numeric budget receipt reports $4.539181805 remaining under the key's $5
+limit; this is shared-key accounting, not exact per-run billed cost.
+
+Credential-free production-host probes reproduced variable cold-start latency.
+The first verified 445 MB runtime copy took 3.08 seconds. A complete admission
+later took 33.69 seconds: 16.54 seconds for the verified private copy and 16.61
+seconds for native initialization/ACP handshake. Its no-auth loopback endpoint
+received only model/backend metadata probes, with no inference requests.
+These measurements reproduce an admission deadline problem; they do not prove
+the cause of the host's file-table exhaustion. The read-only host counter still
+reported 461,999 open files against a 491,520 limit. No system limit was changed
+and no unrelated process was stopped.
+
+Hermes now has a separate 60-second native session-open deadline. The PRP
+controller allows 75 seconds around cold admission, recovery, and later-turn
+restoration. Ordinary commands and stop retain their prior deadlines, and the
+post-acceptance turn-start event deadline remains 30 seconds. The 120-second
+Product E2E turn oracle is unchanged. Focused regressions verify delayed startup,
+ordinary-command timeout, fail-closed transport reuse and the finite outer
+deadline. This addresses admission timing only; the paid planning timeout and
+host resource failures still require a new passing campaign on a reliable host.
+
+Startup verification passed seven TypeScript deadline regressions, the complete
+193-test controller transport selection, 27 focused Rust session/transport test
+executions, and the complete 655-execution Rust workspace suite (two ignored).
+Runner TypeScript/Rust typechecks, verified entrypoint builds, release binary
+build, workflow authority tests (14), and actionlint pass.
+Both rebuilt native production fixtures also pass: 35.98 seconds through Rust
+PRP/sidecar and 144.68 seconds through the ACPX host. They use the deterministic
+no-auth model fixture and retain their original assertions and deadlines.
+
+The new credential-free `Hermes Native Transport` PR workflow provisions the
+pinned Linux amd64 closure and runs both production native fixtures on an
+ephemeral Ubuntu host. Provider children receive an empty environment plus the
+fixture PATH/home/opt-in flag. No paid environment or credentials are available.
+It retains source/runtime provenance and fixture logs as CI artifacts while
+excluding private native homes. Its actual execution result must be checked;
+the workflow declaration alone is not Linux proof. The protected paid workflow
+and its default-branch authorization remain unchanged by this addition.
+
+The three draft PRs had green CI and fresh Greptile 5/5 at routines
+`3745f3c5a46bda7778ee132682d1b7ae23b088c1`, native
+`0dea682031f8e35631faee7a05519ed4dce80d07`, and qualification
+`a54d04785b62e2190f4e13647bf75ae510449d98`. That qualification CI initially
+failed an unchanged signoff mock-heartbeat browser case; inspection and the
+failed-job-only rerun passed. Startup changes require new checks and review.
+Hermes remains pending qualification throughout.
