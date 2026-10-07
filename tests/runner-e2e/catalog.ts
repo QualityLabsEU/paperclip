@@ -1210,7 +1210,7 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
     expectedMatrixSize: 10,
     definitionMetadata: {
       version: 1, qualification: "pending", scheduling: "explicit-only", authenticatedDiscoveryDate: "2026-10-07",
-      accountMethod: "api_key", accountMode: "responsible_user", providerTurns: 1,
+      accountMethod: "api_key", accountMode: "responsible_user", providerTurns: 1, expectedUserSource: "public-account-owner-before-task",
       budgetMonthlyCents: HERMES_API_CONNECTION_BUDGET_CENTS, maximumAttemptsPerCell: 1,
       coverage: "api-account-native-completion-only", sourceDigest: hermesApiConnectionDefinitionDigest,
     },

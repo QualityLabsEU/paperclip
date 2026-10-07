@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { runnerMatrix, runnerSuites, suiteDefinitionHash } from "./catalog.js";
 import { buildMatrixJobs, parseRunnerSelectors, selectRunnerExecutions } from "./selectors.js";
 import { buildRunnerE2EProcessEnvironment } from "./harness-env.js";
-import { captureHermesApiBudgets, gradeHermesApiConnection } from "./hermes-api-connections.js";
+import { captureHermesApiAccountOwner, captureHermesApiBudgets, gradeHermesApiConnection } from "./hermes-api-connections.js";
 
 describe("Hermes managed API connection qualification", () => {
   const suite = runnerSuites.find(s => s.id === "hermes-api-connections")!;
@@ -32,7 +32,7 @@ describe("Hermes managed API connection qualification", () => {
     expect(suiteDefinitionHash({ ...suite, definitionMetadata: { ...suite.definitionMetadata, sourceDigest: "changed-account-selection" } })).not.toBe(suiteDefinitionHash(suite));
   });
   const valid = {
-    companyId: "company", agentId: "agent", issueId: "task", connectionId: "account", provider: "xai", model: "grok-4.7",
+    companyId: "company", agentId: "agent", issueId: "task", connectionId: "account", provider: "xai", model: "grok-4.7", expectedResponsibleUserId: "user",
     runs: [{ companyId: "company", agentId: "agent", issueId: "task", status: "succeeded", runtimeMode: "native", responsibleUserId: "user",
       contextSnapshot: { aiConnection: { connectionId: "account", provider: "xai", method: "api_key", mode: "responsible_user", responsibleUserId: "user" } },
       runnerProfileJson: { nativeExecutionInput: { provider: { kind: "acpx", agent: "hermes", model: "grok-4.7" } },
@@ -40,6 +40,23 @@ describe("Hermes managed API connection qualification", () => {
   };
   it("accepts independently observed account/model metadata", () => {
     expect(gradeHermesApiConnection(valid).every(check => check.passed)).toBe(true);
+  });
+  it.each(["valid", "missing", "duplicate", "company", "provider", "method", "ownership", "status", "owner", "caller"])("establishes the expected user from public account readback: %s", async fault => {
+    const account = { id: "account", companyId: "company", provider: "xai", method: "api_key", ownership: "personal", ownerUserId: "user", status: "connected" };
+    if (fault === "company") account.companyId = "foreign";
+    if (fault === "provider") account.provider = "foreign";
+    if (fault === "method") account.method = "foreign";
+    if (fault === "ownership") account.ownership = "foreign";
+    if (fault === "status") account.status = "foreign";
+    if (fault === "owner") account.ownerUserId = "foreign";
+    const receipt = await captureHermesApiAccountOwner({ companyId: "company", connectionId: "account", provider: "xai", api: {
+      async get<T>(url: string) {
+        expect(url).toBe("/api/companies/company/ai-connections");
+        return { currentUserId: fault === "caller" ? "" : "user", connections: fault === "missing" ? [] : fault === "duplicate" ? [account, account] : [account] } as T;
+      },
+    } });
+    expect(receipt.checks.every(check => check.passed)).toBe(fault === "valid");
+    if (fault === "valid") expect(receipt.expectedResponsibleUserId).toBe("user");
   });
   it.each(["valid", "company-budget", "agent-budget", "company-scope", "agent-scope", "agent-company"])("checks %s through public budget readback before a paid task", async fault => {
     const company = { id: "company", budgetMonthlyCents: fault === "company-budget" ? 0 : 200 };
@@ -54,7 +71,7 @@ describe("Hermes managed API connection qualification", () => {
     expect(new Set(paths)).toEqual(new Set(["/api/companies/company", "/api/agents/agent"]));
     expect(receipt.checks.every(check => check.passed)).toBe(fault === "valid");
   });
-  it.each(["company", "task", "account", "provider", "method", "user", "model", "harness", "missing", "extra-run"])("rejects %s evidence even with a successful answer", fault => {
+  it.each(["company", "task", "account", "provider", "method", "user", "consistent-foreign-user", "missing-expected-user", "model", "harness", "missing", "extra-run"])("rejects %s evidence even with a successful answer", fault => {
     const wrong = structuredClone(valid), run = wrong.runs[0]!;
     if (fault === "company") run.companyId = "foreign";
     if (fault === "task") run.issueId = "foreign";
@@ -62,6 +79,8 @@ describe("Hermes managed API connection qualification", () => {
     if (fault === "provider") run.contextSnapshot.aiConnection.provider = "openai";
     if (fault === "method") run.contextSnapshot.aiConnection.method = "subscription";
     if (fault === "user") run.contextSnapshot.aiConnection.responsibleUserId = "foreign";
+    if (fault === "consistent-foreign-user") { run.responsibleUserId = "foreign"; run.contextSnapshot.aiConnection.responsibleUserId = "foreign"; }
+    if (fault === "missing-expected-user") wrong.expectedResponsibleUserId = "";
     if (fault === "model") run.runnerProfileJson.sessionCheckpoint.providerIdentity.effectiveModel = "foreign";
     if (fault === "harness") run.runnerProfileJson.nativeExecutionInput.provider.agent = "codex";
     if (fault === "missing") wrong.runs = [];

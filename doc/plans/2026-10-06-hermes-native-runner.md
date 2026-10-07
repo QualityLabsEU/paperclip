@@ -687,3 +687,25 @@ verification. The earlier image digest and live results retain their original
 sources and closure; they are not results for the corrected runtime. The stacked
 qualification commits were replayed without changing their patches. Both updated
 PR heads require fresh checks and review. Hermes remains pending qualification.
+
+The subsequent qualification review found an independent-user evidence gap:
+the original responsible-user check compared two run fields with each other.
+That permits a consistent foreign user to pass. New fixture admission reads the
+selected account and authenticated caller through the public Connections API
+before creating a paid task, verifies company/account/provider/method/ownership
+and connected status, and retains the expected owner. Both run fields must equal
+that owner; missing, duplicate, foreign-owner and consistent-wrong-run-user cases
+are calibrated as failures. The historical API results keep their original
+grader provenance; they do not acquire this pre-turn owner receipt retroactively.
+An additional assessment of the retained public task records independently
+checks the immutable task creator, task responsible user and both run attribution
+fields. All five successful API cases pass that comparison with zero provider
+calls. This retained-task assessment remains separate from the new fixture's
+pre-turn account-owner admission. The correction passed all 106 affected tests,
+Product E2E TypeScript and diff checks.
+
+The fresh Linux native CI attempt at the replayed head failed before provisioning
+because GitHub returned HTTP 429 for the pinned source archive. No native fixture
+or provider execution occurred. This is retained as a download infrastructure
+failure; it is not evidence of a closure mismatch. The separate credential-free
+AWS build continues against its recorded immutable source.

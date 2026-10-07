@@ -1525,6 +1525,11 @@ the ordinary completion, screenshot, token/cost and cleanup evidence.
 Each cell admits one attempt and configures 200-cent company and agent budgets.
 Public budget readback must pass before task creation. Unpriced model usage
 remains unknown; this configured limit is not an exact billing receipt.
+Before creating the task, public account readback must identify the selected
+connected personal account, its company and owner, and the authenticated caller.
+Both run attribution fields must match that independently recorded owner.
+The pre-turn owner receipt is retained; agreement between two run fields alone
+cannot establish the expected user.
 
 ```sh
 pnpm test:e2e:runner -- --list --suite hermes-api-connections
