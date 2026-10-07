@@ -15,6 +15,29 @@ const everydayOracleImage =
   "python@sha256:9d2e5553305c7c7b0097999bb17187c69b921ccd6bc9d40e4bb5ebe652c00285";
 
 describe("public repository paid workflow security", () => {
+  it("provisions selected Hermes assets before credentials and uses the same selection for image identity and packs", async () => {
+    const workflow = await readFile(path.join(repositoryRoot, ".github/workflows/runner-full-stack-e2e.yml"), "utf8");
+    const catalog = workflow.slice(workflow.indexOf("  catalog:"), workflow.indexOf("  daytona_image:"));
+    expect(catalog).toContain('if any(.include[]; .profileId == "runner-acpx-hermes") then "hermes" else "" end');
+    expect(catalog.indexOf("Validate selectors and emit matrix")).toBeLessThan(catalog.indexOf("Compute Daytona image content ID"));
+    expect(catalog).toContain('"--candidate-providers=$CANDIDATE_PROVIDERS"');
+    const image = workflow.slice(workflow.indexOf("  daytona_image:"), workflow.indexOf("  build_runner_artifacts:"));
+    expect(image).toContain('--build-arg "PAPERCLIP_RUNNER_CANDIDATE_PROVIDERS=${CANDIDATE_PROVIDERS}"');
+    const pack = workflow.slice(workflow.indexOf("  build_remote_provider_pack:"), workflow.indexOf("  test:"));
+    expect(pack).toContain("needs.catalog.outputs.candidate_providers == 'hermes'");
+    expect(pack.indexOf("Provision pinned Hermes assets")).toBeLessThan(pack.indexOf("Assemble native remote provider pack"));
+    expect(pack).toContain('"--candidate-providers=$CANDIDATE_PROVIDERS"');
+    expect(pack).not.toContain("secrets.");
+    const paid = workflow.slice(workflow.indexOf("  test:"), workflow.indexOf("  aggregate:"));
+    expect(paid).toContain("matrix.environmentId == 'local' && matrix.profileId == 'runner-acpx-hermes'");
+    const setup = paid.indexOf("Provision pinned Hermes before the paid local test");
+    expect(setup).toBeGreaterThan(0);
+    expect(setup).toBeLessThan(paid.indexOf("secrets.OPENROUTER_API_KEY"));
+    expect(paid.slice(setup, paid.indexOf("Install checksum-verified Grok"))).not.toContain("secrets.");
+    const provision = await readFile(path.join(repositoryRoot, "tests/runner-e2e/provision-hermes-linux.sh"), "utf8");
+    expect(provision).toContain("uv==0.12.17");
+    expect(provision).toContain("scripts/provision-hermes.mjs");
+  });
   it("keeps the manual EC2 image build credential-free and pins the authorized target", async () => {
     const workflow = await readFile(path.join(repositoryRoot, ".github/workflows/docker-runner-check.yml"), "utf8");
     const manual = workflow.slice(workflow.indexOf("  authorize_manual:"));

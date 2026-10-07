@@ -1477,6 +1477,13 @@ Hermes uses an existing managed OpenRouter connection through the ordinary
 connection fixture. It remains pending qualification; the native transport
 fixture does not substitute for these browser and remote workflows.
 
+When a Hermes cell is selected, the trusted workflow provisions its pinned
+Python closure on Linux before exposing credentials, and selects the same
+candidate assets for the image content identity, Docker build and remote
+provider pack. The workflow must be available on the default branch before
+dispatching a branch campaign; dispatching from a development branch remains
+forbidden. The asset selection leaves Hermes pending qualification.
+
 ```sh
 pnpm test:e2e:runner -- --list --suite extended-harnesses
 pnpm test:e2e:runner -- --id extended-harnesses.runner-acpx-pi.local.hello-complete
