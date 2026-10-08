@@ -545,49 +545,33 @@ export function pluginRegistryService(db: Db) {
       pluginId: string,
       input: Omit<typeof pluginEntities.$inferInsert, "id" | "pluginId" | "createdAt" | "updatedAt">,
     ) => {
-      // Drizzle doesn't support pg-specific onConflictDoUpdate easily in the insert() call
-      // with complex where clauses, so we do it manually.
-      // Match the per-tenant uniqueness of `plugin_entities_external_idx`
+      // Upsert in a single statement: a manual select-then-insert races under
+      // concurrent upserts of the same tuple (both selects miss, the losing
+      // insert violates `plugin_entities_external_idx` with SQLSTATE 23505,
+      // and the plugin action fails with an HTTP 502). The conflict target
+      // matches the per-tenant uniqueness of `plugin_entities_external_idx`
       // (companyId, pluginId, entityType, externalId) with NULLS NOT DISTINCT
-      // semantics: two companies (and instance-scope NULLs across each other)
-      // may share the same (pluginId, entityType, externalId) tuple, so the
-      // lookup MUST scope by companyId — `isNull` for instance-scope, `eq`
-      // otherwise — to avoid returning and overwriting another tenant's row.
-      const companyIdPredicate =
-        input.companyId == null
-          ? isNull(pluginEntities.companyId)
-          : eq(pluginEntities.companyId, input.companyId);
-      const existing = await db
-        .select()
-        .from(pluginEntities)
-        .where(
-          and(
-            companyIdPredicate,
-            eq(pluginEntities.pluginId, pluginId),
-            eq(pluginEntities.entityType, input.entityType),
-            eq(pluginEntities.externalId, input.externalId ?? ""),
-          ),
-        )
-        .then((rows) => rows[0] ?? null);
-
-      if (existing) {
-        return db
-          .update(pluginEntities)
-          .set({
-            ...input,
-            updatedAt: new Date(),
-          })
-          .where(eq(pluginEntities.id, existing.id))
-          .returning()
-          .then((rows) => rows[0]);
-      }
-
+      // semantics, so instance-scope NULLs conflict with each other while two
+      // companies may still share the same (pluginId, entityType, externalId)
+      // tuple without colliding.
       return db
         .insert(pluginEntities)
         .values({
           ...input,
           pluginId,
         } as any)
+        .onConflictDoUpdate({
+          target: [
+            pluginEntities.companyId,
+            pluginEntities.pluginId,
+            pluginEntities.entityType,
+            pluginEntities.externalId,
+          ],
+          set: {
+            ...input,
+            updatedAt: new Date(),
+          },
+        })
         .returning()
         .then((rows) => rows[0]);
     },
