@@ -140,3 +140,17 @@ describe("assignment history suggestions", () => {
     expect(suggestedCommentAssigneeValue({ assigneeUserId: "someone-else" }, [], "me")).toBe("user:someone-else");
   });
 });
+
+
+it("prefers a newer native reassignment over a REST assignment and ignores native no-ops", () => {
+  const event = (actorId: string, action: string, createdAt: string, details: Record<string, unknown>): ActivityEvent => ({
+    id: actorId, companyId: "company", entityType: "issue", entityId: "task", agentId: actorId, runId: null,
+    actorType: "agent", actorId, action, createdAt: new Date(createdAt), details,
+  });
+  const history = [
+    event("alpha", "issue.updated", "2026-01-01", { assigneeUserId: "me", _previous: { assigneeUserId: null } }),
+    event("beta", "issue.reassigned", "2026-02-01", { assigneeUserId: "me", previousAssigneeUserId: null, changed: true }),
+    event("no-op", "issue.reassigned", "2026-03-01", { assigneeUserId: "me", previousAssigneeUserId: "me", changed: false }),
+  ];
+  expect(suggestedCommentAssigneeValue({ assigneeUserId: "me" }, [], "me", undefined, history)).toBe("agent:beta");
+});

@@ -42,6 +42,11 @@ export function suggestedCommentAssigneeValue(
         const details = event.details;
         if (!details || details.assigneeUserId !== currentUserId) return false;
         if (event.action === "issue.created") return true;
+        if (event.action === "issue.reassigned") {
+          return details.changed === true
+            && Object.hasOwn(details, "previousAssigneeUserId")
+            && details.previousAssigneeUserId !== currentUserId;
+        }
         if (event.action !== "issue.updated") return false;
         const previous = details._previous;
         // Updates can resend unchanged fields. Only a real assignment counts.
