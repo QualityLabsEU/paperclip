@@ -37,9 +37,9 @@ test('pinned Hermes streams images and semantic completion through Rust PRP and 
   const server = createServer(async (req, res) => {
     const chunks = []; for await (const chunk of req) chunks.push(chunk);
     const body = JSON.parse(Buffer.concat(chunks).toString() || '{}');
-    requests.push(body);
     assert.equal(req.headers.authorization, undefined);
     if (req.url !== '/v1/chat/completions') { res.writeHead(404).end(); return; }
+    requests.push(body);
     if (!body.stream) {
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ id: 'title', object: 'chat.completion', model: 'hermes-fixture', choices: [{ index: 0, message: { role: 'assistant', content: 'Fixture' }, finish_reason: 'stop' }] }));
@@ -117,6 +117,7 @@ test('pinned Hermes streams images and semantic completion through Rust PRP and 
   assert.ok(events.some(event => JSON.stringify(event.payload).includes('Checking the native runner path.')), 'Reasoning did not cross PRP');
   assert.ok(events.some(event => JSON.stringify(event.payload).includes('Native Rust')), 'Text did not cross PRP');
   assert.ok(requests.some(body => body.messages?.some(message => Array.isArray(message.content) && message.content.some(part => part.type === 'image_url' && part.image_url.url === `data:image/png;base64,${imageData}`))), 'Images did not cross TS/Rust/sidecar');
+  assert.ok(requests.every(body => body.stream), 'Managed Hermes started auxiliary title inference');
   const snapshot = await session.snapshot();
   assert.equal(snapshot.semanticResult?.reportedWorkDisposition, 'done');
   assert.equal(snapshot.terminal?.runTerminalState, 'succeeded');

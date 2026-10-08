@@ -79,7 +79,7 @@ export async function captureHermesOpenRouterSettlement(input: {
       && typeof cost === "number" && Number.isFinite(cost) && cost >= 0 && typeof exact === "string" && /^(0|[1-9][0-9]{0,6})\.[0-9]{9}$/.test(exact) && Number(exact) === cost
       && typeof usage.inputTokens === "number" && Number.isSafeInteger(usage.inputTokens) && usage.inputTokens >= 0
       && typeof usage.outputTokens === "number" && Number.isSafeInteger(usage.outputTokens) && usage.outputTokens >= 0 && usage.inputTokens + usage.outputTokens > 0 },
-    { id: "budget-health-after-settlement", passed: company.status === "active" && company.pauseReason === null && agent.status === "idle" && agent.pauseReason === null
+    { id: "budget-health-after-settlement", passed: company.status === "active" && agent.status === "idle" && agent.pauseReason === null
       && company.budgetMonthlyCents === HERMES_API_CONNECTION_BUDGET_CENTS && agent.budgetMonthlyCents === HERMES_API_CONNECTION_BUDGET_CENTS },
   ] };
 }

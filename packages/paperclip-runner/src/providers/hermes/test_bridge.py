@@ -6,12 +6,27 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
 from acp.schema import ClientCapabilities
-from bridge import ManagedHermesACPAgent, ManagedSessionManager, ChannelClient, native_answers, question_set, install_no_auth_transport, turn_usage, USAGE_COUNTERS
+from bridge import ManagedHermesACPAgent, ManagedSessionManager, ChannelClient, native_answers, question_set, install_no_auth_transport, disable_background_title_inference, turn_usage, USAGE_COUNTERS
 from policy import authorize_tool
 from billing import TurnBilling
 
 
 class Accounting(unittest.TestCase):
+    def test_managed_title_keeps_derived_title_without_background_inference(self):
+        from agent import title_generator, memory_provider
+        store = Mock()
+        store.get_session_title.return_value = None
+        store.set_auto_title.return_value = True
+        with patch.object(title_generator, "_model_title_upgrade_enabled"), \
+                patch.object(title_generator, "_auto_title_enabled", return_value=True), \
+                patch.object(memory_provider, "spawn_context_thread") as spawn:
+            disable_background_title_inference()
+            result = title_generator.maybe_auto_title(store, "session", "Investigate the runner retry accounting")
+        self.assertIsNone(result)
+        store.set_auto_title.assert_called_once_with("session", unittest.mock.ANY, source="derived")
+        self.assertTrue(store.set_auto_title.call_args.args[1])
+        spawn.assert_not_called()
+
     def test_usage_is_per_turn_and_cache_and_thought_are_not_double_counted(self):
         before = dict.fromkeys(USAGE_COUNTERS, 100)
         after = {key: value + 5 for key, value in before.items()}

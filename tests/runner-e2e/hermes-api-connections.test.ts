@@ -43,7 +43,7 @@ describe("Hermes managed API connection qualification", () => {
   });
   it.each(["valid", "reported-zero", "company-scope", "agent-scope", "run-scope", "task-scope", "paused-agent", "paused-company", "pause-reason", "budget-changed",
     "pending", "missing-settlement", "missing-price", "estimated", "partial", "wrong-biller", "wrong-provenance", "mismatched-exact", "unknown-tokens"])("calibrates public OpenRouter settlement: %s", async fault => {
-    const company: Record<string, unknown> = { id: "company", status: "active", pauseReason: null, budgetMonthlyCents: 200 };
+    const company: Record<string, unknown> = { id: "company", status: "active", budgetMonthlyCents: 200 };
     const agent: Record<string, unknown> = { id: "agent", companyId: "company", status: "idle", pauseReason: null, budgetMonthlyCents: 200 };
     const usage: Record<string, unknown> = { biller: "openrouter", billingType: "metered_api", costStatus: "reported", costUsd: 0.0042, costUsdExact: "0.004200000",
       inputTokens: 40, outputTokens: 10, accountingReceiptReady: true, pricingProvenance: { source: "provider_reported", version: "hermes-openrouter-wire/v1" } };

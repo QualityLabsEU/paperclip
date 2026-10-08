@@ -534,9 +534,17 @@ def main():
     asyncio.run(acp.run_agent(ManagedHermesACPAgent(), use_unstable_protocol=True))
 
 
+def disable_background_title_inference():
+    # Paperclip owns task titles. Keep Hermes's immediate derived session title,
+    # but prevent a paid title-upgrade thread from outliving the turn receipt.
+    from agent import title_generator
+    title_generator._model_title_upgrade_enabled = lambda: False
+
+
 def configure_managed_runtime():
     install_tool_process_policy()
     install_billing_capture()
+    disable_background_title_inference()
     from tools import delegate_tool_dispatch
     delegate_tool_dispatch._dispatch_background = fence_background_dispatch(delegate_tool_dispatch._dispatch_background)
     from agent import turn_response_check

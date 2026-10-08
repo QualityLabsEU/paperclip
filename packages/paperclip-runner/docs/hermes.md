@@ -117,11 +117,19 @@ extend the task's execution deadline.
   using it for accounting. Cumulative session cost and native model-price
   estimates cannot supply this receipt.
 - Failed, interrupted, unsupported asynchronous and background delegated work
-  leave settlement incomplete. Known positive reported subtotals survive, but
+  leave measurement totals incomplete. Known positive reported subtotals survive, but
   missing charges remain unpriced. Explicit reported zero is accepted only for
   a complete receipt. Other provider/protocol routes retain their existing
   unavailable billed-cost behavior. Complete live billing, including delegated
   work, remains a qualification gate; these checks do not qualify a provider.
+- Once the native provider boundary closes, an optional versioned accounting
+  settlement can acknowledge that known subtotal even when tokens or charges
+  are incomplete. Missing token totals stay unknown, incomplete charges stay
+  unpriced, and the existing controller finalization and capture-failure fences
+  still control acknowledgement. Older incomplete receipts remain pending.
+- Paperclip owns task titles. Hermes keeps its immediate derived session title;
+  its paid background title upgrade is disabled in the managed profile so it
+  cannot start inference after a turn's usage receipt has closed.
 
 The managed execution middleware applies planning/read-only, protected-path and
 permission policy to inline, concurrent and delegated native tools. Assigned

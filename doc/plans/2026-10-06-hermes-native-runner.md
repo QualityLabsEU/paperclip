@@ -907,3 +907,50 @@ Fresh Linux materialization, current-head CI/review, live reported-cost browser
 proof and broader original release gates remain required. Existing cloud images
 and prior results keep their old runtime/source identities. No local Docker,
 paid inference or additional reservation was used for these offline checks.
+
+### 2026-10-07 reported-cost live attempt and retry correction
+
+The clean `f4ae618d` Mac browser campaign
+`hermes-macos-billing-openrouter-f4ae618d38-20261008` failed its settlement
+oracle after 110.244 seconds; cleanup passed. The original failure and its
+`cleanup_failure` classification remain unchanged. Its public run receipt
+reports `$0.001160247`, 61,157 input and 271 output tokens, with completed
+accounting and an idle agent. The public company response omits `pauseReason`;
+the oracle incorrectly required it to be null. The corrected predicate uses
+the authoritative company status and agent pause state. The final screenshot
+shows Done, one final marker, a thought card and an available composer.
+Continued use was not tested; this failed attempt is not a qualification pass.
+
+Review identified that a failed HTTP attempt can leave token totals unknown
+after a successful SDK retry. The controller now separates final measurement
+completeness from provider closure with the optional closed
+`paperclip.accounting.settlement/v1` object. A known subtotal can settle once
+as unpriced after native finalization. Unknown tokens stay null. Invalid
+settlement, unfinished attempts, capture failure and unclosed coordinator state
+cannot acknowledge debt. Legacy incomplete receipts retain their old behavior.
+
+Paperclip owns task titles, so the managed profile disables Hermes's paid
+background title upgrade while retaining its immediate derived session title.
+This avoids title inference after a turn receipt closes. The updated Mac
+closure is `ad1e555296e51be6d20a7234daeb7028570c7ee8fee9d27fb88c4f550491a07f`;
+the derived Linux closure is `353a942b2a88542db8537611535898ae6088045608b88b4ddab491a6b000b8cf`.
+Both predecessor manifests were authenticated, and the task-owned Mac asset
+was verified file by file before and after the bridge-only transformation.
+The full key reservation remains held because the failed campaign does not
+prove complete account or background inference spend. Fresh native, live,
+Linux, CI and review proof remain required. No local Docker is used.
+
+The local full Vitest run at `f4ae618d` was interrupted after review required
+a source change. Its log is retained and is not a passing full-suite result.
+The earlier repository typecheck passed. Full checks must pass at the final
+reviewed head before release qualification can complete.
+
+The correction passes all 615 native-executor and durable-receipt checks,
+35 pinned Python checks, 19 public settlement-oracle checks, repository-wide
+typecheck and the full build. The native ACPX restore/control fixture passes
+in 77.361 seconds. The Rust/image/completion fixture passes in 20.061 seconds
+after its inference-only assertion was corrected to exclude metadata probes.
+The adapter failure-path suite passes all 31 tests after the build completes;
+the earlier concurrent-build test failures remain in their original log.
+This is offline and deterministic proof. A new clean-head live campaign and
+fresh CI/review remain required. Docker is confirmed stopped.

@@ -5555,17 +5555,19 @@ describe("native terminal-turn accounting", () => {
     if (scenario === "late_update") expect(result.usage).toMatchObject({ inputTokens: 32, outputTokens: 8 });
   });
 
-  it.each(["reported", "partial", "legacy", "wrong_account", "zero"] as const)("settles bound Hermes billing through the executor (%s)", async scenario => {
+  it.each(["reported", "partial", "partial_missing_tokens", "reported_missing_tokens", "legacy", "wrong_account", "zero"] as const)("settles bound Hermes billing through the executor (%s)", async scenario => {
     const previous = process.env.PAPERCLIP_RUNNER_ACPX_QUALIFICATION;
     process.env.PAPERCLIP_RUNNER_ACPX_QUALIFICATION = JSON.stringify([{ agent: "hermes", model: "fixture-model" }]);
     try {
       const onUsage = vi.fn(async (_receipt: import("@paperclipai/adapter-utils").AdapterUsageCheckpoint) => {});
       const amount = scenario === "zero" ? 0 : 0.25;
+      const tokensMissing = scenario.endsWith("missing_tokens");
+      const partialPrice = scenario.startsWith("partial");
       const billing = { schema: "paperclip.usage.billing/v1", source: "provider_reported", biller: "openrouter", currency: "USD",
-        complete: scenario !== "partial", requestCount: 2, reportedRequestCount: scenario === "partial" ? 1 : 2,
+        complete: !partialPrice, requestCount: 2, reportedRequestCount: partialPrice ? 1 : 2,
         amountUsd: amount, amountUsdExact: amount.toFixed(9) };
       const notification = (await import("@paperclipai/paperclip-runner/live")).rehydrateRunnerdUsageNotification({
-        runDeltaAvailable: true, runDelta: { inputTokens: 20, outputTokens: 5, cacheReadTokens: 3, cacheWriteTokens: 2, providerCostUsd: amount },
+        runDeltaAvailable: !tokensMissing, runDelta: { inputTokens: 20, outputTokens: 5, cacheReadTokens: 3, cacheWriteTokens: 2, providerCostUsd: amount },
         ...(scenario === "legacy" ? {} : { billing }),
       }, "session", "turn");
       const event = (eventType: string, sourceSeq: number, payload: object = {}) => ({ eventType, turnId: "turn", payload,
@@ -5575,6 +5577,7 @@ describe("native terminal-turn accounting", () => {
         const usage = event("item.completed", 2, { kind: "usage", usage: notification.tokenUsage });
         await accountingEvents.committed!(usage);
         expect(onUsage.mock.calls.at(-1)![0].complete).toBe(false);
+        expect(onUsage.mock.calls.at(-1)![0].settlement).toBeUndefined();
         await accountingEvents.committed!(event("turn.completed", 3));
         await accountingEvents.duplicate!(usage);
         return { result: { summary: "cancelled" }, terminal: { runTerminalState: "cancelled" }, turnId: "turn",
@@ -5585,9 +5588,12 @@ describe("native terminal-turn accounting", () => {
       const result = await executePaperclipNativeSession({ db: leaseDb(), runnerInstanceId: "runner", onUsage,
         billingIdentity: { provider: "deepseek", biller: scenario === "wrong_account" ? "anthropic" : "openrouter", billingType: "metered_api" },
         execution: { ...execution, provider: { kind: "acpx", agent: "hermes", model: "fixture-model", permissionMode: "approve-all", profile: QUALIFIED_ACPX_PROFILES.hermes } } as NativeExecutionInput });
-      expect(result).toMatchObject({ usageComplete: true, costUsd: known ? amount : null,
-        costStatus: known && scenario !== "partial" ? "reported" : "unpriced" });
-      expect(onUsage).toHaveBeenLastCalledWith(expect.objectContaining({ complete: true, costUsd: result.costUsd, costStatus: result.costStatus }));
+      expect(result).toMatchObject({ usageComplete: !tokensMissing, costUsd: known ? amount : null,
+        costStatus: known && !partialPrice ? "reported" : "unpriced" });
+      expect(onUsage).toHaveBeenLastCalledWith(expect.objectContaining({ complete: !tokensMissing, costUsd: result.costUsd, costStatus: result.costStatus }));
+      if (known) expect(result.settlement).toEqual({ schema: "paperclip.accounting.settlement/v1", providerWorkEnded: true, usageComplete: !tokensMissing });
+      else expect(result.settlement).toBeUndefined();
+      if (tokensMissing) expect(result.usage).toBeUndefined();
       if (known) expect(result.pricingProvenance).toMatchObject({ source: "provider_reported", version: "hermes-openrouter-wire/v1" });
     } finally {
       if (previous === undefined) delete process.env.PAPERCLIP_RUNNER_ACPX_QUALIFICATION;
