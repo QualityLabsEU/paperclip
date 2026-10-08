@@ -45,7 +45,7 @@ function jsonResponse(body: unknown) {
   });
 }
 
-function stubGithubApis(input: { githubLogin: string; email: string; orgs: string[] }) {
+function stubGithubApis(input: { githubId: number; githubLogin: string; email: string; orgs: string[] }) {
   return vi.fn(async (inputUrl: RequestInfo | URL) => {
     const url = String(inputUrl);
     if (url === GITHUB_TOKEN_URL) {
@@ -54,10 +54,10 @@ function stubGithubApis(input: { githubLogin: string; email: string; orgs: strin
     if (url === GITHUB_USER_URL) {
       return jsonResponse({
         login: input.githubLogin,
-        id: 421998,
+        id: input.githubId,
         name: input.githubLogin,
         email: input.email,
-        avatar_url: "https://avatars.example.test/u/421998",
+        avatar_url: `https://avatars.example.test/u/${input.githubId}`,
       });
     }
     if (url === GITHUB_EMAILS_URL) {
@@ -117,12 +117,19 @@ describeEmbeddedPostgres("social SSO sign-up gate against the real schema", () =
     else process.env.PAPERCLIP_AUTH_RATE_LIMIT_ENABLED = originalEnv.rateLimit;
   });
 
-  async function driveGithubSignIn(orgs: string[]) {
-    vi.stubGlobal("fetch", stubGithubApis({
-      githubLogin: "integration-member",
-      email: "member@acme-org.dev",
-      orgs,
-    }) as unknown as typeof fetch);
+  /**
+   * Drive the browser OAuth handshake for one GitHub identity. Each case uses
+   * a distinct GitHub account id and email, so a rejection case is a genuine
+   * *sign-up* attempt — the gate only provisions new users, and an identity
+   * that already exists would take the sign-in path instead.
+   */
+  async function driveGithubSignIn(identity: {
+    githubId: number;
+    githubLogin: string;
+    email: string;
+    orgs: string[];
+  }) {
+    vi.stubGlobal("fetch", stubGithubApis(identity) as unknown as typeof fetch);
 
     const start = await request(app)
       .post("/api/auth/sign-in/social")
@@ -140,7 +147,12 @@ describeEmbeddedPostgres("social SSO sign-up gate against the real schema", () =
   }
 
   it("creates the user and account for an active member of a configured org", async () => {
-    const callback = await driveGithubSignIn(["acme-org"]);
+    const callback = await driveGithubSignIn({
+      githubId: 421998,
+      githubLogin: "integration-member",
+      email: "member@acme-org.dev",
+      orgs: ["acme-org"],
+    });
     expect(callback.status).toBe(302);
     expect(callback.headers.location).not.toMatch(/error=/);
 
@@ -155,7 +167,12 @@ describeEmbeddedPostgres("social SSO sign-up gate against the real schema", () =
   });
 
   it("rejects a non-member and leaves no user, account, or session rows", async () => {
-    const callback = await driveGithubSignIn(["some-other-org"]);
+    const callback = await driveGithubSignIn({
+      githubId: 421997,
+      githubLogin: "integration-outsider",
+      email: "outsider@example.com",
+      orgs: ["some-other-org"],
+    });
     expect(callback.status).toBe(302);
     expect(callback.headers.location).toContain("error=sso_github_org_membership_required");
 
