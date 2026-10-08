@@ -63,14 +63,15 @@ beforeAll(async () => {
 afterAll(async () => { await database?.cleanup(); vi.unstubAllEnvs(); if (home) await rm(home, { recursive: true, force: true }); });
 
 describe("managed AI connections", () => {
-  it.each(["create", "hire", "edit"])("refuses unavailable Copilot models before %s persists configuration", async action => {
+  it.each(["create", "hire", "edit"].flatMap(action => [true, false].map(connectionProvided => ({ action, connectionProvided }))))(
+    "refuses unavailable Copilot models before $action persists configuration (connection binding: $connectionProvided)", async ({ action, connectionProvided }) => {
     const { unprocessable } = await import("../errors.js");
     const { errorHandler } = await import("../middleware/index.js");
-    const owner = `copilot-model-${action}`, id = randomUUID();
+    const owner = `copilot-model-${action}-${connectionProvided}`, id = randomUUID();
     const savedConfig = { provider: "acpx", acpxAgent: "copilot", model: "gpt-5.6-luna" };
     const aiConnection = { provider: "github", method: "api_key", mode: "responsible_user" } as const;
     await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
-    await db.insert(agents).values({ id, companyId, name: `Copilot ${action} fixture`, adapterType: "paperclip_runner", adapterConfig: savedConfig, runtimeConfig: { aiConnection } });
+    await db.insert(agents).values({ id, companyId, name: `Copilot ${action} fixture`, adapterType: "paperclip_runner", adapterConfig: savedConfig, runtimeConfig: connectionProvided ? { aiConnection } : {} });
     const token = `github_pat_fixture_model_${action}`;
     const account = await service.save(companyId, owner, { provider: "github", method: "api_key", ownership: "personal", name: `Model ${action}`, apiKey: token, agentIds: [id], allAgents: false }, token);
     await service.setDefault(companyId, owner, account.grantId);
@@ -85,7 +86,7 @@ describe("managed AI connections", () => {
     try {
       const response = action === "edit"
         ? await request(app).patch(`/api/agents/${id}`).send({ adapterConfig: config })
-        : await request(app).post(`/api/companies/${companyId}/${action === "hire" ? "agent-hires" : "agents"}`).send({ name: `Unavailable ${action}`, role: "general", adapterType: "paperclip_runner", adapterConfig: config, runtimeConfig: { aiConnection } });
+        : await request(app).post(`/api/companies/${companyId}/${action === "hire" ? "agent-hires" : "agents"}`).send({ name: `Unavailable ${action}`, role: "general", adapterType: "paperclip_runner", adapterConfig: config, ...(connectionProvided ? { runtimeConfig: { aiConnection } } : {}) });
       expect(response.status, JSON.stringify(response.body)).toBe(422);
       expect(response.body).toMatchObject({ error: "The selected Copilot model is unavailable for this account." });
       expect(probe).toHaveBeenCalledExactlyOnceWith(token, null, "unavailable-copilot-model");

@@ -2517,11 +2517,20 @@ export function agentRoutes(
     runtimeConfig: unknown,
   ) {
     const normalized = normalizeNewAgentRuntimeConfig(runtimeConfig);
-    if (req.actor.type !== "agent" || normalized.aiConnection) return normalized;
-    const manager = req.actor.agentId ? await svc.getById(req.actor.agentId) : null;
-    if (!manager || manager.companyId !== companyId) throw forbidden("Hiring agent is unavailable");
-    const binding = defaultAiConnectionForHire(adapterType, adapterConfig, manager.runtimeConfig?.aiConnection);
-    if (binding) normalized.aiConnection = binding;
+    if (normalized.aiConnection) return normalized;
+    if (req.actor.type === "agent") {
+      const manager = req.actor.agentId ? await svc.getById(req.actor.agentId) : null;
+      if (!manager || manager.companyId !== companyId) throw forbidden("Hiring agent is unavailable");
+      const binding = defaultAiConnectionForHire(adapterType, adapterConfig, manager.runtimeConfig?.aiConnection);
+      if (binding) normalized.aiConnection = binding;
+    }
+    // Copilot has no ambient-auth setup path. Omitting a binding still selects
+    // the responsible user's saved account and must pass the same metadata
+    // admission as an explicit connection before configuration is persisted.
+    if (!normalized.aiConnection && adapterType === "paperclip_runner"
+      && adapterConfig.provider === "acpx" && adapterConfig.acpxAgent === "copilot") {
+      normalized.aiConnection = { provider: "github", method: "api_key", mode: "responsible_user" };
+    }
     return normalized;
   }
 
@@ -5830,6 +5839,14 @@ export function agentRoutes(
       });
     }
     if (existing.runtimeConfig.aiConnection && requestedRuntimeConfig && !requestedRuntimeConfig.aiConnection) requestedRuntimeConfig.aiConnection = existing.runtimeConfig.aiConnection;
+    const nextAiConfig = (patchData.adapterConfig ?? existing.adapterConfig) as Record<string, unknown>;
+    if (!requestedRuntimeConfig?.aiConnection && !existing.runtimeConfig.aiConnection
+      && requestedAdapterType === "paperclip_runner" && nextAiConfig.provider === "acpx"
+      && nextAiConfig.acpxAgent === "copilot"
+      && (touchesAdapterConfiguration || Object.prototype.hasOwnProperty.call(patchData, "defaultEnvironmentId"))) {
+      requestedRuntimeConfig = { ...(requestedRuntimeConfig ?? existing.runtimeConfig),
+        aiConnection: { provider: "github", method: "api_key", mode: "responsible_user" } };
+    }
     const nextAiBinding = aiRuntimeConnectionBindingSchema.safeParse(requestedRuntimeConfig?.aiConnection ?? existing.runtimeConfig.aiConnection).data;
     if (nextAiBinding) {
       await assertCanUpdateAgent(req, existing);
