@@ -126,7 +126,18 @@ export function installedCodexProbeSource(indexPath, consumerRoot, expectedVersi
     const vendor = dirname(index);
     const integrityPath = join(vendor, 'drivers/acpx/installation-integrity.js');
     const profilesPath = join(vendor, 'drivers/acpx/qualified-profiles.js');
-    assert.ok(contained(integrityPath) && contained(profilesPath), 'Codex integrity modules must come from the installed consumer');
+    const securityPath = join(vendor, 'drivers/codex/codex-security-config.js');
+    assert.ok(contained(integrityPath) && contained(profilesPath) && contained(securityPath), 'Codex verification modules must come from the installed consumer');
+    const { codexExecutableReadOnlyRoots, createIsolatedCodexAppServerArgs } = await import(pathToFileURL(securityPath).href);
+    const platformRoot = realpathSync(dirname(selectedPlatformManifest));
+    const nativeVendor = realpathSync(join(platformRoot, 'vendor'));
+    assert.ok(contained(nativeVendor) && nativeVendor.startsWith(platformRoot + sep), 'Codex vendor resources must remain inside their installed platform package');
+    const sandboxSource = { HOME: '/private-provider-home', PATH: '/usr/local/bin:/usr/bin:/bin' };
+    const readRoots = codexExecutableReadOnlyRoots(sandboxSource, command);
+    assert.ok(readRoots.includes(nativeVendor), 'Selected native Codex vendor directory must be readable inside its sandbox');
+    assert.ok(!readRoots.includes(platformRoot) && !readRoots.includes(root) && !readRoots.includes(sandboxSource.HOME), 'Codex sandbox must not grant enclosing npm or credential-home access');
+    const sandboxArgs = createIsolatedCodexAppServerArgs(sandboxSource, readRoots).join('\\n');
+    assert.ok(sandboxArgs.includes(JSON.stringify(nativeVendor) + '="read"'), 'Codex sandbox configuration must retain the selected native executable resources');
     const { createAcpxPackageJsonResolver, verifyQualifiedAcpxInstallation } = await import(pathToFileURL(integrityPath).href);
     const { resolveQualifiedAcpxProfile } = await import(pathToFileURL(profilesPath).href);
     const serverRoot = resolve(vendor, '../../..');
@@ -136,7 +147,7 @@ export function installedCodexProbeSource(indexPath, consumerRoot, expectedVersi
     const lease = await installation.openCommand();
     await lease.close();
     console.log(JSON.stringify({ pinnedCodexCommandVerified: true, pinnedCodexVersion: ${JSON.stringify(expectedVersion)},
-      ...provenance, codexSelectedPlatformPath: selectedPlatform.path, codexSelectedPlatformVersion: selectedMetadata.version, codexQualifiedInstallationVerified: true, codexCommandLeaseVerified: true, providerCalls: 0 }));
+      ...provenance, codexSelectedPlatformPath: selectedPlatform.path, codexSelectedPlatformVersion: selectedMetadata.version, codexNativeSandboxResourcesVerified: true, codexQualifiedInstallationVerified: true, codexCommandLeaseVerified: true, providerCalls: 0 }));
   `;
 }
 

@@ -32,7 +32,7 @@ describe("Codex security configuration", () => {
       import { tmpdir } from "node:os";
       import { dirname, join } from "node:path";
       import { resolvePinnedCodexCommand } from ${JSON.stringify(new URL("./codex-command.ts", import.meta.url).href)};
-      import { codexExecutableReadOnlyRoots } from ${JSON.stringify(new URL("./codex-security-config.ts", import.meta.url).href)};
+      import { codexExecutableReadOnlyRoots, createIsolatedCodexAppServerArgs } from ${JSON.stringify(new URL("./codex-security-config.ts", import.meta.url).href)};
       const root = realpathSync(mkdtempSync(join(tmpdir(), "paperclip-pinned-codex-test-")));
       const issuer = join(root, "node_modules/@paperclipai/server/dist/vendor/paperclip-runner/drivers/codex/codex-command.js");
       const adapter = join(root, "node_modules/@paperclipai/adapter-codex-local");
@@ -51,7 +51,9 @@ describe("Codex security configuration", () => {
         writeFileSync(join(bridge, "package.json"), JSON.stringify({ name: "@agentclientprotocol/codex-acp", version: "1.6.2" }));
         writeFileSync(join(codex, "package.json"), JSON.stringify(metadata));
         mkdirSync(vendor, { recursive: true });
-        writeFileSync(join(platform, "package.json"), JSON.stringify({ name: "@openai/codex", version: "0.160.0-" + process.platform + "-" + process.arch }));
+        const platformMetadata = { name: "@openai/codex", version: "0.160.0-" + process.platform + "-" + process.arch,
+          os: [process.platform], cpu: [process.arch] };
+        writeFileSync(join(platform, "package.json"), JSON.stringify(platformMetadata));
         writeFileSync(executable, "#!" + process.execPath + "\\nif (process.argv.slice(2).join(' ') !== '--version') process.exit(9); console.log('codex-cli 0.160.0');\\n", { mode: 0o755 });
         assert.equal(resolvePinnedCodexCommand(issuer), executable);
         const roots = codexExecutableReadOnlyRoots({ PATH: "/missing-codex-command" }, executable);
@@ -77,6 +79,67 @@ describe("Codex security configuration", () => {
         assert.throws(() => resolvePinnedCodexCommand(issuer), /runtime unavailable/);
         rmSync(codex, { recursive: true });
         assert.throws(() => resolvePinnedCodexCommand(issuer), /runtime unavailable.*Reinstall/);
+
+        // npm installs the host alias declared by the published server while
+        // its bundled JS wrapper deliberately omits optionalDependencies.
+        const server = join(root, "node_modules/@paperclipai/server");
+        const serverManifest = join(server, "package.json");
+        const normalized = join(server, "node_modules/@openai/codex");
+        const normalizedManifest = join(normalized, "package.json");
+        const normalizedCommand = join(normalized, "bin/codex.js");
+        const publishedBridgeManifest = join(server, "node_modules/@agentclientprotocol/codex-acp/package.json");
+        const publishedBridgeMetadata = { name: "@agentclientprotocol/codex-acp", version: "1.6.2" };
+        const serverMetadata = { name: "@paperclipai/server", dependencies: { "@agentclientprotocol/codex-acp": "1.6.2" },
+          optionalDependencies: metadata.optionalDependencies };
+        const normalizedMetadata = { ...metadata, optionalDependencies: undefined };
+        mkdirSync(dirname(normalizedCommand), { recursive: true });
+        mkdirSync(dirname(publishedBridgeManifest), { recursive: true });
+        writeFileSync(publishedBridgeManifest, JSON.stringify(publishedBridgeMetadata));
+        writeFileSync(serverManifest, JSON.stringify(serverMetadata));
+        writeFileSync(normalizedManifest, JSON.stringify(normalizedMetadata));
+        writeFileSync(normalizedCommand, "#!" + process.execPath + "\\n", { mode: 0o755 });
+        const normalizedRoots = () => codexExecutableReadOnlyRoots({ PATH: "/missing-codex-command" }, normalizedCommand);
+        assert.ok(normalizedRoots().includes(vendor), "The normalized published wrapper must retain its selected native sandbox resources");
+        const sandbox = createIsolatedCodexAppServerArgs({ HOME: "/private-provider-home" }, normalizedRoots()).join("\\n");
+        assert.ok(sandbox.includes(JSON.stringify(vendor) + '=\"read\"'), "Native sandbox resources must reach the actual read-only permission configuration");
+        assert.ok(sandbox.includes('\"/private-provider-home\"=\"none\"'), "The provider home remains denied");
+        for (const ancestor of [platform, dirname(platform), join(root, "node_modules"), server, root]) {
+          assert.ok(!normalizedRoots().includes(ancestor), "Platform discovery must not grant enclosing npm or server roots");
+        }
+        for (const [path, changed] of [
+          [serverManifest, { ...serverMetadata, optionalDependencies: {} }],
+          [serverManifest, { ...serverMetadata, optionalDependencies: { [platformName]: "npm:@openai/codex@0.159.0-" + process.platform + "-" + process.arch } }],
+          [serverManifest, { ...serverMetadata, dependencies: { "@agentclientprotocol/codex-acp": "1.5.0" } }],
+          [publishedBridgeManifest, { ...publishedBridgeMetadata, version: "1.5.0" }],
+          [publishedBridgeManifest, { ...publishedBridgeMetadata, name: "unqualified-bridge" }],
+          [normalizedManifest, { ...normalizedMetadata, version: "0.159.0" }],
+          [normalizedManifest, { ...normalizedMetadata, optionalDependencies: {} }],
+          [join(platform, "package.json"), { ...platformMetadata, name: "unqualified-native" }],
+          [join(platform, "package.json"), { ...platformMetadata, version: "0.159.0-" + process.platform + "-" + process.arch }],
+          [join(platform, "package.json"), { ...platformMetadata, os: ["unsupported-os"] }],
+          [join(platform, "package.json"), { ...platformMetadata, cpu: ["unsupported-cpu"] }],
+        ]) {
+          writeFileSync(path, JSON.stringify(changed));
+          assert.ok(!normalizedRoots().includes(vendor), "Unqualified metadata must not grant native resources");
+          writeFileSync(serverManifest, JSON.stringify(serverMetadata));
+          writeFileSync(publishedBridgeManifest, JSON.stringify(publishedBridgeMetadata));
+          writeFileSync(normalizedManifest, JSON.stringify(normalizedMetadata));
+          writeFileSync(join(platform, "package.json"), JSON.stringify(platformMetadata));
+        }
+        const outsideVendor = join(root, "outside-vendor");
+        mkdirSync(outsideVendor);
+        rmSync(vendor, { recursive: true });
+        symlinkSync(outsideVendor, vendor);
+        assert.ok(!normalizedRoots().includes(outsideVendor), "A vendor symlink must not escape the selected platform package");
+        rmSync(vendor); mkdirSync(vendor);
+        const outsidePlatform = join(root, "outside-platform");
+        mkdirSync(join(outsidePlatform, "vendor"), { recursive: true });
+        writeFileSync(join(outsidePlatform, "package.json"), JSON.stringify(platformMetadata));
+        rmSync(platform, { recursive: true }); symlinkSync(outsidePlatform, platform);
+        assert.ok(!normalizedRoots().includes(join(outsidePlatform, "vendor")), "An alias symlink must not grant a foreign package");
+        rmSync(platform); mkdirSync(vendor, { recursive: true });
+        writeFileSync(join(platform, "package.json"), JSON.stringify(platformMetadata));
+
       } finally { rmSync(root, { recursive: true, force: true }); }
       process.stdout.write("PINNED_CODEX_ISOLATION_VERIFIED");
     `;

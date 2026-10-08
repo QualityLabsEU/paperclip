@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -55,12 +55,13 @@ test('verification never elevates PR-controlled provisioning or cleanup on the h
 });
 
 test('the installed Codex probe exercises the public export and rejects incomplete or mismatched packages', () => {
-  const root = mkdtempSync(join(tmpdir(), 'installed-codex-probe-'));
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'installed-codex-probe-')));
   try {
     const consumer = join(root, 'consumer'); mkdirSync(consumer);
     const target = `${process.platform}-${process.arch}`;
     const platformPath = `node_modules/@openai/codex-${target}`;
     const platform = join(consumer, platformPath); mkdirSync(platform, { recursive: true });
+    const nativeVendor = join(platform, 'vendor'); mkdirSync(nativeVendor);
     const manifest = { name: '@openai/codex', version: `0.160.0-${target}`, os: [process.platform], cpu: [process.arch] };
     writeFileSync(join(platform, 'package.json'), JSON.stringify(manifest));
     const entry = { name: manifest.name, version: manifest.version,
@@ -71,6 +72,10 @@ test('the installed Codex probe exercises the public export and rejects incomple
     const vendor = join(server, 'dist/vendor/paperclip-runner'), drivers = join(vendor, 'drivers/acpx'); mkdirSync(drivers, { recursive: true });
     writeFileSync(join(server, 'package.json'), JSON.stringify({ name: '@paperclipai/server', type: 'module' }));
     const integrity = join(drivers, 'installation-integrity.js');
+    const security = join(vendor, 'drivers/codex/codex-security-config.js'); mkdirSync(join(vendor, 'drivers/codex'));
+    const securitySource = `export const codexExecutableReadOnlyRoots = () => [${JSON.stringify(nativeVendor)}];
+      export const createIsolatedCodexAppServerArgs = (source, roots) => roots.map(root => JSON.stringify(root) + '=\"read\"');`;
+    writeFileSync(security, securitySource);
     const moduleSource = `import assert from 'node:assert/strict'; import { writeFileSync } from 'node:fs';
       export function createAcpxPackageJsonResolver(root, manifest) { assert.equal(root, ${JSON.stringify(server)}); assert.equal(manifest, root + '/package.json'); return () => 'selected-authority'; }
       export async function verifyQualifiedAcpxInstallation(profile, resolver) { assert.deepEqual(profile, { agent: 'codex', model: 'gpt-5.4' }); assert.equal(resolver(), 'selected-authority');
@@ -91,6 +96,7 @@ test('the installed Codex probe exercises the public export and rejects incomple
     assert.equal(JSON.parse(result.stdout).codexConsumerPlatform, target);
     assert.equal(JSON.parse(result.stdout).codexQualifiedInstallationVerified, true);
     assert.equal(JSON.parse(result.stdout).codexCommandLeaseVerified, true);
+    assert.equal(JSON.parse(result.stdout).codexNativeSandboxResourcesVerified, true);
     assert.equal(readFileSync(join(server, 'lease-closed'), 'utf8'), 'ok');
     assert.equal(JSON.parse(result.stdout).providerCalls, 0);
     const legacyPath = 'node_modules/legacy-codex-adapter/node_modules/@openai/codex-' + target;
@@ -116,6 +122,13 @@ test('the installed Codex probe exercises the public export and rejects incomple
     writeFileSync(index, "export const resolvePinnedCodexCommand = () => { throw new Error('Bundled Codex runtime version mismatch'); };");
     result = run(); assert.notEqual(result.status, 0); assert.match(result.stderr, /Bundled Codex runtime version mismatch/);
     writeFileSync(index, `export const resolvePinnedCodexCommand = () => ${JSON.stringify(command)};`);
+    writeFileSync(security, securitySource.replace(JSON.stringify(nativeVendor), '"/missing-vendor-root"'));
+    result = run(); assert.notEqual(result.status, 0); assert.match(result.stderr, /vendor directory must be readable/);
+    writeFileSync(security, securitySource.replace(JSON.stringify(nativeVendor), `${JSON.stringify(nativeVendor)}, ${JSON.stringify(consumer)}`));
+    result = run(); assert.notEqual(result.status, 0); assert.match(result.stderr, /must not grant enclosing npm/);
+    writeFileSync(security, securitySource.replace("'=\"read\"'", "'=\"write\"'"));
+    result = run(); assert.notEqual(result.status, 0); assert.match(result.stderr, /retain the selected native executable resources/);
+    writeFileSync(security, securitySource);
     const emptySlot = join(server, 'node_modules/@openai/codex-' + target);
     mkdirSync(emptySlot, { recursive: true });
     result = run(); assert.equal(result.status, 0, result.stderr);

@@ -632,7 +632,7 @@ export async function verifyQualifiedAcpxInstallation(
 ): Promise<VerifiedAcpxInstallation> {
   // Keep the selected package authority available when its bundled Codex
   // wrapper delegates platform installation to the published server manifest.
-  if (resolvePackageJson === defaultPackageJsonResolver && process.env.PAPERCLIP_ACPX_PROVIDER_PACKAGE_ROOT !== undefined) {
+  if (profile.agent === "codex" && resolvePackageJson === defaultPackageJsonResolver && process.env.PAPERCLIP_ACPX_PROVIDER_PACKAGE_ROOT !== undefined) {
     resolvePackageJson = createAcpxPackageJsonResolver(
       process.env.PAPERCLIP_ACPX_PROVIDER_PACKAGE_ROOT,
       process.env.PAPERCLIP_ACPX_PROVIDER_PACKAGE_MANIFEST,

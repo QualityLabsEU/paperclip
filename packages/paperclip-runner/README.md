@@ -73,6 +73,8 @@ belong to the published server manifest; the bundled JavaScript wrapper delegate
 platform installation there so npm can keep native and legacy versions separate.
 The wrapper code and patched ACP bridge stay unchanged. Docker images
 preinstall their qualified runtime dependencies during the image build.
+Codex sandbox read roots include the separately installed native vendor resources
+without granting access to enclosing npm directories or credential homes.
 Release assembly checks the source revision and Paperclip runner binary
 identities before publication. This packaging does not change agent defaults or
 the selected runner of an existing agent.

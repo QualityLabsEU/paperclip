@@ -54,6 +54,9 @@ The existing installer checks must prove both native and legacy version selectio
 and the runtime must still verify the selected executable's version and digest.
 Direct/source runtimes retain their own dependency declarations. A CI credential
 test fixture also reserves its ports before making its unchanged denial assertion.
+Installed-consumer verification also checks the native vendor sandbox read roots
+and their rendered isolation configuration; a version probe alone does not prove
+that Codex can invoke its native resources for shell tools.
 
 Reopen packaging and installed-consumer verification for this correction.
 The green checks at `36d9eb0c3c6b9ca5234432b97349dc7317cfa916` are historical;
