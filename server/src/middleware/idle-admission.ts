@@ -60,7 +60,7 @@ export function trackIdleRequestHandlers(app: Application): void {
     for (const layer of stack) {
       if (seen.has(layer)) continue;
       seen.add(layer);
-      if (layer.route) { visit(layer.route.stack, true); continue; }
+      if (layer.route && Array.isArray(layer.route.stack)) { visit(layer.route.stack, true); continue; }
       if (Array.isArray(layer.handle.stack)) { visit(layer.handle.stack); continue; }
       const original = layer.handle;
       if (original === idleAdmissionMiddleware) continue;
