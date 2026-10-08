@@ -711,18 +711,18 @@ jobs:
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: ${{ needs.build_runner_artifacts.outputs.build_artifact_name }}
-          path: runner-e2e-build
+          path: ${{ runner.temp }}/runner-e2e-build
 
       - name: Verify and restore shared TypeScript outputs
         if: needs.catalog.outputs.needs_remote_provider_pack == 'true'
         run: |
           set -euo pipefail
           (
-            cd runner-e2e-build
+            cd "$RUNNER_TEMP/runner-e2e-build"
             sha256sum --check runner-e2e-build-bundle.tar.gz.sha256
           )
           tar --extract --gzip \
-            --file runner-e2e-build/runner-e2e-build-bundle.tar.gz \
+            --file "$RUNNER_TEMP/runner-e2e-build/runner-e2e-build-bundle.tar.gz" \
             --directory "$GITHUB_WORKSPACE"
           test -d packages/paperclip-eval-kernel/dist
           test -d packages/paperclip-runner/dist
@@ -920,14 +920,14 @@ jobs:
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: ${{ needs.build_runner_artifacts.outputs.build_artifact_name }}
-          path: runner-e2e-build
+          path: ${{ runner.temp }}/runner-e2e-build
 
       - name: Download immutable remote provider pack
         if: matrix.environmentId == 'daytona' && (matrix.profileId == 'runner-opencode' || startsWith(matrix.profileId, 'runner-acpx-'))
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: ${{ needs.build_remote_provider_pack.outputs.provider_pack_artifact_name }}
-          path: runner-e2e-provider-pack
+          path: ${{ runner.temp }}/runner-e2e-provider-pack
 
       - name: Verify and restore campaign outputs
         if: startsWith(matrix.profileId, 'runner-') || matrix.suiteId == 'openrouter-model-breadth'
@@ -937,11 +937,11 @@ jobs:
         run: |
           set -euo pipefail
           (
-            cd runner-e2e-build
+            cd "$RUNNER_TEMP/runner-e2e-build"
             sha256sum --check runner-e2e-build-bundle.tar.gz.sha256
           )
           tar --extract --gzip \
-            --file runner-e2e-build/runner-e2e-build-bundle.tar.gz \
+            --file "$RUNNER_TEMP/runner-e2e-build/runner-e2e-build-bundle.tar.gz" \
             --directory "$GITHUB_WORKSPACE"
           test -d packages/paperclip-eval-kernel/dist
           if [ "$NEEDS_RUNNER_TYPESCRIPT" = true ]; then
@@ -958,11 +958,11 @@ jobs:
         run: |
           set -euo pipefail
           (
-            cd runner-e2e-provider-pack
+            cd "$RUNNER_TEMP/runner-e2e-provider-pack"
             sha256sum --check runner-e2e-provider-pack.tar.gz.sha256
           )
           tar --extract --gzip \
-            --file runner-e2e-provider-pack/runner-e2e-provider-pack.tar.gz \
+            --file "$RUNNER_TEMP/runner-e2e-provider-pack/runner-e2e-provider-pack.tar.gz" \
             --directory "$GITHUB_WORKSPACE"
           jq -e \
             --arg revision "$IMAGE_SOURCE_REVISION" \

@@ -1125,3 +1125,12 @@ runner binary. Master changed Rust inputs, so the retained Mac binary cannot
 qualify the synchronized source. Fresh Rust builds run in cloud CI. A new Mac
 binary, current image, and the outstanding live matrix remain qualification
 requirements. No local Docker or Rust build is used for this synchronization.
+
+The trusted E2E workflow now downloads its checksum-bound build and provider-pack
+archives under `RUNNER_TEMP`, outside the controller checkout. Source admission
+checks every tracked change and all other untracked files. It excludes only
+untracked content inside the generated Mac/Linux Hermes assets and provider-pack
+roots; separate verified runtime admission still checks their manifests and
+bytes before credentials. A 43-test source/workflow selection passes, including
+tracked asset edits, staged/deleted files, root symlinks, neighboring unmanaged
+assets, and archive placement. These are fixture checks, not paid workflow proof.

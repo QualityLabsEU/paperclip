@@ -30,7 +30,19 @@ export function prepareHermesQualificationSource(
   };
   const sha = git(["rev-parse", "HEAD"]).trim();
   if (!/^[a-f0-9]{40}$/.test(sha)) throw new Error("Hermes qualification source SHA is invalid.");
-  const changes = git(["status", "--porcelain", "-z", "--untracked-files=normal"]).split("\0").filter(Boolean);
+  // Check every tracked source change, including anything tracked in an asset
+  // directory. Only untracked files in these generated runtime roots are omitted;
+  // their manifests and bytes are verified separately before credentials arrive.
+  const generatedRuntimeRoots = [
+    "packages/paperclip-runner/provider-assets/hermes/linux-x64",
+    "packages/paperclip-runner/provider-assets/hermes/darwin-arm64",
+    "packages/paperclip-runner/provider-pack",
+  ];
+  const trackedChanges = git(["status", "--porcelain", "-z", "--untracked-files=no"]).split("\0").filter(Boolean);
+  const untrackedSource = git(["ls-files", "--others", "--exclude-standard", "-z", "--", ".",
+    ...generatedRuntimeRoots.map(root => `:(exclude)${root}/**`),
+  ]).split("\0").filter(Boolean);
+  const changes = [...trackedChanges, ...untrackedSource.map(file => `?? ${file}`)];
   const approvedLock = environment.PAPERCLIP_RUNNER_E2E_LOCK_SHA256?.trim();
   if (approvedLock && !/^[a-f0-9]{64}$/.test(approvedLock)) throw new Error("Hermes qualification approved lock digest is invalid.");
   if (changes.some(change => change !== " M pnpm-lock.yaml" || !approvedLock)) {

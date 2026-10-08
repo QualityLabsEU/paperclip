@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { devNull, tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
@@ -100,5 +100,37 @@ describe("approved qualification dependency lock", () => {
     expect(() => prepareHermesQualificationSource(selected, f.root, {
       PATH: process.env.PATH, PAPERCLIP_RUNNER_E2E_LOCK_SHA256: digest,
     })).toThrow();
+  });
+});
+
+describe("generated runtime source admission", () => {
+  const assetRoot = "packages/paperclip-runner/provider-assets/hermes/linux-x64";
+  function generated(root: string, relative: string) {
+    const directory = join(root, relative); mkdirSync(directory, { recursive: true });
+    writeFileSync(join(directory, "manifest.json"), "fixture runtime bytes\n");
+  }
+  it("admits untracked Mac/Linux runtime assets and a verified pack without hiding source changes", () => {
+    const f = checkout();
+    for (const root of [assetRoot, "packages/paperclip-runner/provider-assets/hermes/darwin-arm64", "packages/paperclip-runner/provider-pack"]) generated(f.root, root);
+    expect(prepareHermesQualificationSource(selected, f.root, { PATH: process.env.PATH })).toMatchObject({ sha: f.sha, workingTreeClean: true });
+    writeFileSync(join(f.root, "source.txt"), "changed source\n");
+    expect(() => prepareHermesQualificationSource(selected, f.root, { PATH: process.env.PATH })).toThrow("clean checkout before credentials");
+  });
+  it.each(["runner-e2e-build", "runner-e2e-provider-pack", "packages/paperclip-runner/provider-assets/hermes/win32-x64", "packages/paperclip-runner/provider-assets/unmanaged"])("rejects untracked files in %s", root => {
+    const f = checkout(); generated(f.root, assetRoot); generated(f.root, root);
+    expect(() => prepareHermesQualificationSource(selected, f.root, { PATH: process.env.PATH })).toThrow("clean checkout before credentials");
+  });
+  it.each(["modified", "staged", "deleted"])("rejects %s tracked files inside a generated asset root", kind => {
+    const f = checkout(); generated(f.root, assetRoot); f.git("add", assetRoot);
+    f.git("-c", "user.name=Fixture", "-c", "user.email=fixture@example.test", "-c", "commit.gpgsign=false", "-c", `core.hooksPath=${devNull}`, "commit", "-m", "tracked asset fixture");
+    const file = join(f.root, assetRoot, "manifest.json");
+    if (kind === "deleted") rmSync(file); else writeFileSync(file, "changed tracked asset\n");
+    if (kind === "staged") f.git("add", assetRoot);
+    expect(() => prepareHermesQualificationSource(selected, f.root, { PATH: process.env.PATH })).toThrow("clean checkout before credentials");
+  });
+  it("rejects a runtime-root symlink instead of treating it as generated content", () => {
+    const f = checkout(); const parent = join(f.root, "packages/paperclip-runner/provider-assets/hermes"); mkdirSync(parent, { recursive: true });
+    symlinkSync(f.root, join(parent, "linux-x64"));
+    expect(() => prepareHermesQualificationSource(selected, f.root, { PATH: process.env.PATH })).toThrow("clean checkout before credentials");
   });
 });

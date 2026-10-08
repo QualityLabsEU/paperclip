@@ -79,6 +79,17 @@ describe("public repository paid workflow security", () => {
     expect(provision).toContain("uv==0.12.17");
     expect(provision).toContain("scripts/provision-hermes.mjs");
   });
+  it("downloads and verifies qualification archives outside controller source", async () => {
+    const workflow = await readFile(path.join(repositoryRoot, ".github/workflows/runner-full-stack-e2e.yml"), "utf8");
+    expect(workflow.match(/path: \$\{\{ runner.temp \}\}\/runner-e2e-build/gu)).toHaveLength(2);
+    expect(workflow.match(/path: \$\{\{ runner.temp \}\}\/runner-e2e-provider-pack/gu)).toHaveLength(1);
+    expect(workflow.match(/cd "\$RUNNER_TEMP\/runner-e2e-build"/gu)).toHaveLength(2);
+    expect(workflow).toContain('cd "$RUNNER_TEMP/runner-e2e-provider-pack"');
+    expect(workflow.match(/--file "\$RUNNER_TEMP\/runner-e2e-build\/runner-e2e-build-bundle.tar.gz"/gu)).toHaveLength(2);
+    expect(workflow).toContain('--file "$RUNNER_TEMP/runner-e2e-provider-pack/runner-e2e-provider-pack.tar.gz"');
+    expect(workflow).not.toMatch(/path: runner-e2e-(?:build|provider-pack)\n/u);
+    expect(workflow).not.toMatch(/--file runner-e2e-(?:build|provider-pack)\//u);
+  });
   it("keeps the manual EC2 image build credential-free and pins the authorized target", async () => {
     const workflow = await readFile(path.join(repositoryRoot, ".github/workflows/docker-runner-check.yml"), "utf8");
     const manual = workflow.slice(workflow.indexOf("  authorize_manual:"));
