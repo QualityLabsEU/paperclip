@@ -2,7 +2,26 @@
 
 Current release checklist, updated 2026-10-08 (America/Chicago).
 
-## Current release gate: v32
+## Current release gate: v33
+
+The frozen application source is `024e1422f9c7b43ff1b083e7d8a25e1969dc4acf`; native artifacts come from `941fbcb664a885eea713e732edc10ac133c62238`. Copilot **1.0.88**, exact **gpt-5.6-luna**, profile **v33**, and `sha256:482c4e997b4690c7e4a5375dd035560aaad69000f8f5291904d76f8c3a88284a` identify this campaign. Master baseline is `0ac194450a48a407450921a16c3ef8684dcb85ca`. Earlier results below remain historical.
+
+The reviewed server follow-up is `50d54d78e552869cae154d88ade68063191a547e`. It preserves explicitly selected remote environments under managed-only policy and resolves forced Kubernetes before Copilot admission. All 63 focused regressions, server typecheck and server build pass. It changes neither qualified runtime/profile/image inputs nor the campaign's local and Daytona execution policies. Its ordinary installed canary is a separate remaining gate; existing live results retain their measured source revision.
+
+| Current gate | Result |
+|---|---|
+| Runner protocol | **7/7 pass**, 46 assertions, context-before-action included, cleanup confirmed |
+| Product local | **10/10 pass**, including attached command, denial, pending-permission Stop, provider death, warm continuity and all five core workflows; saved-token grants and exact profile/model verified |
+| Product Daytona | **0/10 current passes**; exact v33 publication approval pending; attached-command cell runs first |
+| Platform install/startup | Actual installed ARM64, x64 under Rosetta, and Linux x64 under Docker emulation initialize and exit cleanly; native Daytona still pending |
+| Authenticated metadata | Packaged runtime discovers 19 models including the exact qualification model; no prompt |
+| Ordinary user path | Fresh normal package installation and local/Daytona canaries on the reviewed source remain required, without qualification overrides |
+| Current image | Credential scan covered 225,852 files with zero selected credential matches. Tag `copilot-qualification-22fd2a8ae3414eee317e`; OCI index `sha256:65fc4f30c15b3d744534ce3d7240dfbf3d3ff081da6d51180bd89f2802bd6e56`; not published |
+| CI / review / shipping | Runtime and regression heads passed CI and fresh 5/5 review. Setup and qualification follow-ups require current-head CI/review. Separate code-owner approval and shipped canary remain required |
+
+No automatic behavior retries occurred. Retained failures include the v32 permission-target defect, pre-provider Vite startup failures, and the private eval admission mismatch. Their original grades remain unchanged. The reconciled allowance had **$39.86 remaining** after the local campaign; provider USD stays unknown and attributed to GitHub. No budget or billing settings were reset. The current machine-readable checklist is [2026-10-08-copilot-qualification-v33.json](2026-10-08-copilot-qualification-v33.json).
+
+## Historical v32 release attempt
 
 Fresh review identified two release blockers: arbitrary unavailable Copilot models could be saved, and independently decoding transport chunks could corrupt multibyte provider text. Creation, hiring, edits and environment changes now require the existing bounded authenticated metadata probe; the UI accepts only discovered models. The three protocol readers now retain a UTF-8 decoder across chunks.
 
