@@ -16,7 +16,7 @@ export function AgentReadinessStatus({ agentId, companyId, agentStatus }: {
   });
   if (agentStatus === "pending_approval" || agentStatus === "terminated") return null;
   if (query.isError) return <div role="status" className="flex items-center gap-2 text-sm text-destructive">
-    <span>Readiness status unavailable. Work remains queued.</span>
+    <span>Could not fetch readiness status.</span>
     <Button variant="ghost" size="sm" onClick={() => void query.refetch()}>Check again</Button>
   </div>;
   if (!query.data?.length) return null;

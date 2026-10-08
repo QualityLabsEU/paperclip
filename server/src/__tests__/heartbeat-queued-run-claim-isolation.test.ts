@@ -204,6 +204,30 @@ describeEmbeddedPostgres("heartbeat queued-run claim isolation", () => {
     } finally { release(); await recovery; }
   });
 
+  it("bounds and coalesces recovery while scanning every page of held agents", async () => {
+    for (let index = 0; index < 101; index++) {
+      const agent = await insertAgent();
+      await insertClaimableRun(agent.companyId, agent.agentId);
+    }
+    let release!: () => void;
+    const waiting = new Promise<void>(resolve => { release = resolve; });
+    let active = 0; let peak = 0;
+    mockReadiness.mockImplementation(async () => {
+      active++; peak = Math.max(peak, active);
+      try { await waiting; return [{ state: "pending" }]; }
+      finally { active--; }
+    });
+    const recovery = heartbeat.resumeQueuedRuns();
+    try {
+      await vi.waitFor(() => expect(mockReadiness).toHaveBeenCalledTimes(8));
+      expect(heartbeat.resumeQueuedRuns()).toBe(recovery);
+    } finally { release(); await recovery; }
+    expect(peak).toBe(8);
+    expect(mockReadiness).toHaveBeenCalledTimes(101);
+    expect(new Set(mockReadiness.mock.calls.map(call => call[2]?.id)).size).toBe(101);
+    expect(mockAdapterExecute).not.toHaveBeenCalled();
+  }, 30_000);
+
   it("keeps the same run queued through setup and provider outage, then executes when ready", async () => {
     const { companyId, agentId } = await insertAgent();
     const { runId } = await insertClaimableRun(companyId, agentId);

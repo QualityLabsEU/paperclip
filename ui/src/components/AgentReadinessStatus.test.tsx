@@ -13,6 +13,6 @@ describe("agent setup status", () => {
     query.data = [{ state: "blocked", label: "Agent preparation failed", message: "Ask an administrator to reconcile it." }];
     expect(render()).toContain("Check again"); expect(render()).toContain("reconcile");
     query.data = []; expect(render()).toBe("");
-    query.isError = true; expect(render()).toContain("Work remains queued"); expect(render()).toContain("Check again"); query.isError = false;
+    query.isError = true; expect(render()).toContain("Could not fetch readiness status"); expect(render()).not.toContain("queued"); expect(render()).toContain("Check again"); query.isError = false;
   });
 });

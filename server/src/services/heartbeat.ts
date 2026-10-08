@@ -15957,7 +15957,12 @@ export function heartbeatService(
     return { reaped: reaped.length, runIds: reaped };
   }
 
-  async function resumeQueuedRuns() {
+  let queuedRecovery: Promise<void> | null = null;
+  function resumeQueuedRuns() {
+    return queuedRecovery ??= resumeQueuedRunsPass().finally(() => { queuedRecovery = null; });
+  }
+
+  async function resumeQueuedRunsPass() {
     if ((await getSchedulingSuppression()).suppressed) return;
     await resumeExecutionWaitComments();
     const cutoff = await getWorktreeExecutionCutoff();
@@ -16043,24 +16048,34 @@ export function heartbeatService(
       });
     }
 
-    const queuedRuns = await db
-      .select({ agentId: heartbeatRuns.agentId })
-      .from(heartbeatRuns)
-      .innerJoin(companies, eq(companies.id, heartbeatRuns.companyId))
-      .where(
-        and(
+    // Bound database/RPC fan-out and scan distinct agents in keyset pages.
+    let afterAgentId: string | undefined;
+    let failure: { reason: unknown } | undefined;
+    for (;;) {
+      const queuedAgents = await db
+        .selectDistinct({ agentId: heartbeatRuns.agentId })
+        .from(heartbeatRuns)
+        .innerJoin(companies, eq(companies.id, heartbeatRuns.companyId))
+        .where(and(
           eq(heartbeatRuns.status, "queued"),
           eq(companies.status, "active"),
           cutoff ? gte(heartbeatRuns.createdAt, cutoff) : undefined,
-        ),
-      );
-
-    const agentIds = [...new Set(queuedRuns.map((r) => r.agentId))];
-    // A slow readiness plugin must not hold up other agents' queues.
-    // ponytail: concurrent agent starts; bound fan-out if queues outgrow the DB pool.
-    const results = await Promise.allSettled(agentIds.map(agentId => startNextQueuedRunForAgent(agentId)));
-    const failure = results.find(result => result.status === "rejected");
-    if (failure?.status === "rejected") throw failure.reason;
+          afterAgentId ? gt(heartbeatRuns.agentId, afterAgentId) : undefined,
+        ))
+        .orderBy(asc(heartbeatRuns.agentId))
+        .limit(100);
+      if (queuedAgents.length === 0) break;
+      const pending = queuedAgents.values();
+      // Independent workers let healthy queues progress while a provider waits.
+      await Promise.all(Array.from({ length: Math.min(8, queuedAgents.length) }, async () => {
+        for (const { agentId } of pending) {
+          try { await startNextQueuedRunForAgent(agentId); }
+          catch (reason) { failure ??= { reason }; }
+        }
+      }));
+      afterAgentId = queuedAgents[queuedAgents.length - 1].agentId;
+    }
+    if (failure) throw failure.reason;
   }
 
   async function recoverActiveSessionGoals() {

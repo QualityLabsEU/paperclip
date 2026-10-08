@@ -12,6 +12,7 @@ export async function getAgentReadiness(db: Db, workers: PluginWorkerManager | u
     plugin.manifestJson.capabilities.includes("agents.readiness.provide"));
   const result = await Promise.all(providers.map(async (plugin): Promise<PluginAgentReadiness | null> => {
     if (!await registry.getConfig(plugin.id, agent.companyId)) return null;
+    if ((await registry.getCompanySettings(plugin.id, agent.companyId))?.enabled === false) return null;
     try {
       if (!workers || plugin.status !== "ready") throw new Error("Provider unavailable");
       const creation = await db.select({ createdAt: resourceLifecycleEvents.createdAt }).from(resourceLifecycleEvents).where(and(
