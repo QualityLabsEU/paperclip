@@ -1,11 +1,12 @@
 import { agentAppearanceSchema } from "@paperclipai/shared";
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import type { Db } from "@paperclipai/db";
 import { approvalComments, approvals } from "@paperclipai/db";
 import { notFound, unprocessable } from "../errors.js";
 import { redactCurrentUserText } from "../log-redaction.js";
 import { agentService } from "./agents.js";
-import { budgetService } from "./budgets.js";
+import { budgetService, budgetServiceInTransaction } from "./budgets.js";
+import { withAccountingTransaction } from "./accounting-transaction.js";
 import { notifyHireApproved } from "./hire-hook.js";
 import { instanceSettingsService } from "./instance-settings.js";
 
@@ -86,9 +87,10 @@ export function approvalService(db: Db) {
   }
 
   return {
-    list: (companyId: string, status?: string) => {
+    list: (companyId: string, status?: string, readCondition?: SQL<boolean>) => {
       const conditions = [eq(approvals.companyId, companyId)];
       if (status) conditions.push(eq(approvals.status, status));
+      if (readCondition) conditions.push(readCondition);
       return db.select().from(approvals).where(and(...conditions));
     },
 
@@ -142,10 +144,12 @@ export function approvalService(db: Db) {
 
     approve: async (id: string, decidedByUserId: string, decisionNote?: string | null) => {
       const now = new Date();
-      const result = await db.transaction(async tx => {
-        const txDb = tx as unknown as Db;
+      const existing = await getExistingApproval(id);
+      // Receipt writers lock company before agent. Hire approval must use that
+      // order too, including activation of an existing pending agent.
+      const result = await withAccountingTransaction(db, existing.companyId, async (txDb, publications) => {
         const agentsSvc = agentService(txDb);
-        const budgets = budgetService(txDb);
+        const budgets = budgetServiceInTransaction(txDb, publications);
         const { approval: updated, applied } = await resolveApproval(
           id,
           "approved",
@@ -185,7 +189,7 @@ export function approvalService(db: Db) {
               spentMonthlyCents: 0,
               permissions: undefined,
               lastHeartbeatAt: null,
-            });
+            }, { createdByUserId: updated.requestedByAgentId ? null : updated.requestedByUserId });
             hireApprovedAgentId = created?.id ?? null;
           }
           if (hireApprovedAgentId) {
@@ -210,6 +214,7 @@ export function approvalService(db: Db) {
         return { approval: updated, applied, hireApprovedAgentId };
       });
       if (result.hireApprovedAgentId) {
+        await budgetService(db).deliverPendingEnforcement(result.approval.companyId);
         void notifyHireApproved(db, {
           companyId: result.approval.companyId,
           agentId: result.hireApprovedAgentId,

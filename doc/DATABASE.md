@@ -226,6 +226,17 @@ When authoring migrations or one-time backfills:
 - Split schema changes, index creation, and data backfill into separate phases so each step has clear locking and rollback behavior.
 - Treat the `check:migrations` CI gate as the enforcement backstop for these rules. If it flags a migration, rewrite the migration or add a suppression comment with the indexed predicate, batch bound, and reason the remaining scan is safe.
 
+Private-task migrations `0313` and `0314` are explicitly allowlisted in the
+Paperclip executor to run outside a file-wide transaction. Their idempotent
+keyset batches commit every 1,000 rows, and migration history is recorded only
+when all batches finish. The executor repairs invalid concurrent indexes on
+retry. A reserved connection holds a session advisory lock across all batch
+commits, so concurrent migrators recheck history only after the preceding runner
+finishes. Privacy triggers are replaced atomically. Bootstrap uses the same
+executor; other migrations remain transactional
+per file. Apply these migrations through `pnpm db:migrate` using a direct
+connection, before enabling the new server and UI.
+
 ## Migration snapshots
 
 `drizzle-kit generate` diffs `packages/db/src/schema/` against the newest snapshot in `packages/db/src/migrations/meta/`. That snapshot must describe the schema that every migration produces when they run in order. A snapshot that drifts from the schema makes the *next* migration wrong, because `generate` folds the drift into it. The drift can add a column that an earlier migration already created, which makes that migration fail on a fresh database. It can also drop a column that the schema still uses.
@@ -289,6 +300,8 @@ Paperclip stores current-user sidebar membership state in:
 These rows are company-scoped and user-scoped. A missing row means the user is joined, so existing users keep seeing projects and agents in the sidebar until they explicitly leave them. Rows only control sidebar visibility; they do not affect project/agent detail access, all-pages, selectors, assignment flows, or existing company permissions.
 
 Both tables use a unique key on `(company_id, user_id, resource_id)` and keep `state` as `joined` or `left`. Join/leave mutations are idempotent board-user `/me` operations and write activity entries when the effective state changes.
+
+Private-project authorization uses the separate `project_access_members` table. Its user/agent rows are security grants, not sidebar preferences, and are evaluated by the same issue-read predicate as issue-level grants. Do not merge or overload these two concepts.
 
 ## Decision training snapshot retention
 
@@ -600,6 +613,7 @@ write requires operator reconciliation before an unattached reservation is
 removed. The table stores no response bodies. See `doc/runner-api-tools.md` for
 limits and the operator override.
 
+Project `privacy_owner_user_id` records who may manage its audience independently of project read membership. Creation assigns the authenticated user or run responsible user; migration recovers legacy ownership from creation audit evidence. Missing evidence leaves management with administrators.
 ## Internal agent commentary
 
 `agent_commentary` stores company-scoped, attributed complaints and suggestions
@@ -617,3 +631,53 @@ reads and server startup do not provision them. Normal backups preserve identity
 rows and need the matching secrets master key for recovery. Both development seed
 modes omit identity rows, including with live-work preservation, so copied agents
 get fresh identities. See [Agent cryptographic identity](AGENT-IDENTITY.md).
+
+### Slack app registration
+
+`chat_slack_registrations` stores one company-scoped app registration per chat
+endpoint. A composite foreign key binds `(company_id, endpoint_id)` to the
+endpoint's company. It contains the creation request ID, immutable manifest
+snapshot/hash, OAuth callback URI, app/client IDs, vault references, installation
+identity, status, safe failure code, creator, and timestamps. It contains no
+plaintext configuration token, OAuth code, signing/client secret, or bot token.
+
+Creation records `creating` before dispatch. An interrupted attempt becomes
+`uncertain`; a new request needs explicit confirmation that no app exists.
+`install` means the app exists. `credentials_saved` means the OAuth bot token is
+vaulted and connection checks can resume. `configured` means runtime credentials
+are durably bound; staged duplicates are cleaned and the client secret remains
+available for reauthorization. `removed` invalidates registration and keeps the
+safe app management link for provider-side cleanup.
+
+`chat_endpoints.setup.slackAvatar` records optional avatar provisioning as
+`pending`, `uploaded` with its confirmation timestamp, or `failed` with a fixed
+safe error code. It survives reloads and restarts. App credentials are durably
+bound before icon upload; an interrupted upload never triggers another app
+creation. This JSON state stores no token, image URL, or provider error payload.
+
+`chat_endpoints.setup.slackAccount` stores the OAuth installer’s Slack ID, the
+initiating Paperclip user ID, pending/linked status, durable welcome-DM and
+optional verification-DM status, and the returned DM channel ID. It stores no
+user OAuth token or provider payload.
+The account uses the existing company-scoped `chat_identity_links` table; it
+preserves conflicting/revoked links and does not change on reauthorization.
+Both message dispatches move pending → sending before network I/O, then sent/failed;
+a restart or ambiguous response moves sending → uncertain without replay.
+Signed Request URL verification can precede installation. Internal setup state
+retains a signing-secret fingerprint and observed URL so configuration preserves
+that evidence only for the same secret and callback. No plaintext secret is stored
+in setup state, and the fingerprint is excluded from endpoint responses.
+For automatically registered apps, `webhookVerifiedAt` also records successful
+delivery of an authenticated message/app-mention event to the current callback
+URL. The current signing secret, saved app/workspace/bot binding, active connection,
+and runtime generation are checked before recording it. This is Paperclip's
+connection evidence, not Slack's settings-page URL-verification flag. Activity
+identifies this evidence as `authenticated_event`; no message body is recorded.
+
+Slack install attempts use `tool_oauth_states` with the `slack-install.` namespace.
+They expire after ten minutes, bind the company/connection/endpoint, registration
+request ID, app ID, initiating actor/session, callback URI, and requested scopes,
+and are atomically deleted before code exchange. The `code_verifier` column holds
+this non-secret binding for this namespace; Slack bot installation does not use
+PKCE. Removal and manual recovery invalidate outstanding attempts under the same
+credential-mutation lease used by configuration.

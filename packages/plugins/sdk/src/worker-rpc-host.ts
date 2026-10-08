@@ -1,6 +1,7 @@
 import { environmentTaskOperationSchema, parseEnvironmentTaskResult, type PluginEnvironmentTaskParams } from "./environment-tasks.js";
 import type { AiConnectionRouterRequest, AiConnectionRouterResult } from "@paperclipai/shared";
 import { environmentCreationCleanupErrorData } from "./environment-creation-cleanup.js";
+import { environmentSyncErrorData } from "./environment-sync-error.js";
 /**
  * Worker-side RPC host — runs inside the child process spawned by the host.
  *
@@ -1582,7 +1583,8 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
 
       sendMessage(createErrorResponse(id, errorCode, errorMessage,
         method === "environmentAcquireLease" || method === "environmentDestroyLease"
-          ? environmentCreationCleanupErrorData(err) : undefined));
+          ? environmentCreationCleanupErrorData(err)
+          : method === "environmentSyncOut" ? environmentSyncErrorData(err) : undefined));
     }
   }
 
