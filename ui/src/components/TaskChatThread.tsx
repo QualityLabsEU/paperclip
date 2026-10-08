@@ -524,6 +524,7 @@ export function TaskChatThread(props: TaskChatThreadProps) {
     conversationMode,
     reassignOptions,
     currentAssigneeValue,
+    suggestedAssigneeValue,
     assigneeAdapterOverrides,
     issueStatus,
     issueAssigneeAgentId = null,
@@ -601,12 +602,15 @@ export function TaskChatThread(props: TaskChatThreadProps) {
   const [pendingComposerAssignee, setPendingComposerAssignee] = useState<
     string | null
   >(null);
-  const effectiveGoalAgentId =
-    pendingComposerAssignee === null
-      ? issueAssigneeAgentId
-      : pendingComposerAssignee.startsWith("agent:")
-        ? pendingComposerAssignee.slice("agent:".length) || null
-        : null;
+  const composerSuggestedAssignee = currentUserId && currentAssigneeValue === `user:${currentUserId}`
+    ? suggestedAssigneeValue
+    : undefined;
+  const effectiveComposerAssignee = pendingComposerAssignee ?? composerSuggestedAssignee;
+  const effectiveGoalAgentId = effectiveComposerAssignee === undefined
+    ? issueAssigneeAgentId
+    : effectiveComposerAssignee.startsWith("agent:")
+      ? effectiveComposerAssignee.slice("agent:".length) || null
+      : null;
   const runnerGoal = useRunnerGoalControl(issueId, effectiveGoalAgentId);
 
   useEffect(() => {
@@ -3203,6 +3207,7 @@ export function TaskChatThread(props: TaskChatThreadProps) {
                       modelAgents={agentMap}
                       userProfileMap={userProfileMap}
                       currentAssigneeValue={currentAssigneeValue}
+                      suggestedAssigneeValue={composerSuggestedAssignee}
                       companyId={companyId}
                       assigneeAdapterOverrides={assigneeAdapterOverrides}
                       onPendingAssigneeChange={setPendingComposerAssignee}
