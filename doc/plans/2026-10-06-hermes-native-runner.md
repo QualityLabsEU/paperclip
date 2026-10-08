@@ -812,3 +812,46 @@ and Linux CI remain failures. Corrected
 fresh installation, public server/CLI consumer execution and new-head CI/review
 are still required; no release qualification or successful clean-consumer run is
 claimed by these corrections.
+
+### 2026-10-07 source recording and current live evidence
+
+At `f884b7806665e6cbc18422937c687597e1767c7b`, corrected fresh setup
+from the read-only packed Runner artifact completed on Mac arm64 in 30.354
+seconds, with the reviewed closure, 19,248 files and 445,379,309 bytes. Existing
+cache verification and independent production-factory admission also passed.
+This still leaves the complete public server/CLI installation lifecycle open.
+All three stacked PRs had passing checks and fresh 5/5 reviews at their recorded
+heads; the qualification head passed 54 checks with two intentional skips.
+The current Linux native artifact identifies merge checkout `179f0dd4`, whose
+parents independently match native head `de39c85a` and qualification head `f884b780`.
+These are credential-free fixtures, not actual Daytona or paid browser proof.
+
+A real Mac OpenRouter completion cell passed in 49.650 seconds at that head,
+including twelve independent matchers and cleanup. Its final screenshot shows
+one final answer and Done. It also shows a budget pause before fixture teardown.
+The settled run reports 61,035 input and 591 output tokens with unpriced cost;
+the pause is consistent with Paperclip's existing unpriced-usage hard stop.
+Continued use and billing coverage remain unqualified. OpenRouter documents
+per-response `usage.cost`; safely collecting it must include retry, compaction
+and delegated-call coverage instead of promoting Hermes's displayed estimate.
+
+The Mac result producer omitted standard source metadata. Separate preflight
+and launch receipts identify its checkout, and a post-run assessment confirms
+clean `f884b780` source, but the original null fields and machine grade remain
+unchanged. The launcher now derives the controller SHA/ref from clean Git before
+credential loading, rejects explicit source mismatches, and retains a campaign
+receipt. Read-only discovery remains available in a dirty checkout. This closes
+future source-recording omissions; it does not rewrite or upgrade historical
+evidence. Runtime identity still requires separate verification. No Docker,
+provider inference, or additional spending is required for this correction.
+All 60 affected source/API/Bedrock tests and Product E2E TypeScript passed.
+The real launcher rejects a dirty checkout before credentials and still permits
+read-only discovery. A separate credential-free localhost probe using the pinned
+SDK and Hermes's native stream assembly preserved the synthetic response's
+reported cost and upstream-cost breakdown. This proves those fields are available
+before the bridge boundary; it does not prove complete agent accounting or live
+billing. The initial sandbox socket denial is a separate infrastructure outcome.
+
+Hermes remains pending the full original Mac/Daytona, subscription, connection,
+attachment/control/state/routine and public-consumer gates. The ledger still
+retains $23 against the $25 cap; unknown charges are not counted as free.

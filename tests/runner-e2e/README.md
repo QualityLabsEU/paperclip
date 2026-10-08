@@ -1479,6 +1479,17 @@ Hermes uses an existing managed OpenRouter connection through the ordinary
 connection fixture. It remains pending qualification; the native transport
 fixture does not substitute for these browser and remote workflows.
 
+Before loading local credentials, the launcher records the checked-out controller
+SHA and ref for every selected Hermes candidate, including API and Bedrock cells.
+It rejects tracked/untracked source changes or an explicit
+`PAPERCLIP_RUNNER_E2E_SOURCE_SHA` that differs from Git HEAD. The public
+`hermes-source-before-execution.json` receipt is retained in the campaign root,
+and the same source values reach result writers and prerequisite children.
+Detached checkouts record `HEAD` unless an explicitly matched target SHA supplies
+its ref. Read-only `--list` and `--matrix-json` discovery require no source
+admission or credentials. This receipt identifies the controller; runtime/image
+provenance and live behavior still require their independent checks.
+
 When a Hermes cell is selected, the trusted workflow provisions its pinned
 Python closure on Linux before exposing credentials, and selects the same
 candidate assets for the image content identity, Docker build and remote

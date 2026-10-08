@@ -9,6 +9,9 @@ checks native completion through five selected managed API accounts on local
 and Daytona, with independent account/model attribution. Its registered cells
 remain pending until their live evidence passes; its API-only scope leaves the
 subscription and lifecycle gates separate.
+The launcher records clean Git source before credential loading for Hermes
+candidates and rejects a mismatched requested SHA. Its source receipt and normal
+result metadata identify the controller; they do not qualify runtime behavior.
 
 The same guide registers the separate explicit-only `hermes-bedrock-connections`
 suite for one exact `us-east-1` inference profile on local and Daytona. Its two
