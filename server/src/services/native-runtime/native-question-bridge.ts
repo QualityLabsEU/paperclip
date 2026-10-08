@@ -131,7 +131,8 @@ export async function projectNativeRuntimeRequest(input: {
     // Permission cards have their own privileged resolver. A provider-loss
     // expiry is a durable handoff, not cancellation of a historical question.
     if (outcome.requestKind !== "runtime" || outcome.requestType !== "input") return null;
-    if (outcome.action !== "cancel" || typeof outcome.requestId !== "string"
+    if ((outcome.action !== undefined && outcome.action !== "cancel") || outcome.replayAllowed === true
+      || typeof outcome.requestId !== "string"
       || !REQUEST_ID_PATTERN.test(outcome.requestId) || typeof input.event.turnId !== "string"
       || outcome.turnId !== input.event.turnId || (outcome.itemId ?? null) !== (input.event.itemId ?? null)
       || ["response", "answers", "answer", "replay"].some((key) => Object.hasOwn(outcome, key))) {

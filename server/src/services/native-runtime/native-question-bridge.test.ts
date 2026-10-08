@@ -318,6 +318,29 @@ describeEmbeddedPostgres("native question bridge", () => {
     }
   });
 
+  it("accepts the Rust ACPX cancellation payload without a redundant action field", async () => {
+    await seed();
+    const { interaction, cancelled } = await savedRuntimeQuestion();
+    // Both Rust expire_runtime_requests and RuntimeRequestOutcome emit this
+    // envelope. Cancellation authority is its committed event type.
+    cancelled.payload = { provider: "acpx", requestId: "request-1", requestKind: "runtime", requestType: "input",
+      turnId: cancelled.turnId, itemId: cancelled.itemId, reason: "session_interrupted", replayAllowed: false,
+      adapter: "acpx-runtime-sidecar", request: { ...(runtimeRequestEvent().payload.request as Record<string, unknown>),
+        turnId: cancelled.turnId, itemId: cancelled.itemId } };
+    await projectNativeRuntimeRequest({ db, binding: binding(), event: cancelled });
+    const [current] = await db.select().from(issueThreadInteractions).where(eq(issueThreadInteractions.id, interaction.id));
+    expect(current).toMatchObject({ status: "expired", result: { cancelled: true, answers: [] } });
+  });
+
+  it.each([{ action: "submit" }, { replayAllowed: true }, { response: { answers: {} } }])("rejects contradictory cancellation data %j", async (extra) => {
+    await seed();
+    const { interaction, cancelled } = await savedRuntimeQuestion();
+    Object.assign(cancelled.payload, extra);
+    await expect(projectNativeRuntimeRequest({ db, binding: binding(), event: cancelled })).rejects.toThrow("native_runtime_cancellation_invalid");
+    const [current] = await db.select().from(issueThreadInteractions).where(eq(issueThreadInteractions.id, interaction.id));
+    expect(current.status).toBe("pending");
+  });
+
   it("commits and acknowledges an ACP permission, then queues only an admin's exact turn-bound decision", async () => {
     await seed();
     const event = permissionRequestEvent();
