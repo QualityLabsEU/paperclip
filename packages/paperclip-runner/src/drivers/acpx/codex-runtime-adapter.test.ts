@@ -29,6 +29,45 @@ const HANDLE: AcpRuntimeHandle = {
 };
 
 describe("Codex ACPX runtime adapter", () => {
+  it("accepts only the owning Hermes terminal usage after Stop and before prompt settlement", async () => {
+    const pending = pendingExtensionTurn("turn-1");
+    const runtime = fakeRuntime(); vi.mocked(runtime.startTurn).mockReturnValue(pending.turn);
+    let created!: AcpRuntimeOptions;
+    const options = openOptions(fakeCommand());
+    options.profile = { ...options.profile, agent: "hermes" };
+    const port = await openCodexAcpxRuntime(options, {
+      createRegistry: () => registry(), createStore: () => store(), createRuntime: value => { created = value; return runtime; },
+    });
+    const notification = vi.fn();
+    const request = vi.fn();
+    const turn = port.startTurn({ text: "Work", requestId: "turn-1", onExtensionRequest: request, onExtensionNotification: notification });
+    const identity = { version: 1, sessionId: "backend-1", turnToken: "00000000-0000-0000-0000-000000000001" };
+    created.onExtensionNotification!("_hermes/turn_started", identity);
+    await turn.cancel();
+    created.onExtensionNotification!("_hermes/delegation", identity);
+    await expect(created.onExtensionRequest!("_hermes/ask_questions", identity,
+      { requestId: 0, signal: new AbortController().signal })).rejects.toThrow("admitted active turn");
+    for (const foreign of [{ ...identity, sessionId: "foreign" }, { ...identity, sessionId: "agent-1" }, { ...identity, turnToken: "00000000-0000-0000-0000-000000000002" }]) {
+      expect(() => created.onExtensionNotification!("_hermes/usage", foreign)).not.toThrow();
+    }
+    expect(notification).not.toHaveBeenCalled();
+    const receipt = { ...identity, tokens: "reported", cost: "unavailable", billing: {
+      schema: "paperclip.usage.billing/v1", source: "provider_reported", biller: "openrouter", currency: "USD",
+      complete: true, requestCount: 1, reportedRequestCount: 1, amountUsd: 0.0042, amountUsdExact: "0.004200000",
+    } };
+    created.onExtensionNotification!("_hermes/usage", receipt);
+    expect(notification).toHaveBeenCalledExactlyOnceWith("_hermes/usage", receipt);
+    expect(request).not.toHaveBeenCalled();
+    await turn.closeStream();
+    await turn.cancel();
+    created.onExtensionNotification!("_hermes/usage", receipt);
+    expect(notification).toHaveBeenCalledTimes(1);
+    pending.settle(); await turn.result;
+    created.onExtensionNotification!("_hermes/usage", receipt);
+    expect(notification).toHaveBeenCalledTimes(1);
+    await port.close({ reason: "terminal billing boundary verified" });
+  });
+
   it("rejects forged permission session identifiers before delegating or applying full-auto policy", async () => {
     const pending = pendingExtensionTurn("turn-1");
     const runtime = fakeRuntime(); vi.mocked(runtime.startTurn).mockReturnValue(pending.turn);

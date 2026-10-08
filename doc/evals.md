@@ -4,30 +4,8 @@ The explicit-only [live provider connection suite](../tests/runner-e2e/PROVIDER-
 is a Product E2E workflow for fresh subscription/API-key/gateway connections,
 with attended login and independent artifact checks against local or staging targets.
 
-The explicit-only [Hermes managed API suite](../tests/runner-e2e/README.md#extended-acp-harnesses-explicit-only)
-checks native completion through five selected managed API accounts on local
-and Daytona, with independent account/model attribution. Its registered cells
-remain pending until their live evidence passes; its API-only scope leaves the
-subscription and lifecycle gates separate.
-The launcher records clean Git source before credential loading for Hermes
-candidates and rejects a mismatched requested SHA. Its source receipt and normal
-result metadata identify the controller; they do not qualify runtime behavior.
-
-The same guide registers the separate explicit-only `hermes-bedrock-connections`
-suite for one exact `us-east-1` inference profile on local and Daytona. Its two
-cells remain pending. They verify the explicitly selected personal grant and
-public region/protocol/model routing before and after native completion, using
-a short-lived AWS bearer credential and the existing budget/evidence pipeline.
-
 Paperclip has two live eval families with different questions, owners, and
 evidence. Choose the family before selecting a model, profile, or case.
-
-The explicit-only `hermes-native-interactions` Product E2E suite adds a native
-three-question batch on local and Daytona. It checks browser reconnect within
-the active run, exact native callback delivery, late duplicate rejection and a
-final reply derived from the returned reviewer text. The registered cells remain
-pending; assigned Paperclip question tools do not satisfy this native oracle.
-See the [Hermes fixture contract](../tests/runner-e2e/README.md#extended-acp-harnesses-explicit-only).
 
 The explicit-only [native instruction consolidation comparison](plans/2026-10-03-native-completion-consolidation.md)
 uses six Product E2E cells per source variant. It measures the completion
@@ -447,13 +425,3 @@ See the [suite contract](../tests/runner-e2e/README.md#conversational-confirmati
 Hiring notification accounting now also requires exact completed action attribution. Missing native/provider ID mapping is uncomparable evidence; it must not be reported as a model task regression or waived through name/order matching. The fixture waits for both known completion callbacks and settled bracketed observations, including the gap before pending outbox work becomes a wake. Strict action replay and original machine verdicts are retained separately.
 
 The explicit-only [planning guidance utility comparison](../tests/runner-e2e/PLAN-TASK-GUIDANCE.md) measures task decomposition and handoffs with current, short, and disabled skills.
-
-The native interaction suite also declares one local `native-question-batch-stop`
-cell. It leaves a complete native callback unanswered, retains the pending
-request, clicks the browser Stop control, and independently requires the exact
-cancelled callback/turn and audited public Stop acknowledgement. The task must
-remain In Progress, a late answer must receive HTTP 409, and the public per-turn
-process owner and observed descendants must retire before cleanup and remain
-retired through cleanup. Cancelled-run account attribution and complete reported
-OpenRouter billing are required. This is a separate pending release gate; remote
-Stop still requires its own retirement observer and actual Daytona proof.

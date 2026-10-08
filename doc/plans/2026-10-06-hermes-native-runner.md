@@ -1416,3 +1416,40 @@ fixture attempts remain separate: one checked the late answer prematurely and
 failed during shutdown; another placed the workspace inside its isolated host
 home and was rejected before launch. Neither is live-provider proof. A fresh
 paid browser Stop campaign and the remaining release gates are still required.
+
+
+### 2026-10-08 native Stop projection and terminal receipt fixes
+
+The original `759f7bfccd` paid Stop attempt remains failed and is not regraded.
+Its native callback and turn cancelled, its audited browser Stop returned HTTP
+200, and all nine observed process identities retired. The card stayed pending,
+generic stranded-work recovery later blocked the task, and the cancelled run's
+cost stayed unpriced. No held reservation is released from these fixes.
+
+The server now projects the exact native input cancellation into its question
+card, checking company, task, agent, run, session, runner, turn, item and the
+committed creation. The pending-card compare-and-update cannot overwrite an
+answer, replay cannot create another expiration, and the transaction locks the
+task before the card. Both local and durable PRP observation use this projection.
+Unrelated historical questions and provider-loss handoffs retain their lifecycle.
+Recovery checks deliberate operator Stop before escalating an uninvokable
+assignee, so a later agent pause cannot turn that Stop into stranded work.
+
+The ACP boundary had discarded Hermes's final usage notification once Stop
+aborted its control signal. Only that admitted prompt's final usage can now
+cross the cancelled boundary, with its exact native session and negotiated turn
+token, before prompt settlement. Requests and other activity remain closed.
+Stream/process closure ends the receipt window and cannot reopen it. The native
+wire ledger and completeness rules are unchanged; missing charges stay unknown.
+
+Credential-free regression evidence: the paused-agent recovery test first failed,
+then its full suite passed 79 tests. Native card cancellation first failed seven
+checks, then the final suite passed 38 tests, including nine identity denials,
+replay, late-answer rejection, preserved historical answers and a concurrent
+answer/Stop race. The billing-boundary regression first failed because no receipt
+reached its owner; the affected ACP/usage suites passed all 110 tests after repair.
+Direct server and Runner TypeScript checks passed. An intermediate implementation
+scope error is retained as a failed test attempt; it is not qualification proof.
+No local Docker, Rust build, secret access or paid provider call was used for this
+repair. A fresh committed-source browser Stop attempt and complete release gates
+are still required. The PR stack remains draft and Hermes remains pending.

@@ -101,6 +101,8 @@ interface AcpxRuntimeExtensionBoundary {
   active: AcpxRuntimeExtensionTurn | null;
   sessionIds: Set<string>;
   steering: AcpxRuntimeSteeringCapability | null;
+  cancelledReceiptOwner: AcpxRuntimeExtensionTurn | null;
+  receiptAdmissionClosed: boolean;
 }
 
 class AcpxRuntimeCloseTimeoutError extends Error {
@@ -278,6 +280,7 @@ export async function openQualifiedAcpxRuntime(
   const extensionNotifications = new Set(extensionProfile.extensionNotifications);
   const extensionBoundary: AcpxRuntimeExtensionBoundary = {
     agent: options.profile.agent, active: null, sessionIds: new Set(), steering: null,
+    cancelledReceiptOwner: null, receiptAdmissionClosed: false,
   };
   const ownsExtensionTurn = (active: AcpxRuntimeExtensionTurn, params: Record<string, unknown>): boolean =>
     extensionBoundary.active === active && !active.signal.aborted
@@ -354,7 +357,15 @@ export async function openQualifiedAcpxRuntime(
         active.nativeTurnToken = params.turnToken;
         return;
       }
-      if (!extensionNotifications.has(method) || !active?.onNotification || !ownsExtensionTurn(active, params)) return;
+      // Stop revokes requests and activity immediately, but the native prompt
+      // still settles its owned work and billing. Admit only its final usage
+      // notification, with the exact negotiated session/token, until result
+      // settlement. Stream/process closure never opens this receipt window.
+      const cancelledUsage = options.profile.agent === "hermes" && method === "_hermes/usage"
+        && active !== null && extensionBoundary.cancelledReceiptOwner === active && extensionBoundary.active === active
+        && params.sessionId === active.sessionId && params.version === 1
+        && !!active.nativeTurnToken && params.turnToken === active.nativeTurnToken;
+      if (!extensionNotifications.has(method) || !active?.onNotification || (!ownsExtensionTurn(active, params) && !cancelledUsage)) return;
       if (options.profile.agent === "hermes" && (params.version !== 1 || !active.nativeTurnToken || params.turnToken !== active.nativeTurnToken)) throw new Error("Hermes activity belongs to a stale turn");
       active.onNotification(method, params.sessionId === undefined ? { ...params, sessionId: active.sessionId } : params);
     },
@@ -1204,6 +1215,8 @@ function runtimePort(
       attemptNumber: number;
     };
   }): Promise<void> {
+    extensionBoundary.receiptAdmissionClosed = true;
+    extensionBoundary.cancelledReceiptOwner = null;
     extensionBoundary.active?.controller.abort(new Error("ACPX runtime is closing"));
     if (runtimeClosed) return;
     if (
@@ -1399,7 +1412,10 @@ function runtimePort(
         onRequest: input.onExtensionRequest, onNotification: input.onExtensionNotification,
       };
       extensionBoundary.active = extensionTurn;
+      let receiptWindowClosed = false;
       const releaseExtensionTurn = (): void => {
+        receiptWindowClosed = true;
+        if (extensionBoundary.cancelledReceiptOwner === extensionTurn) extensionBoundary.cancelledReceiptOwner = null;
         controller.abort(new Error("ACPX extension turn expired"));
         if (extensionBoundary.active === extensionTurn) extensionBoundary.active = null;
       };
@@ -1450,10 +1466,13 @@ function runtimePort(
         ...guarded,
         result,
         cancel: (input) => {
+          if (!extensionBoundary.receiptAdmissionClosed && !receiptWindowClosed && extensionBoundary.active === extensionTurn) extensionBoundary.cancelledReceiptOwner = extensionTurn;
           controller.abort(new Error("ACPX extension turn cancelled"));
           return guarded.cancel(input);
         },
         closeStream: (input) => {
+          receiptWindowClosed = true;
+          if (extensionBoundary.cancelledReceiptOwner === extensionTurn) extensionBoundary.cancelledReceiptOwner = null;
           controller.abort(new Error("ACPX extension stream closed"));
           return guarded.closeStream(input);
         },

@@ -116,6 +116,10 @@ extend the task's execution deadline.
   selected OpenRouter billing identity and the current native turn before
   using it for accounting. Cumulative session cost and native model-price
   estimates cannot supply this receipt.
+- During Stop, requests and steering close immediately. The same admitted
+  Hermes prompt may still deliver its final usage notification with the exact
+  native session and turn token before prompt settlement. Stream or process
+  closure ends that receipt window. Missing charges remain unpriced.
 - Failed, interrupted, unsupported asynchronous and background delegated work
   leave measurement totals incomplete. Known positive reported subtotals survive, but
   missing charges remain unpriced. Explicit reported zero is accepted only for
