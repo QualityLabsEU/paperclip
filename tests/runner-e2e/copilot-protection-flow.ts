@@ -11,7 +11,7 @@ import { copilotAttachedFinishReady, copilotFinishAttemptBeforeCommandExit, only
 import { copilotOrigin, readCopilotToolEvidence, type CopilotToolNotice } from "./copilot-evidence.js";
 import { createAttachedCommandFixture, createDeniedTargetFixture, bindDeniedTargetPrompt, exists, observeRunProcesses, retainRunProcessIdentity } from "./copilot-local-fixtures.js";
 import { gradeCopilotAttachedSettlement, gradeCopilotDeniedWrite, type CopilotDeniedWriteEvidence } from "./copilot-protection-cases.js";
-import { observeCopilotPreStop, type CopilotPreStopObservation, readCopilotDeniedEdit, copilotDenialSampleCursor, readCopilotDenialSettlement, observeCopilotFixtureCommand, readCopilotRemoteMarkerAfterRetirement, prepareCopilotRemoteAction, assertCopilotRemoteRetirement, assertCopilotRemoteAttached, copilotRemoteDeniedSample, copilotActionNotices, type CopilotRemoteBootstrap, type CopilotRemoteFixture, type CopilotRemoteSnapshot, countCopilotToolOrigins, countCopilotEditOriginsForTarget } from "./copilot-protection-evidence.js";
+import { findCopilotFixtureCommand, observeCopilotPreStop, type CopilotPreStopObservation, readCopilotDeniedEdit, copilotDenialSampleCursor, readCopilotDenialSettlement, observeCopilotFixtureCommand, readCopilotRemoteMarkerAfterRetirement, prepareCopilotRemoteAction, assertCopilotRemoteRetirement, assertCopilotRemoteAttached, copilotRemoteDeniedSample, copilotActionNotices, type CopilotRemoteBootstrap, type CopilotRemoteFixture, type CopilotRemoteSnapshot, countCopilotToolOrigins, countCopilotEditOriginsForTarget } from "./copilot-protection-evidence.js";
 import type { LiveFixtureValues } from "./live-fixtures.js";
 import type { MatrixExecution } from "./types.js";
 type Row = Record<string, any>;
@@ -248,9 +248,9 @@ export async function runCopilotProtectionFlow(input: {
     } else {
       let finishOrigin: CopilotToolNotice | undefined;
       await wait("native finish while the exact attached command is live", state => {
-        const origins = state.notices.filter(n => n.stage === "tool" && n.status === "pending" && n.operation === "execute" && n.commandSha256 === exactCommand()!.commandSha256);
-        if (origins.length !== 1) return false;
-        finishOrigin = copilotAttachedFinishReady(state.notices, origins[0]!);
+        const matched = findCopilotFixtureCommand(state.notices, exactCommand()!.command);
+        if (!matched) return false;
+        finishOrigin = copilotAttachedFinishReady(state.notices, matched.call);
         return Boolean(finishOrigin);
       });
       const release = remote ? await remoteFixture!.releaseAttachedCommand() : command!.releaseAfterFinish();

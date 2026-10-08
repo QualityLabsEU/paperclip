@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { copilotAttachedFinishReady, copilotFinishAttemptBeforeCommandExit, onlyCopilotAttachedOperations, readCopilotSemanticCompletion } from "./copilot-semantic-evidence.js";
 import { readCopilotToolEvidence } from "./copilot-evidence.js";
-import { copilotActionNotices } from "./copilot-protection-evidence.js";
+import { copilotActionNotices, findCopilotFixtureCommand } from "./copilot-protection-evidence.js";
 import { validatePrpStructuredRunResult } from "../../packages/paperclip-runner/src/protocol/replay-contract.js";
 import { runnerSuites, suiteDefinitionHash } from "./catalog.js";
 const hash = (v: string) => createHash("sha256").update(v).digest("hex");
@@ -70,7 +70,7 @@ describe("Copilot semantic completion public-event oracle", () => {
   });
   it("versions semantic completion and current-mainline denial settlement independently", () => {
     const suite = runnerSuites.find(s => s.id === "copilot-protection")!;
-    expect(suite.definitionMetadata).toMatchObject({ version: 22, titleCreation: "explicit-search-composer", taskBinding: "browser-creation-response-id", remoteBootstrapContext: "already-exposed-dedicated-tool-no-http-substitution", semanticCompletionEvidence: "paperclip.e2e.copilot-semantic-completion.v4", denialSettlementEvidence: "paperclip.e2e.copilot-denial-settlement.v4" });
+    expect(suite.definitionMetadata).toMatchObject({ version: 23, titleCreation: "explicit-search-composer", taskBinding: "browser-creation-response-id", remoteBootstrapContext: "already-exposed-dedicated-tool-no-http-substitution", semanticCompletionEvidence: "paperclip.e2e.copilot-semantic-completion.v4", denialSettlementEvidence: "paperclip.e2e.copilot-denial-settlement.v4" });
     expect(suiteDefinitionHash(suite)).not.toBe(suiteDefinitionHash({ ...suite, definitionMetadata: { ...suite.definitionMetadata, version: 8 } }));
   });
   it("joins exact native lifecycle, authoritative callback, proposed content and accepted control-plane result", () => {
@@ -182,6 +182,15 @@ describe("Copilot semantic completion public-event oracle", () => {
     }
     const incomplete = f.notices.filter(n => !(n.toolCallId === f.proof.nativeToolCallId && n.status === "pending"));
     expect(() => copilotAttachedFinishReady(incomplete, f.command)).toThrow("matching finish origin");
+  });
+  it.each(["", " ", "\t ", "        "])("releases an accepted whitespace-prefixed command through the same finish gate: %j", prefix => {
+    const f = attachedFixture(), command = "printf fixture";
+    const nativeDigest = `sha256:${hash(prefix + command)}`;
+    for (const n of f.notices.filter(n => n.toolCallId === f.command.toolCallId)) n.commandSha256 = nativeDigest;
+    const matched = findCopilotFixtureCommand(f.notices, command);
+    expect(matched?.match.leadingWhitespace).toBe(prefix);
+    expect(copilotAttachedFinishReady(f.notices, matched!.call)?.toolCallId).toBe(f.proof.nativeToolCallId);
+    expect(findCopilotFixtureCommand(f.notices, command + " changed")).toBeNull();
   });
   it("accepts bounded in-progress shell updates without inventing terminal command identity", () => {
     const f = attachedFixture(), pending = f.notices.find(n => n.toolCallId === "shell-read" && n.status === "pending")!;
