@@ -32,6 +32,7 @@ import request from "supertest";
 import { aiConnectionRoutes, canInstallSharedAiConnectionForNewAgent, responsibleUserForAiRequest } from "../routes/ai-connections.js";
 import { validateAiApiKey } from "../routes/ai-connections.js";
 import * as copilotProbe from "../services/copilot-connection-probe.js";
+import * as settingsModule from "../services/instance-settings.js";
 import { agentRoutes } from "../routes/agents.js";
 import type { PluginWorkerManager } from "../services/plugin-worker-manager.js";
 vi.mock("../services/local-ai-browser-login.js", () => ({
@@ -63,6 +64,42 @@ beforeAll(async () => {
 afterAll(async () => { await database?.cleanup(); vi.unstubAllEnvs(); if (home) await rm(home, { recursive: true, force: true }); });
 
 describe("managed AI connections", () => {
+  it.each(["create", "hire", "edit"])("refuses Copilot %s before probing or persisting when forced Kubernetes is missing", async action => {
+    const { errorHandler } = await import("../middleware/index.js");
+    const owner = `copilot-kubernetes-${action}`, id = randomUUID();
+    const config = { provider: "acpx", acpxAgent: "copilot", model: "gpt-5.6-luna" };
+    const aiConnection = { provider: "github", method: "api_key", mode: "responsible_user" } as const;
+    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(agents).values({ id, companyId, name: "Kubernetes fixture", adapterType: "paperclip_runner", adapterConfig: config, runtimeConfig: { aiConnection } });
+    const account = await service.save(companyId, owner, { provider: "github", method: "api_key", ownership: "personal", name: "Kubernetes fixture", apiKey: "github_pat_fixture_kubernetes", agentIds: [id], allAgents: false }, "github_pat_fixture_kubernetes");
+    await service.setDefault(companyId, owner, account.grantId);
+    const [company] = await db.select().from(companies).where(eq(companies.id, companyId));
+    await db.update(companies).set({ requireBoardApprovalForNewAgents: false }).where(eq(companies.id, companyId));
+    const before = await db.select({ id: agents.id }).from(agents).where(eq(agents.companyId, companyId));
+    const originalSettings = settingsModule.instanceSettingsService;
+    const settings = vi.spyOn(settingsModule, "instanceSettingsService").mockImplementation(database => {
+      const service = originalSettings(database);
+      return { ...service, getGeneral: async () => ({ ...await service.getGeneral(), executionMode: "kubernetes" as const }) };
+    });
+    const probe = vi.spyOn(copilotProbe, "probeCopilotExecutionTarget");
+    const app = express(); app.use(express.json());
+    app.use((req, _res, next) => { req.actor = { type: "board", source: "local_implicit", userId: owner, companyIds: [companyId], isInstanceAdmin: true }; next(); });
+    app.use("/api", agentRoutes(db)); app.use(errorHandler);
+    try {
+      const changedConfig = { ...config, model: "prospective-model" };
+      const response = action === "edit"
+        ? await request(app).patch(`/api/agents/${id}`).send({ adapterConfig: changedConfig })
+        : await request(app).post(`/api/companies/${companyId}/${action === "hire" ? "agent-hires" : "agents"}`).send({ name: "Forced Kubernetes", role: "general", adapterType: "paperclip_runner", adapterConfig: changedConfig, runtimeConfig: { aiConnection } });
+      expect(response.status, JSON.stringify(response.body)).toBe(422);
+      expect(response.body.details.code).toBe("copilot_environment_unavailable");
+      expect(probe).not.toHaveBeenCalled();
+      expect((await db.select().from(agents).where(eq(agents.id, id)))[0].adapterConfig).toEqual(config);
+      expect(await db.select({ id: agents.id }).from(agents).where(eq(agents.companyId, companyId))).toHaveLength(before.length);
+    } finally {
+      probe.mockRestore(); settings.mockRestore();
+      await db.update(companies).set({ requireBoardApprovalForNewAgents: company.requireBoardApprovalForNewAgents }).where(eq(companies.id, companyId));
+    }
+  });
   it.each(["create", "hire", "edit"].flatMap(action => [true, false].map(connectionProvided => ({ action, connectionProvided }))))(
     "refuses unavailable Copilot models before $action persists configuration (connection binding: $connectionProvided)", async ({ action, connectionProvided }) => {
     const { unprocessable } = await import("../errors.js");
