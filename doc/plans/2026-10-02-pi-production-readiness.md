@@ -7,57 +7,107 @@ widgets, images, Cursor or Copilot qualification. The existing draft stack must 
 
 ## Current delivery scope — 2026-10-08
 
-Cloud build/public-install job `37802923302` passes for shipping source
-`10dc43c9ec65d88c2f782d62afb296d09494f215`. Its exact immutable image is
-`ghcr.io/paperclipai/paperclip-daytona-runner@sha256:5b3a775b383591bda1b0c1889e509acc70ce7f37c53f09733c81d59037f02280`;
-all 20 normal retained archives pass hash verification. Current PR head
-`8005b87c8812d27bf43b2d057a5d754299f3f9e2` differs only in the native Rust
-test fixture digest. All 54 applicable CI checks pass, with two expected skips,
-and current-head review is clear. A fresh cloud consumer passes normal install,
-profile-19 setup, full graph/managed asset checks, companion import, the actual
-production pack reader and installed CLI health/UI startup.
+**The two requested core paths pass.** The user narrowed delivery to normal task
+completion and human controls. Accounting and the broad release matrix remain
+deferred. No provider/platform expansion or local Docker is part of this work.
 
-Question campaign `pi-core19-0-1791475984` reaches all four browser questions,
-preserves their identities across reload, records all four answers, and reaches
-Done with one succeeded native run. Its canonical grade remains failed:
-`cleanup_failure`, preceded by incomplete independent terminal evidence with
-`process_sample_failed`. No question behavior or provider timeout fails. All
-60 canonical files (116,725,310 bytes) are retained with archive SHA256
-`a44d87624b57e995d19617886f27ad742f8afb29aff7578774f6a84d6048cc8f`.
-The original observer lacks the narrower failure cause; process-exit read races
-are an inferred cause. Native definition 23 and controls definition 10 confirm
-proc-entry absence separately after a read failure and preserve failures for
-existing unreadable processes and all incomplete evidence. Closed cause enums
-distinguish read, shape, binding and sealing failures. All 345 focused cloud
-unit controls pass. Shipping packages/image remain unchanged; fresh behavioral
-qualification uses the corrected committed harness. No original result is
-regraded or counted as a complete qualification pass.
+All seven fresh cloud cases pass canonically on shipping source
+`10dc43c9ec65d88c2f782d62afb296d09494f215`, committed harness
+`1a4408a48cfb5a1f094a311141c257c92cd7a893` and immutable image
+`ghcr.io/paperclipai/paperclip-daytona-runner@sha256:5b3a775b383591bda1b0c1889e509acc70ce7f37c53f09733c81d59037f02280`. The accepted fixture uses
+`openrouter/anthropic/claude-sonnet-4.6` with native low thinking. Production
+accepts the caller's explicit native model; no allowlist, hardcoded default or
+fallback is added. Pi profile 19 has command digest
+`sha256:b7647ebf97f802ca053ec3384c912bf0e8d18eba308d27397bb1d95a37220825`.
 
-The user narrowed this delivery to normal task completion and interactive
-controls. Accounting and the broad release matrix are deferred. The finish line
-is one real file edit, successful command validation, registered public download,
-Done and a succeeded native run; three follow-up turns with continuity; browser
-questions and answers; plan approval; same-turn steering and denial; Stop; and
-controller recovery with the original native question and run. Use the retained
-`b696e131ae32a82418e570b32f4727b5adb14e49` packages and cloud image, the approved
-Sonnet 4.6 fixture and low thinking. No local Docker, provider expansion, or
-accounting change is in scope. Rebuild the cloud runtime only when a confirmed
-core-path defect requires a production change.
+| Core path | Canonical campaign | Retained evidence |
+| --- | --- | --- |
+| Four typed questions, browser reconnects and exact saved answers | `pi-core19-0-1791477277` | 42 files; SHA256 `5c0c5fdfeca97b689a0f299935fd5cb62d65c38a056b8ff4f2dfc888cd795b24` |
+| Pending question survives controller restart on the same native run | `pi-core19-1-1791477493` | 33 files; SHA256 `85b5db8c528c339b611ecf1fc2173135aa6403184e6c47a52978cc3f69c00f86` |
+| File edit, one validation command, registered download, Done and copy-back | `pi-core19-2-1791477756` | 23 files; SHA256 `95731673cdba4b8373085a743d5570cae645059d5339f20337a4df55c97bba80` |
+| Three follow-up turns preserve native session/process/workspace | `pi-core19-3-1791477969` | 23 files; SHA256 `9b43a3edd76b4ea71e1611c5f623da6f88ec13184a89411983a582e66168568a` |
+| Browser plan approval resumes work and completion | `pi-core19-4-1791478363` | 22 files; SHA256 `a3b197d7c9b15ee962865c1c04588a51d29e96f64561d3e2ff36f9b8888ef3c3` |
+| Same-turn browser steering and permission denial without effect or replay | `pi-core19-5-1791478652` | 39 files; SHA256 `763bcf72a1be3b78d911376c2ed01ed433ecf7d3043379c0f6717afeecaf1317` |
+| Stop during pending permission cancels and retires the owned runtime | `pi-core19-6-1791478869` | 33 files; SHA256 `4b2b7c91e29ce8245750fbac37fe69495bbc8f99021b92f6e74619953f697d95` |
 
-The first current-cloud file attempt, `pi-core-0-1791470050`, edited, validated,
-published and finished through the real product. Its strict definition-4 grade
-is failed: the public task description escaped the unfenced validation command
-as Markdown paragraph text; the first Bash invocation had a syntax error, then
-Pi repaired it and ran a second command. The exact post-edit and downloaded
-bytes match, production copy-back finalized, and the issue/run reached
-Done/succeeded. Do not change this grade or count it as qualification. All 41
-canonical files (91,468,056 bytes) are retained with archive SHA-256
-`065146a206da9f29b50999b5d931b54402edd5d30a516895a7ab8fb95e8a6029`;
-independent process and scratch cleanup pass. Definition 5 fences the unchanged
-command for literal Markdown paste; the one-command grader stays unchanged.
+All 215 canonical files (28,868,813 bytes) are independently
+hash-verified. Every canonical cleanup check passes. Independent inspection
+finds no owned runtime process or temporary root after each case. Automatic
+retries are zero. The owned cloud host stops normally after retention. No live
+result from an older shipping runtime is reused.
 
-The following current-cloud paths pass with runtime `b696e131`, harness
-`ee3b094d35719e4dd7cbc791d1924205c4fa474f` and the retained immutable image:
+Native definition 23 has SHA256
+`90f2e901d7f39bfb6bbadcf63bc78e410a3b071af980f3a23979747e3d5f2021`;
+controls definition 10 has SHA256
+`00639f572e16e25e9945124d91d55a7c98aa9d36c1aa6493842ea7605ff7fcb8`.
+File/plan definition 5 retains SHA256
+`5de4fac78d4d581bc0954f07b5cf2df2862d37f8b0205325eede6d9ef6d9f5e6`;
+warm definition 2 retains SHA256
+`331b88d9538a132670789fb7864df7df5f4bf294ae19b62f53d8a02f901774f0`.
+
+Hosted Linux build/public-install job `37802923302` passes. Its 20 retained
+normal archives match their source-bound hashes. A fresh cloud consumer passes
+normal installation and lifecycle, profile-19 setup, full package/managed-asset
+checks, normal companion import, the actual production pack reader, and
+installed CLI health/UI startup. The matching build includes normal plugin
+prepack and the separate private eval SDK. All 54 applicable CI checks pass on
+harness head `1a4408a48`, with two expected skips and clear current-head review.
+Focused checks pass: 345 cloud core/observer controls, 47 extension/installation
+checks with one expected platform skip, 50 recovery decoder checks, 22 local
+native backend tests, generated profile drift and whitespace checks. Repository
+typecheck, tests and build use the normal CI dependency graph; the isolated
+public consumer lacks source-only development declarations.
+
+The production correction exposes native question field types at the schema
+root and preserves every method-specific constraint and runtime validator.
+Empty arguments, stringified options and cross-method fields remain invalid.
+All three previous closure hashes are reproduced from the retained full
+manifest and reviewed Node pins; only `extensions/paperclip.js` changes.
+Historical Pi profile-18 decoding retains its exact stored identity; current
+launch admission still rejects it. Later changes are tests, harness and docs.
+Shipping packages and image stay frozen at the source above.
+
+### Preserved failed attempts
+
+- `pi-core-0-1791470050` keeps its definition-4 candidate failure. The task editor
+  escaped an unfenced validation command, causing one failed Bash invocation
+  before a corrected invocation. Definition 5 fences the unchanged exact
+  command; the one-command grader stays unchanged. All 41 canonical files
+  (91,468,056 bytes) are retained with SHA256
+  `065146a206da9f29b50999b5d931b54402edd5d30a516895a7ab8fb95e8a6029`.
+- `pi-core-2-1791471416` keeps its profile-18 failure and original
+  `transient_infrastructure` classification. Empty question arguments and two
+  stringified option arrays are rejected before the 120-second native timeout.
+  All 45 files (177,803,509 bytes) are retained with SHA256
+  `66c801596d81b909ac2ad8004d885ddf69b7478d9ab9a0cce11a52ebfe8a6e28`.
+- `pi-core19-0-1791475984` keeps its definition-22 `cleanup_failure`. All four
+  real browser questions are answered and the one native run succeeds with the
+  task Done, but independent terminal evidence records `process_sample_failed`.
+  All 60 files (116,725,310 bytes) are retained with SHA256
+  `a44d87624b57e995d19617886f27ad742f8afb29aff7578774f6a84d6048cc8f`.
+  The original observer lacks a narrower cause. Linux proc-exit read races are
+  an inferred cause. Definition 23 separately confirms proc-entry absence
+  after an unexpected read failure. Existing unreadable processes, identity
+  drift and all incomplete evidence still fail. Closed causes distinguish
+  reads, stat shape, runtime binding and terminal sealing. The full private
+  recovery state is retained with SHA256
+  `90ae92b0ee5107145342bcbace6d6df7b17d629ea1c52eafb1220363d9376e49`;
+  only its backed-up disposable scratch root is removed after verifying no
+  owned process and the exact original sandbox's absence. No original grade
+  changes or partial results qualify a complete path.
+
+Cloud builds `37799803269` and `37800625049` are superseded before any model
+call. The normal install probe needed profile-19 synchronization, then stored
+profile-18 decoding needed preservation. Their handles and reasons remain
+retained. The frozen build above includes both corrections.
+
+### Historical profile-18 core passes
+
+These earlier passes remain bound to runtime `b696e131ae32a82418e570b32f4727b5adb14e49`,
+harness `ee3b094d35719e4dd7cbc791d1924205c4fa474f` and immutable image
+`sha256:ce622e03c606cb93eedda824133b791449f7be752d85e220a2e316f825f37226`.
+Their canonical results and independent cleanup pass; their host stops normally.
+They do not substitute for the seven fresh profile-19 results above.
 
 | Core path | Canonical campaign | Retained evidence |
 | --- | --- | --- |
@@ -66,44 +116,6 @@ The following current-cloud paths pass with runtime `b696e131`, harness
 | Human plan approval resumes work and completion through the public product | `pi-core-3-1791472300` | 22 files; archive SHA256 `8c069ff176cb94166429901957f80e8b22c36ddf0f2047193889c4b7059aedf3`; definition 5 |
 | Same-turn browser steering and human denial stay on the original run | `pi-core-4-1791472621` | 39 files; archive SHA256 `ce1f35ceaa66e2edaed070a26d25fcb24251be72726fb4372d057ab36425e1c3`; controls definition 9 |
 | Stop during pending native permission cancels work and retires the owned runtime | `pi-core-5-1791472865` | 33 files; archive SHA256 `771f132bdc192d08a106b2b35322ade1c8baafc837949770d76ea60e571770a5`; controls definition 9 |
-
-Every listed canonical result and independent cleanup check passes. All retained
-files are hash-verified. These are exact-source passes; a changed runtime must
-be checked again before they qualify that runtime.
-
-Native-question campaign `pi-core-2-1791471416` remains failed. Its original
-machine classification is `transient_infrastructure`; the run times out after
-120 seconds. The evidence shows three rejected native-question calls: empty
-arguments, then two `select` calls with `options` encoded as a JSON string. The
-model subsequently asks confirmation while the browser waits for color. All
-45 canonical files (177,803,509 bytes) are retained with archive SHA256
-`66c801596d81b909ac2ad8004d885ddf69b7478d9ab9a0cce11a52ebfe8a6e28`;
-independent retirement and scratch cleanup pass. Do not regrade this failure or
-retry the unchanged runtime.
-
-The production question schema has method-specific branches but no root field
-definitions. Profile 19 exposes the same field types at the root and keeps every
-method-specific constraint and runtime validator. Root-only gateway tool
-rendering is the inferred compatibility cause; a fresh real question pass is
-still required. Stringified options, absent arguments and cross-method fields
-remain invalid. The existing 38 extension tests pass on the pinned Node 24.21.0.
-All three prior closure hashes are independently reproduced from the retained
-full manifest and reviewed Node pins; only `extensions/paperclip.js` changes.
-No model allowlist, model fallback, credential policy or question-answer coercion
-is added. The corrected runtime requires the normal hosted cloud build and
-public-install checks before another paid question attempt.
-
-The baseline core host stops normally after retaining all six dispatched
-campaigns, including the failed question attempt. No runtime process or scratch
-root remains. Controller restart was not dispatched on the old question runtime.
-The first profile-19 cloud build is superseded because the normal install probe
-still expected profile 18. Its correction synchronizes the exact version and
-digest; the original build handle remains retained. Review then identifies a
-valid recovery decoder gap: stored Pi profile-18 runs must remain parseable after
-the profile-19 upgrade. Add profile 18 to historical decoding and preserve its
-exact persisted identity, while current launch admission still rejects it. No
-question-schema, package graph or executable closure changes in this correction.
-Hold the fresh qualification build until this narrow recovery fix passes review.
 
 ## Correct cloud memory-read authority — 2026-10-08
 
