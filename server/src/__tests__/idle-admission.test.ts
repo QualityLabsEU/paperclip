@@ -49,6 +49,20 @@ describe("idle admission", () => {
     expect(idleWorkSnapshot().active).toBe(0);
   });
 
+  it("tracks ordinary middleware with non-router stack metadata", async () => {
+    const server = app(), done = deferred();
+    const middleware = Object.assign(async (_req: express.Request, res: express.Response) => {
+      res.sendStatus(202); await done.promise;
+    }, { stack: { name: "middleware metadata" } });
+    server.use(middleware);
+    expect(() => trackIdleRequestHandlers(server)).not.toThrow();
+    await request(server).get("/work").expect(202);
+    expect(idleWorkSnapshot().active).toBe(1);
+    done.resolve();
+    await new Promise(resolve => setImmediate(resolve));
+    expect(idleWorkSnapshot().active).toBe(0);
+  });
+
   it("does not mistake a client disconnect for completed accepted work", async () => {
     const server = app();
     const entered = deferred(), done = deferred(), closed = deferred();
