@@ -391,7 +391,7 @@ describe("NativeExecutionInputV1", () => {
     })).toThrow("does not match");
   });
 
-  it.each([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32] as const)("decodes closed Copilot profile history at version %s without admitting a future version", (agentProfileVersion) => {
+  it.each([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33] as const)("decodes closed Copilot profile history at version %s without admitting a future version", (agentProfileVersion) => {
     const { qualificationModel: _qualificationModel, reportedModelId: _reportedModelId,
       permissionPolicy, qualificationStatus: _qualificationStatus, modelPolicy: _modelPolicy,
       ...snapshot } = QUALIFIED_ACPX_PROFILES.copilot;
@@ -403,7 +403,7 @@ describe("NativeExecutionInputV1", () => {
     const parsed = parseNativeExecutionInput(value);
     expect(parsed.provider).toEqual(provider);
     expect(parseNativeExecutionInput(parsed)).toEqual(parsed);
-    for (const unsupportedVersion of [0, 33, 1.5, "32", null]) {
+    for (const unsupportedVersion of [0, 34, 1.5, "33", null]) {
       expect(() => parseNativeExecutionInput({
         ...value, provider: { ...provider, profile: { ...provider.profile, agentProfileVersion: unsupportedVersion } },
       })).toThrow("qualified ACPX v1 profile");
