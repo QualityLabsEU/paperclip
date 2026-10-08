@@ -13,12 +13,13 @@ Current runtime source is `c049102fba12850b755a962d74e22635c8585724`, profile **
 | Model adoption | 53 setup UI tests and eight focused API cases pass; rejection prevents create/hire/edit, exact available models remain unchanged |
 | Split UTF-8 transport | 117 metadata/profile/installation/input tests and 13 credential-free protocol fixtures pass; Runner, server and UI TypeScript checks and token gates pass |
 | Maintained master | The stack retains master `d6df12cef69fcaf2d2fe66a393168931d5b8b4e7` and the merged CI-owned dependency prerequisite #15572 |
+| Daytona identity contract | Both image input lists reference the active v32 fixture; all nine exact image contract tests pass |
 | Fresh CI and review | All four repaired heads require exact-head CI and clean Greptile review; a separate code-owner approval is required for the runtime PR |
 | Frozen package and image | Freeze after review, then build and scan the repaired source. The unpublished v31 image request is superseded; it is not the current release image |
 | Live release gate | Verify the frozen packaged profile, exact saved-token model, ordinary local and Daytona paths and independent cleanup before rollout |
 | Shipping | Pending qualification, code-owner approval, normal merges and shipped canary proof |
 
-The approved budget has **$30.68 remaining** with no active hold. Provider USD stays unknown and GitHub-attributed; no budget reset or billing setting change occurred. The current record is `2026-10-08-copilot-qualification-v32.json`.
+The refreshed aggregate account reconciliation leaves **$80.36 within the existing approved allowance** with no active hold. All original attempts, infrastructure reservations and a $5 reporting-delay allowance remain retained. Provider USD stays unknown and GitHub-attributed; no budget reset or billing setting change occurred. The current record is `2026-10-08-copilot-qualification-v32.json`.
 
 ## Historical compatibility canary: v31
 

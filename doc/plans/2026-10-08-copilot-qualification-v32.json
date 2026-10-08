@@ -1,6 +1,6 @@
 {
   "schema": "paperclip.copilot.production-readiness-current/v1",
-  "updatedAt": "2026-10-08T15:21:02.808269+00:00",
+  "updatedAt": "2026-10-08T15:31:29.235437+00:00",
   "runtimeSourceRevision": "c049102fba12850b755a962d74e22635c8585724",
   "reviewSourceRevision": "8f74c41cd718568346ac786bc6e45e446dce17ac",
   "profileVersion": 32,
@@ -25,7 +25,9 @@
     "focusedRunnerTests": 117,
     "credentialFreeProtocolFixtures": 13,
     "runnerServerUiTypecheck": true,
-    "tokenGates": true
+    "tokenGates": true,
+    "daytonaActiveProfileFixtureSynchronized": true,
+    "daytonaImageContractTests": 9
   },
   "currentProfile": {
     "frozen": false,
@@ -41,7 +43,9 @@
     "entity": "github",
     "nativeUsd": null,
     "budgetReset": false,
-    "remainingApprovedUsd": 30.68
+    "remainingApprovedUsd": 80.36,
+    "aggregateIncludedCreditsObserved": 184.04,
+    "reportingDelayContingencyUsd": 5
   },
   "release": {
     "currentStackCiReviewPending": true,
