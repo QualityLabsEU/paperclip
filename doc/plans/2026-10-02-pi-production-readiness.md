@@ -38,6 +38,8 @@ The following current-cloud paths pass with runtime `b696e131`, harness
 | File edit, one exact successful command, authenticated public download, registered deliverable, finish, Done and finalized copy-back | `pi-core-0-1791470879` | 23 files; archive SHA256 `9a1c41e2ccad75f89a069ff571a3aa9f8cb94ae80c1bd397f7c886338b9a09bd`; definition 5 |
 | Three browser follow-up turns retain native session/process/workspace identity and append the earlier work | `pi-core-1-1791471072` | 23 files; archive SHA256 `d10310a2720a0d6c0636ce389fc6cc5faa887cc5c95bd697cdf0172619973609`; definition 2 |
 | Human plan approval resumes work and completion through the public product | `pi-core-3-1791472300` | 22 files; archive SHA256 `8c069ff176cb94166429901957f80e8b22c36ddf0f2047193889c4b7059aedf3`; definition 5 |
+| Same-turn browser steering and human denial stay on the original run | `pi-core-4-1791472621` | 39 files; archive SHA256 `ce1f35ceaa66e2edaed070a26d25fcb24251be72726fb4372d057ab36425e1c3`; controls definition 3 |
+| Stop during pending native permission cancels work and retires the owned runtime | `pi-core-5-1791472865` | 33 files; archive SHA256 `771f132bdc192d08a106b2b35322ade1c8baafc837949770d76ea60e571770a5`; controls definition 3 |
 
 Every listed canonical result and independent cleanup check passes. All retained
 files are hash-verified. These are exact-source passes; a changed runtime must
@@ -64,6 +66,18 @@ full manifest and reviewed Node pins; only `extensions/paperclip.js` changes.
 No model allowlist, model fallback, credential policy or question-answer coercion
 is added. The corrected runtime requires the normal hosted cloud build and
 public-install checks before another paid question attempt.
+
+The baseline core host stops normally after retaining all six dispatched
+campaigns, including the failed question attempt. No runtime process or scratch
+root remains. Controller restart was not dispatched on the old question runtime.
+The first profile-19 cloud build is superseded because the normal install probe
+still expected profile 18. Its correction synchronizes the exact version and
+digest; the original build handle remains retained. Review then identifies a
+valid recovery decoder gap: stored Pi profile-18 runs must remain parseable after
+the profile-19 upgrade. Add profile 18 to historical decoding and preserve its
+exact persisted identity, while current launch admission still rejects it. No
+question-schema, package graph or executable closure changes in this correction.
+Hold the fresh qualification build until this narrow recovery fix passes review.
 
 ## Correct cloud memory-read authority — 2026-10-08
 
