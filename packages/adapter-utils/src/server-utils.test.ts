@@ -3,8 +3,18 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { CONNECTION_INTENT_AGENT_GUIDANCE } from "@paperclipai/shared";
+
+vi.mock("./local-process-sandbox.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./local-process-sandbox.js")>();
+  return {
+    ...actual,
+    buildLocalProcessSandboxSpawnTarget: vi.fn(actual.buildLocalProcessSandboxSpawnTarget),
+  };
+});
+
+import { buildLocalProcessSandboxSpawnTarget } from "./local-process-sandbox.js";
 import {
   readPaperclipRuntimeSkillEntries,
   applyPaperclipWorkspaceEnv,
@@ -909,6 +919,94 @@ describe("runChildProcess", () => {
       }
     },
   );
+
+  it("logs a failing sandbox cleanup after the child exits instead of dropping the rejection", async () => {
+    const cleanupError = new Error("EACCES: cleanup denied");
+    vi.mocked(buildLocalProcessSandboxSpawnTarget).mockResolvedValueOnce({
+      command: process.execPath,
+      args: ["-e", "process.exit(0)"],
+      cwd: process.cwd(),
+      cleanup: () => Promise.reject(cleanupError),
+    });
+    const runId = randomUUID();
+    const loggedCleanupErrors: Array<{ err: unknown; runId: string; message: string }> = [];
+    const unhandled: unknown[] = [];
+    const onUnhandledRejection = (reason: unknown) => unhandled.push(reason);
+    process.on("unhandledRejection", onUnhandledRejection);
+    try {
+      const result = await runChildProcess(runId, process.execPath, ["-e", "process.exit(0)"], {
+        cwd: process.cwd(),
+        env: {},
+        timeoutSec: 10,
+        graceSec: 1,
+        onLog: async () => {},
+        onLogError: (err, id, message) => loggedCleanupErrors.push({ err, runId: id, message }),
+        localProcessSandbox: {
+          workspaceDir: process.cwd(),
+          filesystemScope: "workspace",
+          command: process.execPath,
+        },
+      });
+      expect(result.exitCode).toBe(0);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(unhandled).toEqual([]);
+      expect(loggedCleanupErrors).toContainEqual({
+        err: cleanupError,
+        runId,
+        message: "sandbox cleanup failed",
+      });
+    } finally {
+      process.off("unhandledRejection", onUnhandledRejection);
+    }
+  });
+
+  it("logs a failing sandbox cleanup when the command fails to start instead of dropping the rejection", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-cleanup-reject-"));
+    const sandboxCommand = path.join(root, "sandbox-wrapper");
+    await fs.writeFile(sandboxCommand, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+    const cleanupError = new Error("EACCES: cleanup denied");
+    vi.mocked(buildLocalProcessSandboxSpawnTarget).mockImplementationOnce(async () => {
+      await fs.rm(sandboxCommand, { force: true });
+      return {
+        command: sandboxCommand,
+        args: [],
+        cwd: process.cwd(),
+        cleanup: () => Promise.reject(cleanupError),
+      };
+    });
+    const runId = randomUUID();
+    const loggedCleanupErrors: Array<{ err: unknown; runId: string; message: string }> = [];
+    const unhandled: unknown[] = [];
+    const onUnhandledRejection = (reason: unknown) => unhandled.push(reason);
+    process.on("unhandledRejection", onUnhandledRejection);
+    try {
+      await expect(
+        runChildProcess(runId, sandboxCommand, [], {
+          cwd: process.cwd(),
+          env: {},
+          timeoutSec: 10,
+          graceSec: 1,
+          onLog: async () => {},
+          onLogError: (err, id, message) => loggedCleanupErrors.push({ err, runId: id, message }),
+          localProcessSandbox: {
+            workspaceDir: process.cwd(),
+            filesystemScope: "workspace",
+            command: sandboxCommand,
+          },
+        }),
+      ).rejects.toThrow("Failed to start command");
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(unhandled).toEqual([]);
+      expect(loggedCleanupErrors).toContainEqual({
+        err: cleanupError,
+        runId,
+        message: "sandbox cleanup failed",
+      });
+    } finally {
+      process.off("unhandledRejection", onUnhandledRejection);
+      await fs.rm(root, { recursive: true, force: true }).catch(() => undefined);
+    }
+  });
 });
 
 describe("renderPaperclipWakePrompt", () => {
