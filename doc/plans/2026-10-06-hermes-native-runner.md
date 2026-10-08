@@ -1234,3 +1234,33 @@ tool. They do not qualify the Hermes-native `clarify_callback`, subscriptions,
 Bedrock, other protocols, attachments with a live vision model, proactive
 routines, the broader state/control matrix, or actual Daytona. Hermes remains
 pending qualification.
+
+### 2026-10-08 native question transport coverage
+
+At `447eee1a96a3a950e633a1cc907827c776be9338`, the fresh Mac question and
+controller-restart campaign passes all twelve matchers and cleanup in
+151.621 seconds. Its two native runs restore the same recorded conversation,
+submit Cobalt once, produce one final answer and settle reported wire cost of
+$0.003527390. Current-head cloud checks pass on Mac arm64 and Linux amd64,
+including six native fixtures and 38 pinned Python checks per target. The Mac
+job first receives HTTP 429 before source materialization; its one targeted
+retry passes. The Linux result retains its original attempt-one execution.
+These results prove their stated scope, not the full release matrix.
+
+Three additional native fixtures now cross TypeScript, Rust PRP, the production
+sidecar, ACPX and the pinned Hermes `clarify_callback`. A single batch contains
+single-choice, multiple-choice, custom and free-text answers. Submission must
+produce the exact native tool result once; cancellation must report the native
+cancelled batch; Stop during the question must terminate the waiting turn
+without another model request or a semantic completion. Every path rejects a
+second answer to the original request. The three fixtures pass locally in
+48.195 seconds using the unchanged cloud-built daemon and Node 26.11.1, with
+no credentials or paid provider calls. The following regression command
+executes all nine native fixtures successfully in 183.842 seconds, including
+38 pinned Python checks. Fresh cloud execution remains required for this change.
+
+These deterministic fixtures provide native transport evidence. Live native
+question forms, reconnect, cancellation and browser behavior still require
+their own Product E2E acceptance. Subscriptions, Bedrock, a current published
+image, clean public consumers, actual Daytona and the remaining release gates
+stay pending. No local Docker or Rust build is used.

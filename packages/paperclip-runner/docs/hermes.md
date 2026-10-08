@@ -196,9 +196,13 @@ pnpm test:e2e:runner -- --id extended-harnesses.runner-acpx-hermes.local.hello-c
 
 The opt-in transport tests execute the pinned native process against a
 deterministic HTTP model fixture. It is not paid-model, browser or Daytona
-qualification. One test exercises the ACPX host directly; the other includes
-TypeScript, Rust PRP, the packaged sidecar, image delivery and semantic task
-completion. The companion Product E2E catalog contains five local and five Daytona
+qualification. The fixtures exercise the ACPX host and the full TypeScript,
+Rust PRP and packaged sidecar path, including image delivery and semantic task
+completion. Native question batches cover single selection, multiple selection,
+custom answers and free text. They require one callback result, reject a second
+answer, and check both question cancellation and Stop during a pending question.
+Stop must prevent a later model request and cannot produce task completion.
+The companion Product E2E catalog contains five local and five Daytona
 Hermes cells using a managed OpenRouter connection. Each connection method,
 native control, attachment, persistence, remote restoration and permission mode
 must pass its release criterion with inspectable live evidence before promotion.

@@ -22,8 +22,27 @@ const completion = {
     criteria: [{ criterionId: 'objective', status: 'satisfied', evidenceRefs: [] }], remainingWork: [] },
   evidence: [], verification: [{ commandOrCheck: 'native transport fixture', status: 'passed' }], attentionRequests: [], artifacts: [],
 };
+const nativeQuestions = [
+  { id: 'color', question: 'Choose the fixture color', choices: ['Cobalt', 'Amber'] },
+  { id: 'targets', question: 'Choose the fixture targets', choices: ['Linux', 'Mac'], multi_select: true },
+  { id: 'notes', question: 'Describe the fixture constraint' },
+];
+const nativeResponse = {
+  schema: 'paperclip.question_response.v1',
+  answers: {
+    q0: { selectedOptionIds: ['o0'] },
+    q1: { selectedOptionIds: ['o1', 'o0'], customText: 'FreeBSD' },
+    q2: { text: 'Keep memory private.' },
+  },
+};
 
-for (const interactionKind of [null, "ask_user_questions", "request_confirmation", "request_checkbox_confirmation"]) test(interactionKind
+const cases = [
+  ...[null, 'ask_user_questions', 'request_confirmation', 'request_checkbox_confirmation'].map(interactionKind => ({ interactionKind, nativeQuestionAction: null })),
+  ...['submit', 'cancel', 'stop'].map(nativeQuestionAction => ({ interactionKind: null, nativeQuestionAction })),
+];
+for (const { interactionKind, nativeQuestionAction } of cases) test(nativeQuestionAction
+  ? `pinned Hermes native question batch crosses Rust PRP with ${nativeQuestionAction} and rejects a second answer`
+  : interactionKind
   ? `pinned Hermes retains prompt usage before committed ${interactionKind} triggers immediate Rust-sidecar shutdown`
   : 'pinned Hermes streams images and semantic completion through Rust PRP and the production sidecar', {
   skip: process.env.PAPERCLIP_HERMES_QUALIFY !== '1', timeout: 180_000,
@@ -49,13 +68,16 @@ for (const interactionKind of [null, "ask_user_questions", "request_confirmation
     }
     res.writeHead(200, { 'content-type': 'text/event-stream' });
     const send = (delta, finish_reason = null) => res.write(`data: ${JSON.stringify({ id: 'native-prp', object: 'chat.completion.chunk', choices: [{ index: 0, delta, finish_reason }] })}\n\n`);
-    if (!body.messages.some(message => message.role === 'tool')) {
+    const toolResults = body.messages.filter(message => message.role === 'tool');
+    const askNative = nativeQuestionAction && toolResults.length === 0;
+    if (askNative || toolResults.length === (nativeQuestionAction ? 1 : 0)) {
       send({ role: 'assistant', reasoning_content: 'Checking the native runner path.' });
       await new Promise(resolve => setTimeout(resolve, 80));
-      const finish = body.tools.find(tool => tool.function.name.endsWith(interactionKind ? 'request_human_input' : 'paperclip_finish'));
-      assert.ok(finish, 'Paperclip completion authority was not exposed to the native model');
-      send({ tool_calls: [{ index: 0, id: 'native-prp-finish', type: 'function', function: { name: finish.function.name,
-        arguments: JSON.stringify(interactionKind ? { marker: 'governed-question' } : completion) } }] });
+      const tool = body.tools.find(tool => askNative ? tool.function.name === 'clarify'
+        : tool.function.name.endsWith(interactionKind ? 'request_human_input' : 'paperclip_finish'));
+      assert.ok(tool, 'The expected native or assigned tool was not exposed to the model');
+      send({ tool_calls: [{ index: 0, id: askNative ? 'native-prp-clarify' : 'native-prp-finish', type: 'function', function: { name: tool.function.name,
+        arguments: JSON.stringify(askNative ? { questions: nativeQuestions } : interactionKind ? { marker: 'governed-question' } : completion) } }] });
       send({}, 'tool_calls');
     } else {
       send({ role: 'assistant', content: 'Native Rust ' });
@@ -122,14 +144,64 @@ for (const interactionKind of [null, "ask_user_questions", "request_confirmation
   await session.startTurn({ message: { role: 'user', text: input.task.prompt, attachments: input.attachments } });
   const events = [];
   let cancellationOutcome;
+  let questionResolutions = 0;
   for await (const event of session.events()) {
     events.push(event);
+    if (nativeQuestionAction && event.eventType === 'runtime_request.created') {
+      const request = event.payload.request;
+      assert.equal(request.origin.method, '_hermes/ask_questions');
+      assert.equal(request.origin.adapter, 'acpx-runtime-sidecar');
+      assert.equal(request.input.schema, 'paperclip.question_set.v1');
+      assert.deepEqual(request.input.questions.map(question => ({ id: question.id, prompt: question.prompt, answerMode: question.answerMode })), [
+        { id: 'q0', prompt: nativeQuestions[0].question, answerMode: 'single_select' },
+        { id: 'q1', prompt: nativeQuestions[1].question, answerMode: 'multi_select' },
+        { id: 'q2', prompt: nativeQuestions[2].question, answerMode: 'text' },
+      ]);
+      for (const [index, labels] of [[0, ['Cobalt', 'Amber']], [1, ['Linux', 'Mac']]]) {
+        assert.deepEqual(request.input.questions[index].options.map(option => option.id), ['o0', 'o1']);
+        request.input.questions[index].options.forEach((option, i) => assert.ok(option.label.startsWith(labels[i])));
+      }
+      assert.equal(questionResolutions++, 0, 'Native callback produced a duplicate form');
+      const resolution = { requestId: request.requestId, turnId: request.turnId,
+        resolution: nativeQuestionAction === 'submit' ? { action: 'submit', response: nativeResponse } : { action: 'cancel' } };
+      if (nativeQuestionAction === 'stop') {
+        await session.cancel({ reason: 'stop during native clarification', signal: new AbortController().signal }).cleanup;
+        await session.close({ reason: 'native clarification stopped' });
+        await assert.rejects(session.resolveRuntimeRequest(resolution), /no longer pending/);
+        break;
+      }
+      await session.resolveRuntimeRequest(resolution);
+      await assert.rejects(session.resolveRuntimeRequest(resolution), /no longer pending/);
+    }
     if (interactionKind && event.eventType === 'item.completed' && event.payload.kind === 'dynamicToolCall') {
       cancellationOutcome = session.cancel({ reason: 'committed human input wait', signal: new AbortController().signal }).cleanup
         .then(() => ({ stopped: true }), error => ({ error }));
       break;
     }
     if (['run.terminal', 'turn.completed', 'turn.failed', 'turn.cancelled', 'turn.interrupted'].includes(event.eventType)) break;
+  }
+  if (nativeQuestionAction) {
+    assert.equal(questionResolutions, 1, 'Native clarification never crossed PRP');
+    assert.equal(events.filter(event => event.eventType === 'runtime_request.created').length, 1);
+    if (nativeQuestionAction === 'stop') {
+      assert.equal(requests.length, 1, 'Stopped clarification started another model request');
+      assert.equal((await session.snapshot()).semanticResult, null, 'Stop invented task completion');
+      return;
+    }
+    assert.equal(events.filter(event => event.eventType === 'runtime_request.resolved').length, 1);
+    const responses = requests.at(-1).messages.filter(message => message.role === 'tool' && message.tool_call_id === 'native-prp-clarify');
+    assert.equal(responses.length, 1, 'Native callback result was missing or duplicated');
+    const result = JSON.parse(responses[0].content);
+    assert.deepEqual(result.responses.map(response => ({ id: response.id, user_response: response.user_response })), nativeQuestionAction === 'submit' ? [
+      { id: 'color', user_response: 'Cobalt' },
+      { id: 'targets', user_response: ['Mac', 'Linux', 'FreeBSD'] },
+      { id: 'notes', user_response: 'Keep memory private.' },
+    ] : nativeQuestions.map(question => ({ id: question.id, user_response: '' })));
+    if (nativeQuestionAction === 'cancel') {
+      assert.equal(result.timed_out, true);
+      assert.equal(result.notice, 'Question cancelled');
+    } else assert.equal(result.timed_out, undefined);
+    assert.equal(requests.length, 3, 'Native clarification resumed more than once');
   }
   if (interactionKind) {
     assert.ok(cancellationOutcome, 'The committed human input completion did not reach the native boundary');
