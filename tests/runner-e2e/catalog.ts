@@ -1518,7 +1518,7 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
     environments: [daytonaWarmEnvironment],
     tasks: [daytonaWarmContinuityTask],
     expectedMatrixSize: 2,
-    definitionMetadata: { version: 3, nativeInstructions: "managed-incremental", managedFileBytes: 8 * 1024 * 1024 },
+    definitionMetadata: { version: 4, nativeInstructions: "managed-incremental", managedFileBytes: 8 * 1024 * 1024 },
   },
   {
     id: "daytona-journal-continuity",
@@ -1566,7 +1566,7 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
     }],
     tasks: [daytonaGitStreamingTask],
     expectedMatrixSize: 1,
-    definitionMetadata: { version: 8, instructions: "fixed-external", nativeIdleTimeoutMs: 1_200_000, autoStopIntervalMinutes: 25, generatedFileCount: 60_000, filenameBytes: 39_828_890, scheduling: "explicit-only", finalization: "committed-without-active-sync-or-retry", copyback: "all-generated-file-contents-change-each-turn" },
+    definitionMetadata: { version: 9, instructions: "fixed-external", nativeIdleTimeoutMs: 1_200_000, autoStopIntervalMinutes: 25, generatedFileCount: 60_000, filenameBytes: 39_828_890, scheduling: "explicit-only", finalization: "committed-without-active-sync-or-retry", copyback: "all-generated-file-contents-change-each-turn" },
   },
   buildConnectionSuite(runnerProfiles, runnerEnvironments),
 ] as const;
