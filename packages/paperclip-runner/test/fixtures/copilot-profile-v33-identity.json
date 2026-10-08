@@ -1,9 +1,9 @@
 {
-  "commandDigest": "sha256:3dcc8de3034e32001b0a819a614beca345d314266a70a09e0050a9f5f58275fc",
+  "commandDigest": "sha256:7b459cc43771d4178898be8a362030ac2e4d8356c2a14a82334958959dd54e59",
   "declaration": {
     "schema": "paperclip.acpx_profile_declaration.v1",
     "agent": "copilot",
-    "agentProfileVersion": 32,
+    "agentProfileVersion": 33,
     "acpxVersion": "0.13.1",
     "agentServerVersion": "1.0.88",
     "protocolPolicyRevision": "copilot-agent-manual-v1",
@@ -19,7 +19,7 @@
     "messageIdentityContract": "copilot-native-message-id-v1",
     "ownedDistributionDelivery": "COPILOT_CLI_DIST_DIR:lease-owned-guarded-inner-distribution:v1",
     "permissionContextContract": "copilot-edit-permission-context-v1",
-    "permissionContextSourceSha256": "fe1bb611bea289d81b1c7c973fbb01b93de133a7caa8fe78b7ff4ee1f485b224",
+    "permissionContextSourceSha256": "de2d38d702b3c574161af0c0c04790fb6f6347916eb3916ce7a131a8c229121b",
     "permissionAdapterSourceSha256": "eebcc1ec9bc8caa8d1edf0cbda74bd69f5c55cf8d65a0503e95798b9979a19dc",
     "permissionLocationsSourceSha256": "f39a81da395b6e23aa2a1a45572a28846e5e81bfd3d764d9a456f74a79c752e9",
     "permissionRedactionSourceSha256": "ad6770c69269087951790e2e87e22ac088e3d432769adf17ebc865ed512e6c4f",
