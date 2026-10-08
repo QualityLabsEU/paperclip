@@ -93,10 +93,33 @@ test('the installed Codex probe exercises the public export and rejects incomple
     assert.equal(JSON.parse(result.stdout).codexCommandLeaseVerified, true);
     assert.equal(readFileSync(join(server, 'lease-closed'), 'utf8'), 'ok');
     assert.equal(JSON.parse(result.stdout).providerCalls, 0);
+    const legacyPath = 'node_modules/legacy-codex-adapter/node_modules/@openai/codex-' + target;
+    const legacy = join(consumer, legacyPath); mkdirSync(legacy, { recursive: true });
+    const legacyManifest = { ...manifest, version: '0.156.1-' + target };
+    writeFileSync(join(legacy, 'package.json'), JSON.stringify(legacyManifest));
+    lock.packages[legacyPath] = { ...entry, version: legacyManifest.version,
+      resolved: 'https://registry.npmjs.org/@openai/codex/-/codex-' + legacyManifest.version + '.tgz' };
+    writeFileSync(join(consumer, 'package-lock.json'), JSON.stringify(lock));
+    result = run(); assert.equal(result.status, 0, result.stderr);
+    assert.equal(JSON.parse(result.stdout).codexPlatformPackages.length, 2);
+    assert.equal(JSON.parse(result.stdout).codexSelectedPlatformPath, platformPath);
+    assert.equal(JSON.parse(result.stdout).codexSelectedPlatformVersion, '0.160.0-' + target);
+    const legacyCommand = join(legacy, 'codex');
+    writeFileSync(legacyCommand, '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+    writeFileSync(index, `export const resolvePinnedCodexCommand = () => ${JSON.stringify(legacyCommand)};`);
+    result = run(); assert.notEqual(result.status, 0); assert.match(result.stderr, /Selected Codex platform version must match the qualified pin/);
+    writeFileSync(index, `import { writeFileSync } from 'node:fs'; export const resolvePinnedCodexCommand = () => {
+      writeFileSync(${JSON.stringify(join(platform, 'package.json'))}, ${JSON.stringify(JSON.stringify({ ...manifest, altered: true }))});
+      return ${JSON.stringify(command)}; };`);
+    result = run(); assert.notEqual(result.status, 0); assert.match(result.stderr, /metadata must match its scanned provenance/);
+    writeFileSync(join(platform, 'package.json'), JSON.stringify(manifest));
+    writeFileSync(index, "export const resolvePinnedCodexCommand = () => { throw new Error('Bundled Codex runtime version mismatch'); };");
+    result = run(); assert.notEqual(result.status, 0); assert.match(result.stderr, /Bundled Codex runtime version mismatch/);
+    writeFileSync(index, `export const resolvePinnedCodexCommand = () => ${JSON.stringify(command)};`);
     const emptySlot = join(server, 'node_modules/@openai/codex-' + target);
     mkdirSync(emptySlot, { recursive: true });
     result = run(); assert.equal(result.status, 0, result.stderr);
-    assert.equal(JSON.parse(result.stdout).codexPlatformPackages.length, 1,
+    assert.equal(JSON.parse(result.stdout).codexPlatformPackages.length, 2,
       'An empty nested npm optional slot must not obscure the qualified hoisted host package');
     writeFileSync(join(emptySlot, 'undeclared-native-payload'), 'native fixture; never executed');
     result = run(); assert.notEqual(result.status, 0); assert.match(result.stderr, /empty regular directory; found.*undeclared-native-payload/);
@@ -144,13 +167,17 @@ test('actual tar member checks allow Codex JavaScript but reject nested platform
   assert.match(source, /assertNoBundledCodexPayloads\(run\('tar', \['-tzf', tarball\]\)/);
 });
 
-test('consumer provenance rejects bundled, foreign, unpinned and non-official Codex payloads', () => {
+test('consumer provenance rejects bundled, foreign, inconsistent and non-official Codex payloads', () => {
   const path = 'node_modules/@openai/codex-linux-x64';
   const manifest = { name: '@openai/codex', version: '0.160.0-linux-x64', os: ['linux'], cpu: ['x64'] };
   const entry = { version: manifest.version, resolved: `https://registry.npmjs.org/@openai/codex/-/codex-${manifest.version}.tgz`,
     integrity: `sha512-${Buffer.alloc(64, 1).toString('base64')}` };
-  const check = (value = entry, installed = [{ path, manifest }]) => assertInstalledCodexPlatformProvenance({ packages: { [path]: value } }, installed, '0.160.0', 'linux-x64');
+  const check = (value = entry, installed = [{ path, manifest }]) => assertInstalledCodexPlatformProvenance({ packages: { [path]: value } }, installed, 'linux-x64');
   assert.equal(check().codexConsumerHostOnly, true);
+  const legacyManifest = { ...manifest, version: '0.156.1-linux-x64' };
+  assert.equal(check({ ...entry, version: legacyManifest.version,
+    resolved: 'https://registry.npmjs.org/@openai/codex/-/codex-0.156.1-linux-x64.tgz' }, [{ path, manifest: legacyManifest }]).codexConsumerHostOnly, true);
+  assert.throws(() => check(entry, [{ path, manifest: { ...manifest, version: '^0.160.0-linux-x64' } }]), /exact host version/);
   for (const change of [
     { inBundle: true }, { link: true }, { version: '0.156.1-linux-x64' },
     { resolved: 'https://example.com/@openai/codex/-/codex-0.160.0-linux-x64.tgz' },

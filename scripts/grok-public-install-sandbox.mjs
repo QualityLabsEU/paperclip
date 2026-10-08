@@ -24,17 +24,19 @@ export function assertNoBundledCodexPayloads(entries) {
   }
 }
 
-// This same pure check is embedded in the offline installed consumer below.
-export function assertInstalledCodexPlatformProvenance(lock, installed, expectedVersion, target) {
+// Verify every host payload against its own official npm provenance, including
+// independent legacy closures. The selected native runtime is pinned below.
+export function assertInstalledCodexPlatformProvenance(lock, installed, target) {
   assert.match(target, /^(linux|darwin|win32)-(x64|arm64)$/);
   assert.ok(Array.isArray(installed) && installed.length > 0, 'Consumer must install its host Codex platform package');
   const alias = `@openai/codex-${target}`;
   for (const { path, manifest } of installed) {
     assert.ok(path.endsWith(`/node_modules/${alias}`) || path === `node_modules/${alias}`,
       'Consumer must contain only the host Codex platform payload');
-    const version = `${expectedVersion}-${target}`;
+    const version = manifest.version;
+    assert.ok(typeof version === 'string' && version.endsWith('-' + target)
+      && /^\d+\.\d+\.\d+$/.test(version.slice(0, -target.length - 1)), 'Installed Codex platform must declare an exact host version');
     assert.ok([alias, '@openai/codex'].includes(manifest.name), 'Installed Codex platform package identity must match its alias');
-    assert.equal(manifest.version, version, 'Installed Codex platform version must match the qualified pin');
     const [os, cpu] = target.split('-');
     assert.deepEqual(manifest.os, [os]);
     assert.deepEqual(manifest.cpu, [cpu]);
@@ -102,7 +104,7 @@ export function installedCodexProbeSource(indexPath, consumerRoot, expectedVersi
         }
       }
     }
-    const provenance = (${assertInstalledCodexPlatformProvenance.toString()})(lock, installed, ${JSON.stringify(expectedVersion)}, process.platform + '-' + process.arch);
+    const provenance = (${assertInstalledCodexPlatformProvenance.toString()})(lock, installed, process.platform + '-' + process.arch);
     const index = ${JSON.stringify(indexPath)};
     assert.ok(contained(index), 'Codex public index must be installed in the consumer');
     const { resolvePinnedCodexCommand } = await import(pathToFileURL(index).href);
@@ -112,8 +114,12 @@ export function installedCodexProbeSource(indexPath, consumerRoot, expectedVersi
     assert.ok(statSync(command).isFile(), 'Pinned Codex must be a regular executable');
     accessSync(command, constants.X_OK);
     const selectedPlatformManifest = realpathSync(createRequire(command).resolve('@openai/codex-' + process.platform + '-' + process.arch + '/package.json'));
-    assert.ok(installed.some(({ path }) => realpathSync(join(root, path, 'package.json')) === selectedPlatformManifest),
-      'Codex wrapper must resolve an official host platform package from its installed graph');
+    const selectedPlatform = installed.find(({ path }) => realpathSync(join(root, path, 'package.json')) === selectedPlatformManifest);
+    assert.ok(selectedPlatform, 'Codex wrapper must resolve an official host platform package from its installed graph');
+    const selectedMetadata = JSON.parse(readFileSync(selectedPlatformManifest, 'utf8'));
+    assert.deepEqual(selectedMetadata, selectedPlatform.manifest, 'Selected Codex platform metadata must match its scanned provenance');
+    assert.equal(selectedMetadata.version, ${JSON.stringify(expectedVersion)} + '-' + process.platform + '-' + process.arch,
+      'Selected Codex platform version must match the qualified pin');
     const version = execFileSync(command, ['--version'], { timeout: 30_000, maxBuffer: 128 * 1024, encoding: 'utf8',
       env: { PATH: '/usr/local/bin:/usr/bin:/bin', HOME: '/tmp', NODE_PATH: '' } }).trim();
     assert.equal(version, 'codex-cli ' + ${JSON.stringify(expectedVersion)}, 'Installed Codex version must match the qualified pin');
@@ -130,7 +136,7 @@ export function installedCodexProbeSource(indexPath, consumerRoot, expectedVersi
     const lease = await installation.openCommand();
     await lease.close();
     console.log(JSON.stringify({ pinnedCodexCommandVerified: true, pinnedCodexVersion: ${JSON.stringify(expectedVersion)},
-      ...provenance, codexQualifiedInstallationVerified: true, codexCommandLeaseVerified: true, providerCalls: 0 }));
+      ...provenance, codexSelectedPlatformPath: selectedPlatform.path, codexSelectedPlatformVersion: selectedMetadata.version, codexQualifiedInstallationVerified: true, codexCommandLeaseVerified: true, providerCalls: 0 }));
   `;
 }
 
