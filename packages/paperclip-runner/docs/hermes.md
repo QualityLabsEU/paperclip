@@ -21,12 +21,21 @@ node packages/paperclip-runner/scripts/provision-hermes.mjs \
 # Linux amd64 uses the linux-x64 destination instead.
 ```
 
+For an installed public package, run `paperclipai runtime setup hermes` as the
+same OS user that runs Paperclip. The command uses the packaged setup entrypoint
+and materializer, downloads public pinned dependencies without model calls, and
+verifies all execution bytes before publishing the runtime to
+`~/.paperclip/runtimes/hermes/<platform>/<closure-digest>`. It re-verifies an
+existing installation and refuses to overwrite invalid state. Setup is explicit;
+npm lifecycle hooks and agent turns do not provision Python. Read-only or global
+npm installations use this account cache without writing to the package directory.
+
 The materializer emits a complete closure digest. Compare it with the reviewed
-platform pin in `hermes-installation.ts`; never adopt an unexpected digest at
+platform pin in `hermes-distributions.ts`; never adopt an unexpected digest at
 runtime. Runtime launch verifies the installed bytes and host sandbox before
 credential staging, then opens a private verified snapshot for execution.
 Python uses `-I -B` and the bundled interpreter.
-The npm package carries the bridge and provisioner; Python is a separately
+The public server package carries the bridge, provisioner and materializer; Python is a separately
 provisioned asset, included by `--candidate-providers=hermes` in provider packs.
 
 macOS command tools require `sandbox-exec`. Linux command tools require

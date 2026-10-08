@@ -737,3 +737,54 @@ and agent budget admission and one-attempt policy. All 129 affected fixture and
 catalog tests, Product E2E TypeScript, two-cell discovery and diff checks passed.
 No Bedrock inference, credential refresh or Daytona execution is claimed from
 this fixture preparation. Hermes remains pending qualification.
+
+### Managed subscription walkthrough and public setup, 2026-10-08 UTC
+
+The current macOS arm64 Rust/ACPX/native fixtures passed both tests at source
+`bbadcc18a3a3279b8150ea61bb8ff60cd5b3acb6`, with the existing reviewed Python
+closure. This was deterministic loopback transport evidence, with no paid model
+or subscription inference. The owned Rust build cache was removed afterward;
+the verified daemon was retained. Local Docker remains stopped.
+
+The isolated current-source Paperclip app was exercised through Dashboard,
+Connectors, Connect Grok, and its fresh personal subscription login controller.
+The native device-login reached the official Grok consent page. Consent was not
+granted before its bounded process exited; the public check never reported ready
+and no subscription connection was saved. The real form showed an expired-attempt
+error with Start sign-in again and a disabled Connect action. All four sign-ins
+started in this disposable company were cancelled through public APIs, and the
+owned app supervisor stopped. This is login/failure-path evidence, not a successful
+managed subscription or Hermes turn.
+
+Source inspection during clean-consumer preparation exposed a distribution gap:
+the public server vendors only the runner's compiled output, while the original
+Hermes provisioner/materializer were declared only in the private runner package.
+The public CLI now supports `paperclipai runtime setup hermes`. Its self-contained
+ESM/CommonJS setup entrypoints and Python materializer are included in compiled
+output. Explicit setup installs the reviewed closure into the execution OS user's
+cache, verifies complete bytes before publication, and re-verifies existing state
+without overwriting an invalid installation. Runtime discovery retains packaged
+assets as authoritative and uses the account cache only when assets are absent;
+provider HOME overrides cannot redirect it. Source provisioning and public setup
+share the pinned download/materialization operation. Python/ACP/ACPX pins and the
+native bridge bytes are unchanged. Provisioning scratch and uv downloads remain
+owned temporary files and are removed after settlement.
+
+The new setup/layout/cache/CLI checks passed 20 tests. Runner and CLI TypeScript
+checks, the runner TypeScript build, generated protocol/profile checks and diff
+checks passed. An additional package/model selection invocation passed 25 tests
+and failed the standalone-boundary check with five violations. An independent
+archive of unchanged `bbadcc18` reproduced exactly those same five violations;
+none comes from the setup change. That baseline failure is retained, and neither
+a whole-package boundary pass nor live clean-consumer setup is claimed here.
+
+The preceding live Bedrock attempt used the exact Haiku 4.5 inference profile
+and a region-bound bearer through managed Connections. AWS rejected inference
+because Anthropic use-case details had not been submitted for that account.
+Paperclip's original failed grade is retained; the native error text's
+rate-limit wording is not the AWS cause. Cost remains unavailable. The owned
+Linux qualification host and its temporary access were retired. The private
+ledger retains $23 reserved against the $25 cap, not $23 measured spending.
+Actual Daytona remains blocked on the previously reported token scopes.
+Successful managed subscriptions, actual Daytona and the full original live
+interaction/state/routine/distribution criteria remain required before promotion.
