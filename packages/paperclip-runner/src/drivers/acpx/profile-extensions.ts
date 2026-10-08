@@ -117,7 +117,8 @@ export function acpxProfileClientCapabilities(agent: QualifiedAcpxAgent): Record
  */
 export function isHermesCommittedQuestionCompletion(event: AcpRuntimeEventShape, runId: string): boolean {
   if (event.type !== "tool_call" || event.tag !== "tool_call_update" || event.status !== "completed"
-    || event.title !== "mcp__paperclip__request_human_input") return false;
+    || !(event.title === "mcp__paperclip__request_human_input"
+      || event.title?.startsWith("mcp__paperclip__request_human_input: "))) return false;
   const object = (value: unknown): Record<string, unknown> | null => {
     if (typeof value === "string") {
       if (value.length > 65_536) return null;

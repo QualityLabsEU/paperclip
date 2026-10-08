@@ -19,6 +19,8 @@ describe("Hermes native extensions", () => {
         ...completion, rawOutput: { ...committed, interaction: { ...committed.interaction, [key]: "" } },
       }))]) expect(isHermesCommittedQuestionCompletion(event, "run")).toBe(false);
     expect(isHermesCommittedQuestionCompletion({ ...completion, rawOutput: committed }, "other-run")).toBe(false);
+    expect(isHermesCommittedQuestionCompletion({ ...completion, title: completion.title + ": Choose the color", rawOutput: committed }, "run")).toBe(true);
+    expect(isHermesCommittedQuestionCompletion({ ...completion, title: completion.title + "_other", rawOutput: committed }, "run")).toBe(false);
   });
   const adapter = () => createAcpxProfileExtensionAdapter("hermes", { sessionId: "session", turnId: "turn", workspacePath: "/workspace" })!;
   it("keeps native child identities stable across start, progress and completion", async () => {

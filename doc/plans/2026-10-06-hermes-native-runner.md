@@ -1042,3 +1042,29 @@ as `already_terminal`; the test still requires verified owned close and the
 receipt. This is deterministic transport proof, not live billing or Daytona
 proof. The first focused sidecar run timed out under restricted local IPC;
 its failure log is retained separately from the passing authorized IPC retry.
+
+### 2026-10-08 early tool-bridge completion correction
+
+The clean `1f3af78114` question campaign still failed after 644.970 seconds.
+Its original infrastructure classification and `not_started` cleanup verdict
+remain unchanged. The selected public run was pending and unpriced, and the
+company paused before it could continue. Independent checks confirm the owned
+process group, server listener and temporary instance directory are gone.
+The key's full unknown-spend reservation remains held.
+
+The live trace identifies an earlier event than the first reproduction used:
+the control-plane tool bridge emits its own `dynamicToolCall` completion before
+returning the tool result to Hermes. The controller parks on that event before
+the native callback can finish. The managed Hermes launch policy now defers
+that completed fact until the native terminal notification, after final usage.
+Its original call identity and structured result remain intact. Other profiles
+keep their existing order. Passive cancellation treats the driver's typed
+`already_terminal` result as settled; other interruption failures still fail.
+
+The native regression now cancels at that earlier bridge event. All four
+fixtures pass in 139.789 seconds, including exactly one model request and a
+complete reported token delta surviving immediate shutdown. Shared Runner and
+Codex regressions pass 318 checks. The final result-copy and ordering tests pass
+51 checks. Runner TypeScript and generated contracts pass. The pinned runtime
+and Rust inputs are unchanged from `1f3af78114`. This remains deterministic
+proof. Clean-head live billing, fresh cloud CI and review remain required.

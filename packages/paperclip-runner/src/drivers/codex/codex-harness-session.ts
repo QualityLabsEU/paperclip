@@ -123,6 +123,7 @@ export class CodexHarnessSession
     }
     this.runId = input.runId;
     this.lastAccountingUsageEvent = null;
+    this.committedQuestionResults.clear();
     this.result = null;
     this.resultFingerprint = null;
     this.resultCallId = null;

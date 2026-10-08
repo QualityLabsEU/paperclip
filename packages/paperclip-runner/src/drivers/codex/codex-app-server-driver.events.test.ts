@@ -44,6 +44,43 @@ import {
 } from "./codex-app-server-driver.test-support.js";
 
 describe("Codex app-server Codex driver", () => {
+  it.each([true, false])("orders committed bridge question results after native usage only for the managed policy (%s)", async defer => {
+    const transport = new FakeCodexTransport();
+    const committed = { disposition: "applied", interaction: { id: "question", companyId: "company", issueId: "issue",
+      sourceRunId: "run-question", kind: "ask_user_questions", status: "pending", continuationPolicy: "wake_assignee" } };
+    const session = await makeDriver([transport], { deferCommittedQuestionResults: defer,
+      dynamicTools: [{ name: "request_human_input", inputSchema: { type: "object" } }],
+      dynamicToolHandler: async () => committed,
+    }).openSession({ runId: "run-question", normalizedSessionId: "normalized-question", workingDirectory: WORKSPACE });
+    const { turnId } = await session.startTurn({ message: { role: "user", text: "Ask the assigned question" } });
+    const events: PrpEvent[] = [];
+    const collected = (async () => {
+      for await (const event of session.events()) {
+        events.push(event);
+        if (["turn.completed", "turn.interrupted", "turn.failed"].includes(event.eventType)) return;
+      }
+    })();
+    await transport.invoke({ id: "question-rpc", method: "item/tool/call", params: {
+      threadId: "thread-1", turnId, callId: "question-call", tool: "request_human_input", arguments: {},
+    } });
+    const completedQuestion = (event: PrpEvent) => event.eventType === "item.completed" && event.payload.kind === "dynamicToolCall";
+    await vi.waitFor(() => expect(events.some(event => event.eventType === "item.started")).toBe(true));
+    if (defer) expect(events.some(completedQuestion)).toBe(false);
+    else await vi.waitFor(() => expect(events.some(completedQuestion)).toBe(true));
+    transport.push("thread/tokenUsage/updated", { threadId: "thread-1", turnId,
+      tokenUsage: { total: { inputTokens: 10, outputTokens: 5 } },
+    });
+    transport.push("turn/completed", { threadId: "thread-1", turn: { id: turnId, status: "interrupted", items: [] } });
+    await collected;
+    const questionIndex = events.findIndex(completedQuestion);
+    const usageIndex = events.findIndex(event => event.payload.kind === "usage");
+    expect(questionIndex).toBeGreaterThanOrEqual(0);
+    if (defer) expect(questionIndex).toBeGreaterThan(usageIndex);
+    else expect(questionIndex).toBeLessThan(usageIndex);
+    expect(events[questionIndex]?.payload.item).toMatchObject({ id: "question-call", result: committed });
+    await session.close({ reason: "bridge question ordering verified" });
+  });
+
   it("admits a strictly bound semantic result from the durable runner", async () => {
     const transport = new FakeCodexTransport();
     const session = await makeDriver([transport]).openSession({

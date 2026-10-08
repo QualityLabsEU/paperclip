@@ -105,6 +105,8 @@ export class CodexSessionState {
   readonly dynamicTools: readonly Readonly<Record<string, unknown>>[];
   readonly completionFeedback: CodexAppServerDriverOptions["completionFeedback"];
   readonly dynamicToolHandler: CodexAppServerDriverOptions["dynamicToolHandler"];
+  readonly deferCommittedQuestionResults: boolean;
+  readonly committedQuestionResults = new Map<string, { payload: Record<string, unknown>; turnId: string; itemId: string }>();
   readonly eventQueue = new AsyncQueue<PrpEvent>();
   sourceSequence: number;
   activeTurnId: string | null;
@@ -180,6 +182,7 @@ export class CodexSessionState {
     dynamicTools: readonly Readonly<Record<string, unknown>>[];
     completionFeedback?: CodexAppServerDriverOptions["completionFeedback"];
     dynamicToolHandler?: CodexAppServerDriverOptions["dynamicToolHandler"];
+    deferCommittedQuestionResults?: boolean;
   }) {
     this.codexUsageBaseline = input.codexUsageBaseline ?? null;
     if (this.codexUsageBaseline) this.usageSnapshot = codexRunUsage(this.codexUsageBaseline);
@@ -204,6 +207,7 @@ export class CodexSessionState {
     this.reasoningEffort = input.reasoningEffort;
     this.dynamicTools = input.dynamicTools;
     this.dynamicToolHandler = input.dynamicToolHandler;
+    this.deferCommittedQuestionResults = input.deferCommittedQuestionResults === true;
     this.completionFeedback = input.completionFeedback;
     this.currentGoal = input.goal === undefined ? null : structuredClone(input.goal);
     for (const entry of input.lineage ?? [input.opened.lineage]) {
@@ -435,6 +439,16 @@ export class CodexSessionState {
     payload: Record<string, unknown>,
     refs: { turnId?: string; itemId?: string } = {},
   ): void {
+    if (["turn.completed", "turn.failed", "turn.interrupted", "turn.cancelled"].includes(eventType)) {
+      // Native terminal notification follows the final prompt receipt. Release
+      // the bridge's own completed tool facts here, before publishing terminal,
+      // so controller parking cannot interrupt delivery of that receipt.
+      for (const [id, completed] of this.committedQuestionResults) {
+        if (completed.turnId !== refs.turnId) continue;
+        this.committedQuestionResults.delete(id);
+        this.emit("item.completed", completed.payload, { turnId: completed.turnId, itemId: completed.itemId });
+      }
+    }
     const sourceSeq = ++this.sourceSequence;
     const event: PrpEvent = {
       schema: "paperclip.prp.event.v1",

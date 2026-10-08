@@ -124,7 +124,7 @@ for (const question of [false, true]) test(question
   let cancellationOutcome;
   for await (const event of session.events()) {
     events.push(event);
-    if (question && event.eventType === 'tool.execution.completed') {
+    if (question && event.eventType === 'item.completed' && event.payload.kind === 'dynamicToolCall') {
       cancellationOutcome = session.cancel({ reason: 'committed question wait', signal: new AbortController().signal }).cleanup
         .then(() => ({ stopped: true }), error => ({ error }));
       break;

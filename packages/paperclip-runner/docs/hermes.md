@@ -139,7 +139,10 @@ extend the task's execution deadline.
   tool completion callback, before another model request. The bridge publishes
   that tool's completed result after native finalization. Both Runner event
   pumps read the prompt usage receipt before forwarding this completion to the
-  controller. Other tool activity still streams immediately. Tool identities
+  controller. The tool bridge also defers its own completed question fact until
+  the native terminal notification, which follows that receipt. The managed
+  Hermes profile selects this launch policy; other profiles retain their
+  existing order. Other tool activity still streams immediately. Tool identities
   and results are preserved; wait and accounting authority remain with the
   controller. Missing usage remains unknown.
 - Paperclip owns task titles. Hermes keeps its immediate derived session title;
