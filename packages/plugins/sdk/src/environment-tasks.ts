@@ -3,6 +3,8 @@ import type { PluginEnvironmentDriverBaseParams, PluginEnvironmentLease } from "
 
 // Provider IDs are opaque; providers validate their own addressing constraints.
 const providerId = z.string().min(1);
+// PRP identity.schema.json stableId.
+const runnerIdentity = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/);
 const identifier = z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,95}$/);
 const secureUrl = z.string().url().refine(value => {
   const url = new URL(value);
@@ -19,8 +21,8 @@ export const environmentTaskOperationSchema = z.discriminatedUnion("kind", [
       protocolMin: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
       protocolMax: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
       harness: identifier,
-      runnerId: identifier, leaseId: identifier, runId: identifier,
-      sessionId: identifier, turnId: identifier, itemId: identifier,
+      runnerId: runnerIdentity, leaseId: runnerIdentity, runId: runnerIdentity,
+      sessionId: runnerIdentity, turnId: runnerIdentity, itemId: runnerIdentity,
     }).strict().refine(value => value.protocolMin <= value.protocolMax, "Invalid PRP version range"),
     bootstrapTicket: z.string().min(1).max(65_536),
   }).strict(),

@@ -8,6 +8,7 @@ import {
   parseMessage,
   serializeMessage,
 } from "../../../packages/plugins/sdk/src/protocol.js";
+import type { PluginEnvironmentTaskParams } from "../../../packages/plugins/sdk/src/environment-tasks.js";
 import { definePlugin } from "../../../packages/plugins/sdk/src/define-plugin.js";
 import { startWorkerRpcHost } from "../../../packages/plugins/sdk/src/worker-rpc-host.js";
 import { pluginManifestV1Schema, type PaperclipPluginManifestV1 } from "@paperclipai/shared";
@@ -121,11 +122,17 @@ describe("plugin environment driver seam", () => {
       expect(isJsonRpcSuccessResponse(initialized)).toBe(true);
       if (!isJsonRpcSuccessResponse(initialized)) return;
       expect(initialized.result.supportedMethods).toContain("environmentTask");
-      const params = { driverKey: "fake-plugin", companyId: "company", environmentId: "environment", config: {},
-        taskId: "attempt", runId: "run", agentId: "agent", projectId: null, lease: { providerLeaseId: "attempt" }, operation: { kind: "stop" } };
+      const projectIds = ["10000000-0000-4000-8000-000000000001", "10000000-0000-4000-8000-000000000002"];
+      const params: PluginEnvironmentTaskParams = { driverKey: "fake-plugin", companyId: "company", environmentId: "environment", config: {},
+        taskId: "attempt", runId: "run", agentId: "agent", projectIds, lease: { providerLeaseId: "attempt" },
+        operation: { kind: "submit", projectIds, bootstrapTicket: "transient-test-ticket", runner: {
+          protocolMin: 1, protocolMax: 2, harness: "codex", runnerId: "runner", leaseId: "lease", runId: "run", sessionId: "session:part.1", turnId: "turn", itemId: "item",
+        } } };
+
       stdin.write(serializeMessage(createRequest("environmentTask", params, 2)));
       await waitForResponses(responses, 2);
       expect(responses[1]).toMatchObject({ result: { kind: "accepted", taskId: "attempt" } });
+      expect(calls[0]).toMatchObject({ projectIds, operation: { kind: "submit", projectIds } });
       stdin.write(serializeMessage(createRequest("environmentTask", { ...params, operation: { kind: "status" } }, 3)));
       await waitForResponses(responses, 3);
       expect(isJsonRpcErrorResponse(responses[2])).toBe(true); // Wrong response kind.

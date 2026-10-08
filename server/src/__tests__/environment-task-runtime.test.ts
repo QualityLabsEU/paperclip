@@ -132,6 +132,16 @@ describe("environment task admission", () => {
     const workers = worker(); workers.call.mockRejectedValue(new Error("private-credential"));
     await expect(executeEnvironmentTask(database().db, workers as never, { companyId: "company", leaseId, operation: submit })).rejects.toThrow(/^Environment task operation unavailable; reconcile the same task before retrying$/);
   });
+  it("accepts PRP identity characters and length limits", () => {
+    for (const field of ["runnerId", "leaseId", "runId", "sessionId", "turnId", "itemId"]) {
+      for (const value of ["session:part.1", "a".repeat(160)]) {
+        expect(environmentTaskOperationSchema.safeParse({ ...submit, runner: { ...submit.runner, [field]: value } }).success).toBe(true);
+      }
+      for (const value of ["a".repeat(161), "../escape", "a/b", ""]) {
+        expect(environmentTaskOperationSchema.safeParse({ ...submit, runner: { ...submit.runner, [field]: value } }).success).toBe(false);
+      }
+    }
+  });
   it("validates the client's inclusive PRP version range", () => {
     for (const range of [{ protocolMin: 1, protocolMax: 1 }, { protocolMin: 1, protocolMax: 2 }, { protocolMin: 3, protocolMax: 5 }]) {
       expect(environmentTaskOperationSchema.safeParse({ ...submit, runner: { ...submit.runner, ...range } }).success).toBe(true);
