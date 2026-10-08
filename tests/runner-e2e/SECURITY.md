@@ -30,6 +30,13 @@ public structured evidence. Treat changes to the workflow, harness, fixture
 prompts, evidence packager, and publisher as security-sensitive production
 changes.
 
+Hermes qualification defaults to 200-cent company and agent hard stops. The
+launcher can set `PAPERCLIP_RUNNER_E2E_HERMES_BUDGET_CENTS` to lower that limit
+to a whole number from 1 through 200. Invalid or unlimited values fail before
+credential handoff. Public company/agent reads and post-run settlement must
+match the captured limit. Provider-key limits, campaign reservations, and
+unknown-cost holds remain separate spending controls.
+
 ## Short-lived Bedrock qualification
 
 The explicit-only `hermes-bedrock-connections` suite accepts a short-lived,

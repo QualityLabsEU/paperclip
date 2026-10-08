@@ -1210,8 +1210,8 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
     groups: ["native"], profiles: extendedHarnessProfiles, environments: runnerEnvironments,
     tasks: [...openRouterBreadthTasks, localIntegrityTasks[1]!, extendedHarnessFileTask],
     expectedMatrixSize: 40,
-    definitionMetadata: { version: 2, qualification: "pending", scheduling: "explicit-only", admission: "host-exact-candidate-and-model", authenticatedDiscoveryDate: "2026-09-28",
-      hermesBilling: "per-run-reported-cost-and-budget-health", hermesBudgetMonthlyCents: 200, hermesSettlementSourceDigest: hermesApiConnectionDefinitionDigest },
+    definitionMetadata: { version: 3, qualification: "pending", scheduling: "explicit-only", admission: "host-exact-candidate-and-model", authenticatedDiscoveryDate: "2026-09-28",
+      hermesBilling: "per-run-reported-cost-and-budget-health", hermesBudgetMonthlyCents: HERMES_API_CONNECTION_BUDGET_CENTS, hermesSettlementSourceDigest: hermesApiConnectionDefinitionDigest },
   },
   {
     id: HERMES_NATIVE_INTERACTION_SUITE, label: "Hermes native interactions", manualOnly: true,
@@ -1220,7 +1220,7 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
     environments: runnerEnvironments, tasks: [hermesNativeQuestionTask, hermesNativeQuestionStopTask],
     excludedExecutionIds: [`${HERMES_NATIVE_INTERACTION_SUITE}.runner-acpx-hermes.daytona.native-question-batch-stop`], expectedMatrixSize: 3,
     definitionMetadata: {
-      version: 5, qualification: "pending", scheduling: "explicit-only", accountMethod: "api_key", accountMode: "responsible_user",
+      version: 6, qualification: "pending", scheduling: "explicit-only", accountMethod: "api_key", accountMode: "responsible_user",
       providerTurns: 1, lifecycle: "per-turn", nativeMethod: "_hermes/ask_questions", maximumAttemptsPerCell: 1,
       objectiveAdmission: "production-delivery-guard-question-only",
       budgetMonthlyCents: HERMES_API_CONNECTION_BUDGET_CENTS, billing: "reported-cost-and-budget-health",
@@ -1236,7 +1236,7 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
     tasks: [{ ...openRouterBreadthTasks.find(task => task.id === "hello-complete")!, automaticRetryPolicy: "single_attempt" }],
     expectedMatrixSize: 10,
     definitionMetadata: {
-      version: 1, qualification: "pending", scheduling: "explicit-only", authenticatedDiscoveryDate: "2026-10-07",
+      version: 2, qualification: "pending", scheduling: "explicit-only", authenticatedDiscoveryDate: "2026-10-07",
       accountMethod: "api_key", accountMode: "responsible_user", providerTurns: 1, expectedUserSource: "public-account-owner-before-task",
       budgetMonthlyCents: HERMES_API_CONNECTION_BUDGET_CENTS, maximumAttemptsPerCell: 1,
       coverage: "api-account-native-completion-only", sourceDigest: hermesApiConnectionDefinitionDigest,
@@ -1249,7 +1249,7 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
     tasks: [{ ...openRouterBreadthTasks.find(task => task.id === "hello-complete")!, automaticRetryPolicy: "single_attempt" }],
     expectedMatrixSize: 2,
     definitionMetadata: {
-      version: 1, qualification: "pending", scheduling: "explicit-only", authenticatedDiscoveryDate: "2026-10-07",
+      version: 2, qualification: "pending", scheduling: "explicit-only", authenticatedDiscoveryDate: "2026-10-07",
       accountMethod: "api_key", accountMode: "delegated", providerTurns: 1, expectedUserSource: "public-account-owner-before-task",
       routingSource: "public-selected-account-before-and-after-task", credentialScope: "ephemeral-region-bound-bearer",
       budgetMonthlyCents: HERMES_API_CONNECTION_BUDGET_CENTS, maximumAttemptsPerCell: 1,

@@ -1453,3 +1453,34 @@ scope error is retained as a failed test attempt; it is not qualification proof.
 No local Docker, Rust build, secret access or paid provider call was used for this
 repair. A fresh committed-source browser Stop attempt and complete release gates
 are still required. The PR stack remains draft and Hermes remains pending.
+
+### 2026-10-08 bounded qualification budget and cleanup verification
+
+Hermes qualification campaigns now accept a pinned company and agent budget
+from 1 to 200 cents through `PAPERCLIP_RUNNER_E2E_HERMES_BUDGET_CENTS`. The default
+remains 200 cents. Fixture creation, public checks before execution, settlement
+checks and definition metadata all use the same captured value; malformed or
+larger limits fail before credential handoff. Definition versions advance to
+6 for native interactions, 2 for API and Bedrock connections, and 3 for extended
+harnesses. Behavioral matchers, account scope and single-attempt policy remain
+unchanged. The exact local Stop cell is discoverable with a 100-cent limit.
+
+The earlier `782774e1` launch stopped at its allowance preflight before any model
+call: the selected existing key had less than the required $2 available. It did
+not start a campaign, modify the reservation ledger or release an unknown-cost
+hold. A future 100-cent campaign is a separate measurement with its own pinned
+source and definition identity; existing failed attempts retain their grades.
+
+Credential-free verification passes 2,023 Product E2E support tests with one
+platform skip, 128 native source checks and the Product E2E TypeScript check.
+The first full support run retained one process-shutdown timing failure; the
+same suite passes with four concurrent workers. Both cloud native targets pass
+at `ec40b1eb`, and the existing PR checks are green at their recorded heads.
+These results do not qualify a live provider, a subscription or Daytona.
+
+Two earlier review repairs are also verified: native cancellation accepts the
+Rust envelope's omitted action while rejecting conflicting responses (121
+database tests), and Hermes releases assigned skill copies after a credential
+or state-collection failure only once runtime exit is verified (141 affected
+runtime tests). The local TypeScript runtime must be rebuilt from the current
+source before the next paid campaign. No local Docker or Rust build is used.

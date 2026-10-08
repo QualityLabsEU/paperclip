@@ -14,7 +14,19 @@ import type { MatrixExecution, RunnerProfileFixture, RunnerTaskFixture } from ".
 const record = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const present = (value: unknown) => typeof value === "string" && value.trim().length > 0;
-export const HERMES_API_CONNECTION_BUDGET_CENTS = 200;
+export const HERMES_API_CONNECTION_MAX_BUDGET_CENTS = 200;
+export function resolveHermesQualificationBudgetCents(raw?: string): number {
+  if (raw === undefined) return HERMES_API_CONNECTION_MAX_BUDGET_CENTS;
+  if (!/^[1-9][0-9]{0,2}$/.test(raw) || Number(raw) > HERMES_API_CONNECTION_MAX_BUDGET_CENTS) {
+    throw new Error("Hermes qualification budget must be an integer from 1 to 200 cents");
+  }
+  return Number(raw);
+}
+// Capture one immutable campaign limit before any credential handoff. Fixture
+// creation, public readback, settlement and definition identity use this value.
+export const HERMES_API_CONNECTION_BUDGET_CENTS = resolveHermesQualificationBudgetCents(
+  process.env.PAPERCLIP_RUNNER_E2E_HERMES_BUDGET_CENTS,
+);
 export const HERMES_NATIVE_INTERACTION_SUITE = "hermes-native-interactions";
 export const isHermesConnectionSuite = (suiteId: string) =>
   suiteId === "hermes-api-connections" || suiteId === "hermes-bedrock-connections" || suiteId === HERMES_NATIVE_INTERACTION_SUITE;

@@ -301,7 +301,10 @@ responsible user. Calibration rejects foreign accounts/companies/tasks/users,
 wrong providers/methods/models/harnesses, missing evidence and extra runs. The suite's
 definition includes the account/runner harness source digest. Its API-only scope
 does not substitute for subscription or lifecycle qualification.
-The task permits one attempt. Both public 200-cent budgets must match the fixture
+The task permits one attempt. Both public budgets must match the fixture's
+immutable campaign limit: 200 cents by default, or a validated whole-number
+`PAPERCLIP_RUNNER_E2E_HERMES_BUDGET_CENTS` from 1 through 200. Catalog metadata
+records the same selected limit. Both public budgets must match the fixture
 scope before task creation; unlimited or foreign budget records fail admission.
 OpenRouter also requires a settled provider-reported price with an exact USD
 amount and healthy company/agent budget state before fixture teardown. The

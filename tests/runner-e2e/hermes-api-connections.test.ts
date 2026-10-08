@@ -1,9 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { runnerMatrix, runnerSuites, suiteDefinitionHash } from "./catalog.js";
 import { buildMatrixJobs, parseRunnerSelectors, selectRunnerExecutions } from "./selectors.js";
 import { buildRunnerE2EProcessEnvironment } from "./harness-env.js";
 import { explicitlyRequestsFileOutput, explicitlyRequestsTaskDocumentOutput } from "../../server/src/services/native-runtime/native-deliverable-feedback.js";
-import { captureHermesApiAccountOwner, captureHermesApiBudgets, captureHermesOpenRouterSettlement, gradeHermesApiConnection, isHermesOpenRouterWorkflow, isHermesConnectionSuite, HERMES_NATIVE_INTERACTION_SUITE, hasExactHermesNativeQuestionResponse, hasHermesNativeQuestionBatch, hermesNativeAnswerText, hasHermesNativeQuestionStop } from "./hermes-api-connections.js";
+import { captureHermesApiAccountOwner, captureHermesApiBudgets, captureHermesOpenRouterSettlement, gradeHermesApiConnection, isHermesOpenRouterWorkflow, isHermesConnectionSuite, HERMES_NATIVE_INTERACTION_SUITE, hasExactHermesNativeQuestionResponse, hasHermesNativeQuestionBatch, hermesNativeAnswerText, hasHermesNativeQuestionStop, resolveHermesQualificationBudgetCents } from "./hermes-api-connections.js";
 
 describe("Hermes native browser questions", () => {
   const suite = runnerSuites.find(s => s.id === HERMES_NATIVE_INTERACTION_SUITE)!;
@@ -187,6 +187,50 @@ describe("Hermes native browser questions", () => {
 });
 
 describe("Hermes managed API connection qualification", () => {
+  it.each([[undefined, 200], ["1", 1], ["100", 100], ["200", 200]] as const)("admits the bounded campaign limit %s", (raw, expected) => {
+    expect(resolveHermesQualificationBudgetCents(raw)).toBe(expected);
+  });
+  it.each(["", "0", "201", "999", "1000", "-100", "+100", "100.0", "1e2", "0100", " 100", "100 ", "NaN", "Infinity"])("rejects an unlimited or malformed campaign limit %s", raw => {
+    expect(() => resolveHermesQualificationBudgetCents(raw)).toThrow("integer from 1 to 200 cents");
+  });
+  it("pins a lowered campaign budget in catalog metadata and both public budget checks", async () => {
+    vi.stubEnv("PAPERCLIP_RUNNER_E2E_HERMES_BUDGET_CENTS", "100");
+    vi.resetModules();
+    try {
+      const bounded = await import("./hermes-api-connections.js");
+      const catalog = await import("./catalog.js");
+      expect(bounded.HERMES_API_CONNECTION_BUDGET_CENTS).toBe(100);
+      const suite = catalog.runnerSuites.find(suite => suite.id === HERMES_NATIVE_INTERACTION_SUITE)!;
+      expect(suite.definitionMetadata).toMatchObject({ budgetMonthlyCents: 100, maximumAttemptsPerCell: 1 });
+      expect(catalog.suiteDefinitionHash(suite)).not.toBe(suiteDefinitionHash(runnerSuites.find(suite => suite.id === HERMES_NATIVE_INTERACTION_SUITE)!));
+      for (const observed of [100, 200, 0]) {
+        const receipt = await bounded.captureHermesApiBudgets({ companyId: "company", agentId: "agent", api: {
+          async get<T>(path: string) { return (path === "/api/companies/company"
+            ? { id: "company", budgetMonthlyCents: observed }
+            : { id: "agent", companyId: "company", budgetMonthlyCents: observed }) as T; },
+        } });
+        expect(receipt.budgetMonthlyCents).toBe(100);
+        expect(receipt.checks.every(check => check.passed)).toBe(observed === 100);
+        const company = { id: "company", status: "active", budgetMonthlyCents: observed };
+        const agent = { id: "agent", companyId: "company", status: "idle", pauseReason: null, budgetMonthlyCents: observed };
+        const run = { id: "run", companyId: "company", agentId: "agent", issueId: "task", status: "cancelled",
+          costAccountingPending: false, costAccountedAt: "2026-10-08T03:00:00Z", usageJson: {
+            biller: "openrouter", billingType: "metered_api", costStatus: "reported", costUsd: 0.0042, costUsdExact: "0.004200000",
+            inputTokens: 40, outputTokens: 10, accountingReceiptReady: true,
+            pricingProvenance: { source: "provider_reported", version: "hermes-openrouter-wire/v1" },
+          } };
+        const settled = await bounded.captureHermesOpenRouterSettlement({ companyId: "company", agentId: "agent", issueId: "task",
+          runId: "run", expectedRunStatus: "cancelled", api: { async get<T>(path: string) {
+            return (path === "/api/companies/company" ? company : path === "/api/agents/agent" ? agent : run) as T;
+          } } });
+        expect(settled.checks.every(check => check.passed)).toBe(observed === 100);
+      }
+    } finally {
+      vi.unstubAllEnvs();
+      vi.resetModules();
+    }
+  });
+
   const suite = runnerSuites.find(s => s.id === "hermes-api-connections")!;
   const cells = runnerMatrix.filter(e => e.suite.id === suite.id);
   it("declares ten bounded pending cells without adding scheduled paid work", () => {

@@ -1478,13 +1478,22 @@ need their separate conformance/qualification evidence.
 Hermes uses an existing managed OpenRouter connection through the ordinary
 connection fixture. It remains pending qualification; the native transport
 fixture does not substitute for these browser and remote workflows.
-The ten Hermes/OpenRouter cells set 200-cent company and agent budgets and
+The ten Hermes/OpenRouter cells default to 200-cent company and agent budgets and
 verify them through public reads before creating work. Before cleanup, every
 run, including a run that yields for human input, must have settled reported
 wire cost and healthy budget state. The per-run receipts are retained in
 `hermes-openrouter-workflow-settlement.json`; `api-state.json` also retains all
 selected runs. Extended-harnesses definition version 2 records this stronger
 oracle. Older behavioral passes do not prove this accounting requirement.
+Before launching, `PAPERCLIP_RUNNER_E2E_HERMES_BUDGET_CENTS` can lower both
+budgets to a whole number from 1 through 200 cents. Missing configuration keeps
+the 200-cent default; malformed, zero, and higher limits fail before credential
+handoff. The campaign captures one immutable value for fixture creation, public
+budget readback, settlement health, and catalog definition identity. Every
+observed budget must match it exactly. A lower cap does not settle unknown
+charges or release a previous attempt's reservation. Definition versions 3
+(extended harnesses), 2 (Hermes API/Bedrock), and 6 (native interactions) record
+this bounded option.
 
 Before loading local credentials, the launcher records the checked-out controller
 SHA and ref for every selected Hermes candidate, including API and Bedrock cells.
@@ -1546,7 +1555,7 @@ the native run's company/task/agent scope, responsible user, selected account,
 provider/method, native Hermes harness and requested/effective model. Missing or mismatched metadata
 fails even when the answer is correct. The report retains the checks alongside
 the ordinary completion, screenshot, token/cost and cleanup evidence.
-Each cell admits one attempt and configures 200-cent company and agent budgets.
+Each cell admits one attempt and configures the selected bounded company and agent budgets (200 cents by default).
 Public budget readback must pass before task creation. Unpriced model usage
 remains unknown; this configured limit is not an exact billing receipt.
 The OpenRouter cell additionally waits for its public run's reported wire cost
@@ -1579,7 +1588,7 @@ with Bedrock routing and selects its returned grant explicitly; routed accounts
 do not become responsible-user provider defaults. Public readback before and
 after the task must match the region, protocol, authentication, model catalog
 and account owner. The native run must match the selected connection, grant,
-owner, Hermes harness and exact inference profile. Both 200-cent budget checks,
+owner, Hermes harness and exact inference profile. Both selected bounded budget checks,
 the single-attempt rule and normal evidence/cleanup contracts also apply.
 This scope proves Bedrock completion only; it does not qualify credential
 refresh or make a local AWS run equivalent to Daytona. The paid GitHub workflow
@@ -1602,7 +1611,7 @@ original succeeded run without a continuation. The final answer must contain
 the reviewer's undisclosed free text returned by the native callback; a
 semantic `request_human_input` call or a guessed completion cannot pass.
 
-This suite uses the same managed OpenRouter account/model, public 200-cent
+This suite uses the same managed OpenRouter account/model, public bounded
 budgets, settled reported billing, pre-credential source admission and cleanup
 pipeline. It allows one attempt and records its harness source digest. Its
 browser-reconnect scope does not qualify controller restart, cancellation,
@@ -1860,7 +1869,7 @@ rejects a late answer with HTTP 409. One cancelled run must leave the task In
 Progress. A read-only PID/start-time journal captures the public per-turn owner
 and descendants before Stop and verifies retirement before and through cleanup.
 Its selected account/model and reported wire usage must settle with healthy
-200-cent company and agent budgets. One attempt, zero retries, one provider turn.
+company and agent budgets (200 cents by default). One attempt, zero retries, one provider turn.
 Remote Stop is deliberately excluded until its remote retirement observer exists;
 the release requirement remains pending.
 
