@@ -1590,6 +1590,29 @@ pnpm test:e2e:runner -- --list --suite hermes-bedrock-connections
 pnpm test:e2e:runner -- --id hermes-bedrock-connections.runner-acpx-hermes-bedrock.local.hello-complete --max-automatic-retries 0
 ```
 
+The explicit-only `hermes-native-interactions` suite declares two pending cells
+for `native-question-batch-reconnect`, on local and Daytona. One native Hermes
+`clarify` call asks an ordered batch of single choice, multiple choice with a
+custom answer, and free text. The browser reloads while the original run remains
+active, checks the same durable request and complete form, then submits all
+answers through the production UI. A scoped, ordered native delivery receipt
+must contain the exact answers. A late duplicate submission must return HTTP
+409, and the terminal event history must retain exactly one delivery and one
+original succeeded run without a continuation. The final answer must contain
+the reviewer's undisclosed free text returned by the native callback; a
+semantic `request_human_input` call or a guessed completion cannot pass.
+
+This suite uses the same managed OpenRouter account/model, public 200-cent
+budgets, settled reported billing, pre-credential source admission and cleanup
+pipeline. It allows one attempt and records its harness source digest. Its
+browser-reconnect scope does not qualify controller restart, cancellation,
+Stop, subscriptions, or Daytona until each corresponding live check passes.
+
+```sh
+pnpm test:e2e:runner -- --list --suite hermes-native-interactions
+pnpm test:e2e:runner -- --id hermes-native-interactions.runner-acpx-hermes.local.native-question-batch-reconnect --max-automatic-retries 0
+```
+
 The separate Runner Evals `extended-harnesses` campaign lives in the private
 `paperclip-evals` repository and grades semantic protocol behavior against the
 mock control plane. Neither suite substitutes for the other.

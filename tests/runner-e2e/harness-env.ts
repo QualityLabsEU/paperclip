@@ -116,7 +116,7 @@ export function buildRunnerE2EProcessEnvironment(
     const agent = execution.profile.qualificationCandidate;
     if (!agent || agent === "cursor") continue;
     const admittedSuite = execution.suite.id === "extended-harnesses"
-      || (["hermes-api-connections", "hermes-bedrock-connections"].includes(execution.suite.id) && agent === "hermes")
+      || (["hermes-api-connections", "hermes-bedrock-connections", "hermes-native-interactions"].includes(execution.suite.id) && agent === "hermes")
       || execution.suite.id === "rich-acp-warm-continuity";
     if (!admittedSuite || !execution.suite.manualOnly) {
       throw new Error("Candidate qualification requires an explicit provider qualification suite");

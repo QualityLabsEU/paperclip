@@ -308,6 +308,17 @@ amount and healthy company/agent budget state before fixture teardown. The
 oracle reads scoped public run, company and agent records; it never derives
 billing or health from the model's answer or the cleanup pause.
 
+`hermes-native-interactions` adds one native question-batch journey on local and
+Daytona. The original run remains active while Chromium reloads and answers the
+same native callback. The oracle requires full form/run/request/turn binding,
+single and multiple selections, a custom answer, undisclosed free text, one
+ordered native delivery receipt, HTTP 409 for a late duplicate answer, and the
+original run's final reply derived from the returned free text. It rejects
+semantic tool substitutions, foreign or malformed event envelopes, mismatched
+answers, duplicate callbacks/outcomes and changed forms. The explicit-only,
+single-attempt managed-account/budget/settlement rules also apply. These two
+registered cells remain pending until their own live evidence passes.
+
 ## Persistent agent files
 
 The `instruction_persistence` flow uses production managed storage and public file

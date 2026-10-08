@@ -22,6 +22,13 @@ a short-lived AWS bearer credential and the existing budget/evidence pipeline.
 Paperclip has two live eval families with different questions, owners, and
 evidence. Choose the family before selecting a model, profile, or case.
 
+The explicit-only `hermes-native-interactions` Product E2E suite adds a native
+three-question batch on local and Daytona. It checks browser reconnect within
+the active run, exact native callback delivery, late duplicate rejection and a
+final reply derived from the returned reviewer text. The registered cells remain
+pending; assigned Paperclip question tools do not satisfy this native oracle.
+See the [Hermes fixture contract](../tests/runner-e2e/README.md#extended-acp-harnesses-explicit-only).
+
 The explicit-only [native instruction consolidation comparison](plans/2026-10-03-native-completion-consolidation.md)
 uses six Product E2E cells per source variant. It measures the completion
 constraint reduction separately from the earlier native tool-description

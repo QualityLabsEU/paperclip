@@ -1,5 +1,7 @@
 import { runPlanTaskFlow } from "./plan-task-flow.js";
-import { captureHermesApiAccountOwner, captureHermesApiBudgets, captureHermesOpenRouterSettlement, gradeHermesApiConnection, isHermesConnectionSuite, isHermesOpenRouterWorkflow } from "./hermes-api-connections.js";
+import { captureHermesApiAccountOwner, captureHermesApiBudgets, captureHermesOpenRouterSettlement, gradeHermesApiConnection, isHermesConnectionSuite, isHermesOpenRouterWorkflow, hasExactHermesNativeQuestionResponse, hasHermesNativeQuestionBatch, hermesNativeAnswerText } from "./hermes-api-connections.js";
+import { hasAcpxNativeOrigin } from "./acpx-native-origin.js";
+import { isDeepStrictEqual } from "node:util";
 import { assertNativeCompletionSelection, NATIVE_COMPLETION_PREFLIGHT_ENV, verifyNativeCompletionPreflight } from "./native-completion-admission.js";
 import { assertNativeInstructionSelection, verifyNativeInstructionPreflight, NATIVE_INSTRUCTION_PREFLIGHT_ENV, NATIVE_INSTRUCTION_SUITE, NATIVE_INSTRUCTION_DEFAULT_SHA256 } from "./native-instruction-consolidation.js";
 import { captureNativeDefault, gradeNativeDefault, nativeCompletionWorkspaceDigest } from "./native-completion-defaults.js";
@@ -160,6 +162,7 @@ interface InteractionRecord {
     version?: number;
     submitLabel?: string | null;
     questionSet?: PaperclipQuestionSetPayload;
+    runtimeRequestId?: string | null;
     acceptLabel?: string;
     rejectLabel?: string;
     target?: {
@@ -1258,12 +1261,98 @@ for (const execution of executions) {
 
       let planLifecycleEvidence: Record<string, unknown> | null = null;
       let questionLifecycleEvidence: Record<string, unknown> | null = null;
+      const nativeQuestionChecks: MatcherResult[] = [];
+      let nativeQuestionIdentity: (Omit<Parameters<typeof hasExactHermesNativeQuestionResponse>[0], "events"> & { interactionId: string }) | undefined;
       let warmLifecycleEvidence: Record<string, unknown> | null = null;
       let expectedQuestionResolution: {
         interactionId: string;
         optionId: string;
       } | null = null;
-      if (execution.task.flow === "governed_tool_review") {
+      if (execution.task.flow === "native_question_completion") {
+        const check = (id: string, passed: boolean, detail: string) => {
+          const result: MatcherResult = { matcher: { kind: "json_path", path: `hermesNativeQuestion.${id}`, expected: true }, passed, detail };
+          nativeQuestionChecks.push(result);
+          matcherResults.push(result);
+          expect(passed, detail).toBe(true);
+        };
+        const loadNativeState = async () => {
+          const state = await loadTaskState();
+          const events = state.taskRuns.length === 1 ? await collectRunEvents<RunEventRecord>((afterSeq, limit) =>
+            api.get(`/api/heartbeat-runs/${state.taskRuns[0]!.id}/events?afterSeq=${afterSeq}&limit=${limit}`)) : [];
+          return { ...state, events };
+        };
+        const nativeCreated = (events: RunEventRecord[], requestId: string | null | undefined) => events
+          .map(row => record(row.payload?.prpEvent)).filter(event => event.eventType === "runtime_request.created"
+            && record(record(event.payload).request).requestId === requestId
+            && hasAcpxNativeOrigin(record(record(event.payload).request).origin, "hermes", "_hermes/ask_questions"));
+        const rejectNative = (state: Awaited<ReturnType<typeof loadNativeState>>) =>
+          definitiveRunFailure(state.taskRuns) ?? (state.taskRuns.length > 1 ? "Native Hermes clarification dispatched an extra provider turn" : undefined);
+        const pending = await pollUntil({
+          label: "native Hermes question batch in its original active turn", deadlineAt, load: loadNativeState,
+          accept: state => state.taskRuns.length === 1 && state.taskRuns[0]!.status === "running"
+            && state.interactions.some(card => card.status === "pending" && card.kind === "ask_user_questions"
+              && card.payload?.runtimeRequestId && nativeCreated(state.events, card.payload.runtimeRequestId).length > 0),
+          reject: state => rejectNative(state) ?? (state.taskRuns.some(run => run.status === "succeeded")
+            ? "Hermes completed without the required native clarification callback; qualification remains pending" : undefined),
+        });
+        check("one-native-card", pending.interactions.length === 1, "Exactly one durable question card is created within one native run.");
+        const card = pending.interactions[0]!, created = nativeCreated(pending.events, card.payload?.runtimeRequestId);
+        check("one-native-callback", created.length === 1, "Exactly one native Hermes callback created the displayed request.");
+        const event = created[0]!, native = record(record(event.payload).request), set = card.payload?.questionSet;
+        check("full-native-card-binding", card.sourceRunId === pending.taskRuns[0]!.id && card.continuationPolicy === "none"
+          && isDeepStrictEqual(set, native.input), "The durable card retains the complete native form and the original run without queuing a continuation.");
+        check("three-native-question-modes", hasHermesNativeQuestionBatch(set), "The ordered batch retains single choice, multiple choice with custom input, and free text.");
+        const requestId = card.payload!.runtimeRequestId!;
+        check("native-turn-identity", typeof event.turnId === "string" && native.turnId === event.turnId
+          && native.requestId === requestId && native.type === "input" && native.status === "pending", "The form is bound to the native session's exact active turn and pending request.");
+        await writeSanitizedJson(snapshotsDir, "hermes-native-question-pending.json", { card, event, checks: nativeQuestionChecks }, secrets);
+        await expect(page.getByRole("radio", { name: set!.questions[0]!.options![0]!.label, exact: true }).last()).toBeVisible();
+        await captureScreenshot("hermes-native-question-pending", "Hermes native question batch awaiting answers", "hermes-native-question-pending.png");
+        await page.reload();
+        const reconnected = await loadNativeState(), same = reconnected.interactions.find(row => row.id === card.id);
+        check("browser-reconnect-identity", reconnected.taskRuns.length === 1 && reconnected.taskRuns[0]!.id === card.sourceRunId
+          && reconnected.taskRuns[0]!.status === "running" && reconnected.interactions.length === 1 && same?.status === "pending"
+          && same.payload?.runtimeRequestId === requestId && same.sourceRunId === card.sourceRunId && same.continuationPolicy === "none"
+          && isDeepStrictEqual(same.payload?.questionSet, set), "Reload preserves the same pending request, complete form and active provider turn.");
+        await writeSanitizedJson(snapshotsDir, "hermes-native-question-reconnected.json", { card: same, runId: reconnected.taskRuns[0]!.id, checks: nativeQuestionChecks }, secrets);
+        await expect(page.getByRole("radio", { name: set!.questions[0]!.options![0]!.label, exact: true }).last()).toBeVisible();
+        await captureScreenshot("hermes-native-question-reconnected", "Same native Hermes form after browser reconnect", "hermes-native-question-reconnected.png");
+        await page.getByRole("radio", { name: set!.questions[0]!.options![0]!.label, exact: true }).last().click();
+        await page.getByRole("button", { name: "Next", exact: true }).last().click();
+        for (const option of set!.questions[1]!.options!) await page.getByRole("checkbox", { name: option.label, exact: true }).last().click();
+        await page.getByRole("checkbox", { name: set!.questions[1]!.customAnswer?.label ?? "Other", exact: true }).last().click();
+        await page.getByTestId("question-other-answer-composer").last().locator('[contenteditable="true"],textarea').first().fill("FreeBSD");
+        await page.getByRole("button", { name: "Next", exact: true }).last().click();
+        const notes = hermesNativeAnswerText(nonce);
+        await page.getByTestId("question-text-answer-composer").last().locator('[contenteditable="true"],textarea').first().fill(notes);
+        const response = { schema: "paperclip.question_response.v1", answers: {
+          q0: { selectedOptionIds: ["o0"] }, q1: { selectedOptionIds: ["o0", "o1"], customText: "FreeBSD" }, q2: { text: notes },
+        } };
+        nativeQuestionIdentity = { runId: pending.taskRuns[0]!.id, turnId: event.turnId as string, requestId, questionSet: set, response, interactionId: card.id };
+        await page.getByRole("button", { name: set!.submitLabel ?? "Submit answers", exact: true }).last().click();
+        const delivered = await pollUntil({
+          label: "exact Hermes native callback answer delivery", deadlineAt, load: loadNativeState, reject: rejectNative,
+          accept: state => state.taskRuns.length === 1 && state.interactions.length === 1
+            && state.interactions[0]!.id === card.id && state.interactions[0]!.status === "answered"
+            && hasExactHermesNativeQuestionResponse({ ...nativeQuestionIdentity!, events: state.events }),
+        });
+        check("exact-native-answer-delivery", hasExactHermesNativeQuestionResponse({ ...nativeQuestionIdentity, events: delivered.events }),
+          "One ordered post-write native receipt contains the exact single choice, multiple choices, custom input and undisclosed free text.");
+        let duplicateRejected = false;
+        try {
+          await api.postSensitive(`/api/issues/${issue.id}/interactions/${card.id}/respond`, { answers: [
+            { questionId: "q0", optionIds: ["o0"] }, { questionId: "q1", optionIds: ["o0", "o1"], otherText: "FreeBSD" },
+            { questionId: "q2", optionIds: [], otherText: notes },
+          ] });
+        } catch (error) {
+          duplicateRejected = error instanceof Error && error.message === `Sensitive POST /api/issues/${issue.id}/interactions/${card.id}/respond returned 409; response body withheld`;
+          if (!duplicateRejected) throw error;
+        }
+        check("late-answer-rejected", duplicateRejected, "The public response API returns HTTP 409 for a second answer to the settled native request.");
+        questionLifecycleEvidence = { native: true, interaction: delivered.interactions[0], identity: nativeQuestionIdentity,
+          browserReloadedWhileRunActive: true, duplicateRejected, checks: nativeQuestionChecks };
+        await writeSanitizedJson(snapshotsDir, "hermes-native-question-delivered.json", questionLifecycleEvidence, secrets);
+      } else if (execution.task.flow === "governed_tool_review") {
         await expect(page.getByRole("button", { name: "Approve & run", exact: true })).toBeVisible({ timeout: Math.max(1, deadlineAt - Date.now()) });
         expect(reviewProvider!.invocationCount()).toBe(0);
         await pollUntil({ label: "governed waiting turn", deadlineAt, load: loadTaskState, accept: state => state.taskRuns.length === 1 && state.taskRuns.every(run => TERMINAL_RUN_STATUSES.has(run.status)) });
@@ -2317,6 +2406,23 @@ for (const execution of executions) {
           }),
         ),
       );
+      if (nativeQuestionIdentity) {
+        const captured = runEventsByRun.find(value => value.runId === nativeQuestionIdentity.runId)?.events ?? [];
+        const exactDelivery = hasExactHermesNativeQuestionResponse({ ...nativeQuestionIdentity, events: captured });
+        const originalCard = terminal.interactions.find(card => card.id === nativeQuestionIdentity.interactionId);
+        const sameTurn = selectedRuns.length === 1 && selectedRuns[0]!.id === nativeQuestionIdentity.runId
+          && terminal.interactions.length === 1 && originalCard?.status === "answered" && originalCard.sourceRunId === nativeQuestionIdentity.runId
+          && originalCard.continuationPolicy === "none" && isDeepStrictEqual(originalCard.payload?.questionSet, nativeQuestionIdentity.questionSet);
+        nativeQuestionChecks.push(
+          { matcher: { kind: "json_path", path: "hermesNativeQuestion.terminal-exact-delivery", expected: true }, passed: exactDelivery,
+            detail: "The full terminal event history retains exactly one ordered native delivery without a later duplicate or cancellation." },
+          { matcher: { kind: "json_path", path: "hermesNativeQuestion.original-turn-completed", expected: true }, passed: sameTurn,
+            detail: "The original native run completes with exactly one answered card and no queued continuation or substitute question." },
+        );
+        matcherResults.push(...nativeQuestionChecks);
+        questionLifecycleEvidence = { ...questionLifecycleEvidence, terminalInteraction: originalCard, checks: nativeQuestionChecks };
+        await writeSanitizedJson(snapshotsDir, "hermes-native-question-terminal.json", questionLifecycleEvidence, secrets);
+      }
       const failedMatchers = matcherResults.filter((result) => !result.passed);
       const exactMessageMatcher = taskMatchers.find(
         (matcher) => matcher.kind === "message_exact",

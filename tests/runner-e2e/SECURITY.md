@@ -330,3 +330,14 @@ Candidates have no automatic infrastructure retries; spending must be reconciled
 before a deliberate repeat.
 
 The private resource-admission marker and raw cleanup results control recovery-state retention independently of evidence packaging. A worker crash after admission keeps the owner-only recovery database; a confirmed pre-allocation bootstrap failure does not. Neither the marker nor the database enters published evidence.
+
+The explicit-only `hermes-native-interactions` question batch uses fixture-only
+choices and reviewer text through the normal browser and public interaction API.
+It retains only the scoped native form, callback identity, exact response and
+grading receipts alongside the existing sanitized run evidence. No private
+runner hook supplies the answer. The late duplicate probe uses the existing
+untraced public POST helper and requires its actual HTTP 409 status; response
+bodies are withheld. Source admission precedes credential handoff, both public
+budgets are 200 cents, OpenRouter cost must settle, and automatic retries remain
+disabled. Registered local/Daytona cells are pending qualification, not permission
+to launch a paid campaign or a claim of remote coverage.

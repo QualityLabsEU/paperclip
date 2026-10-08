@@ -5,7 +5,7 @@ import { nativeCompletionProfile, NATIVE_COMPLETION_BUDGET_CENTS } from "./nativ
 import { chatConfirmationTasks } from "./chat-cases.js";
 import { buildConnectionSuite } from "./connection-cases.js";
 import { hiringTemplateTasks, hiringTemplateProfile, hiringTemplateDefinitionDigest } from "./hiring-template-cases.js";
-import { HERMES_API_CONNECTION_BUDGET_CENTS, hermesApiConnectionChoices, hermesApiConnectionDefinitionDigest, hermesBedrockConnectionChoice } from "./hermes-api-connections.js";
+import { HERMES_API_CONNECTION_BUDGET_CENTS, HERMES_NATIVE_INTERACTION_SUITE, hermesApiConnectionChoices, hermesApiConnectionDefinitionDigest, hermesBedrockConnectionChoice, hermesNativeQuestionTask } from "./hermes-api-connections.js";
 import { nativeActiveStopTasks } from "./native-active-stop-tasks.js";
 import { cursorNativeTasks } from "./cursor-native-cases.js";
 import { instructionPersistenceTask } from "./instruction-persistence.js";
@@ -1212,6 +1212,18 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
     expectedMatrixSize: 40,
     definitionMetadata: { version: 2, qualification: "pending", scheduling: "explicit-only", admission: "host-exact-candidate-and-model", authenticatedDiscoveryDate: "2026-09-28",
       hermesBilling: "per-run-reported-cost-and-budget-health", hermesBudgetMonthlyCents: 200, hermesSettlementSourceDigest: hermesApiConnectionDefinitionDigest },
+  },
+  {
+    id: HERMES_NATIVE_INTERACTION_SUITE, label: "Hermes native interactions", manualOnly: true,
+    description: "A native Hermes question batch retains its callback through browser reconnect and receives the exact reviewer's answers within one active turn.",
+    groups: ["native"], profiles: [extendedHarnessProfiles.find(profile => profile.qualificationCandidate === "hermes")!],
+    environments: runnerEnvironments, tasks: [hermesNativeQuestionTask], expectedMatrixSize: 2,
+    definitionMetadata: {
+      version: 1, qualification: "pending", scheduling: "explicit-only", accountMethod: "api_key", accountMode: "responsible_user",
+      providerTurns: 1, lifecycle: "per-turn", nativeMethod: "_hermes/ask_questions", maximumAttemptsPerCell: 1,
+      budgetMonthlyCents: HERMES_API_CONNECTION_BUDGET_CENTS, billing: "reported-cost-and-budget-health",
+      coverage: "native-question-batch-browser-reconnect-exact-delivery", sourceDigest: hermesApiConnectionDefinitionDigest,
+    },
   },
   {
     id: "hermes-api-connections", label: "Hermes managed API connections", manualOnly: true,

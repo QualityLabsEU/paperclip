@@ -1264,3 +1264,30 @@ question forms, reconnect, cancellation and browser behavior still require
 their own Product E2E acceptance. Subscriptions, Bedrock, a current published
 image, clean public consumers, actual Daytona and the remaining release gates
 stay pending. No local Docker or Rust build is used.
+
+At `8cb867c6bfb78b4e927a9885e12a7080d663e014`, the fresh
+[cloud native qualification run](https://github.com/paperclipai/paperclip/actions/runs/37777743115)
+passes all nine native fixtures and 38 pinned Python checks on each target,
+without retries or credentials. The cloud checkout is synthetic merge
+`4f4bc382f6d34b68869b60f92e1dc1318b761766`; its tree exactly matches the
+qualification branch. Both reviewed cold closure digests are unchanged.
+
+### 2026-10-08 native question browser acceptance fixture
+
+The explicit-only `hermes-native-interactions` Product E2E suite adds one local
+and one Daytona cell. One live native `clarify` batch covers single choice,
+multiple choice, custom input and free text. The browser reloads while the same
+run and callback remain active, then submits the exact answers through the
+normal form. The independent oracle requires full native card/run/turn binding,
+one ordered post-write delivery receipt, HTTP 409 on a late duplicate answer,
+one original successful run and a final reply containing the undisclosed
+reviewer text returned by the callback. Assigned Paperclip question tools
+cannot satisfy this case.
+
+The fixture keeps the selected managed OpenRouter account/model, public
+200-cent company/agent budgets, reported wire settlement, source admission and
+normal cleanup. Each cell permits one attempt. Credential-free Product E2E
+typecheck and all 1,953 unit tests pass, with one existing skip; discovery lists
+exactly the two explicit cells. Native browser acceptance is still pending its
+live run. Controller restart, native cancellation/Stop, subscriptions, Bedrock,
+actual Daytona and the remaining original release matrix remain separate gates.

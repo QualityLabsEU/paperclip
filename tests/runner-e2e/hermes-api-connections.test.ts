@@ -2,7 +2,109 @@ import { describe, expect, it } from "vitest";
 import { runnerMatrix, runnerSuites, suiteDefinitionHash } from "./catalog.js";
 import { buildMatrixJobs, parseRunnerSelectors, selectRunnerExecutions } from "./selectors.js";
 import { buildRunnerE2EProcessEnvironment } from "./harness-env.js";
-import { captureHermesApiAccountOwner, captureHermesApiBudgets, captureHermesOpenRouterSettlement, gradeHermesApiConnection, isHermesOpenRouterWorkflow } from "./hermes-api-connections.js";
+import { captureHermesApiAccountOwner, captureHermesApiBudgets, captureHermesOpenRouterSettlement, gradeHermesApiConnection, isHermesOpenRouterWorkflow, isHermesConnectionSuite, HERMES_NATIVE_INTERACTION_SUITE, hasExactHermesNativeQuestionResponse, hasHermesNativeQuestionBatch, hermesNativeAnswerText } from "./hermes-api-connections.js";
+
+describe("Hermes native browser questions", () => {
+  const suite = runnerSuites.find(s => s.id === HERMES_NATIVE_INTERACTION_SUITE)!;
+  const cells = runnerMatrix.filter(e => e.suite.id === suite.id);
+  const questionSet = { schema: "paperclip.question_set.v1", questions: [
+    { id: "q0", prompt: "Choose the fixture color", required: true, answerMode: "single_select",
+      options: [{ id: "o0", label: "Cobalt (Recommended)" }, { id: "o1", label: "Amber" }], customAnswer: { enabled: true } },
+    { id: "q1", prompt: "Choose the fixture targets", required: true, answerMode: "multi_select",
+      options: [{ id: "o0", label: "Linux" }, { id: "o1", label: "Mac" }], customAnswer: { enabled: true } },
+    { id: "q2", prompt: "Describe the fixture constraint", required: true, answerMode: "text" },
+  ] };
+  const response = { schema: "paperclip.question_response.v1", answers: {
+    q0: { selectedOptionIds: ["o0"] }, q1: { selectedOptionIds: ["o0", "o1"], customText: "FreeBSD" }, q2: { text: "Reviewer constraint" },
+  } };
+  const event = (eventType: string, sourceSeq: number, payload: unknown) => ({
+    runId: "run", protocolSchemaVersion: 1, payload: { prpEvent: {
+      schema: "paperclip.prp.event.v1", schemaVersion: 1, runId: "run", turnId: "turn", eventType, sourceSeq, payload,
+    } },
+  });
+  const native = (adapter = "acpx-runtime-sidecar") => [
+    event("runtime_request.created", 2, { request: { requestId: "request", turnId: "turn", type: "input", status: "pending", input: questionSet,
+      origin: { adapter, provider: "hermes", method: "_hermes/ask_questions" } } }),
+    event("runtime_request.resolved", 3, { requestId: "request", turnId: "turn", action: "submit", response }),
+  ];
+  const grade = (events: unknown[]) => hasExactHermesNativeQuestionResponse({ events, runId: "run", turnId: "turn", requestId: "request", questionSet, response });
+  it("declares only two explicit bounded single-attempt managed-account cells", () => {
+    expect(cells).toHaveLength(2);
+    expect(suite.manualOnly).toBe(true);
+    expect(new Set(cells.map(cell => cell.environment.id))).toEqual(new Set(["local", "daytona"]));
+    expect(cells.every(cell => cell.profile.qualificationCandidate === "hermes" && cell.task.flow === "native_question_completion"
+      && cell.task.expectedRunCount === 1 && cell.task.automaticRetryPolicy === "single_attempt")).toBe(true);
+    expect(suite.definitionMetadata).toMatchObject({ qualification: "pending", providerTurns: 1, maximumAttemptsPerCell: 1, budgetMonthlyCents: 200,
+      lifecycle: "per-turn", nativeMethod: "_hermes/ask_questions", billing: "reported-cost-and-budget-health" });
+    expect(isHermesConnectionSuite(suite.id)).toBe(true);
+    expect(selectRunnerExecutions(parseRunnerSelectors(["--all"])).some(cell => cell.suite.id === suite.id)).toBe(false);
+    expect(selectRunnerExecutions(parseRunnerSelectors(["--id", cells[0]!.id]))).toEqual([cells[0]]);
+    expect(suite.definitionMetadata?.sourceDigest).toMatch(/^[a-f0-9]{64}$/);
+    const env = buildRunnerE2EProcessEnvironment({ PAPERCLIP_RUNNER_ACPX_QUALIFICATION: "ambient" }, [cells[0]!]);
+    expect(JSON.parse(env.PAPERCLIP_RUNNER_ACPX_QUALIFICATION!)).toEqual([{ agent: "hermes", model: cells[0]!.profile.model }]);
+    expect(() => buildRunnerE2EProcessEnvironment({}, [{ ...cells[0]!, suite: { ...suite, manualOnly: false } }])).toThrow("explicit");
+    expect(() => buildRunnerE2EProcessEnvironment({}, [{ ...cells[0]!, profile: { ...cells[0]!.profile, qualificationCandidate: "pi" } }])).toThrow("explicit");
+    const answer = hermesNativeAnswerText("fixture-1");
+    expect(cells[0]!.task.buildPrompt("fixture-1")).not.toContain(answer);
+    expect(cells[0]!.task.buildVisibleMarker("fixture-1")).toContain(answer);
+  });
+  it.each(["acpx-runtime", "acpx-runtime-sidecar"])("accepts a complete native delivery from %s", adapter => {
+    expect(hasHermesNativeQuestionBatch(questionSet)).toBe(true);
+    expect(grade(native(adapter))).toBe(true);
+  });
+  it.each(["missing", "no-created", "no-outcome", "duplicate-created", "duplicate-outcome", "second-request-other-id", "cancelled", "expired", "wrong-action", "wrong-answer",
+    "wrong-answer-order", "wrong-input", "wrong-provider", "semantic-tool", "wrong-adapter", "wrong-type", "wrong-status", "wrong-request-turn",
+    "wrong-event-turn", "wrong-outcome-turn", "foreign-row", "foreign-event", "wrong-schema", "wrong-version", "wrong-protocol", "wrong-order", "missing-sequence"])("rejects %s evidence", fault => {
+    const rows = structuredClone(native()) as ReturnType<typeof native>;
+    const created = rows[0]!.payload.prpEvent as Record<string, any>, resolved = rows[1]!.payload.prpEvent as Record<string, any>;
+    const request = created.payload.request;
+    if (fault === "missing") rows.length = 0;
+    if (fault === "no-created") rows.splice(0, 1);
+    if (fault === "no-outcome") rows.splice(1, 1);
+    if (fault === "duplicate-created") rows.push(structuredClone(rows[0]!));
+    if (fault === "duplicate-outcome") rows.push(structuredClone(rows[1]!));
+    if (fault === "second-request-other-id") {
+      const extra = structuredClone(rows[0]!);
+      (extra.payload.prpEvent.payload as Record<string, any>).request.requestId = "different-request";
+      rows.push(extra);
+    }
+    if (fault === "cancelled") resolved.eventType = "runtime_request.cancelled";
+    if (fault === "expired") resolved.eventType = "runtime_request.expired";
+    if (fault === "wrong-action") resolved.payload.action = "cancel";
+    if (fault === "wrong-answer") resolved.payload.response.answers.q2.text = "Guessed answer";
+    if (fault === "wrong-answer-order") resolved.payload.response.answers.q1.selectedOptionIds.reverse();
+    if (fault === "wrong-input") request.input.questions[2].prompt = "Different question";
+    if (fault === "wrong-provider") request.origin.provider = "cursor";
+    if (fault === "semantic-tool") request.origin.method = "request_human_input";
+    if (fault === "wrong-adapter") request.origin.adapter = "test-hook";
+    if (fault === "wrong-type") request.type = "permission";
+    if (fault === "wrong-status") request.status = "resolved";
+    if (fault === "wrong-request-turn") request.turnId = "other";
+    if (fault === "wrong-event-turn") resolved.turnId = "other";
+    if (fault === "wrong-outcome-turn") resolved.payload.turnId = "other";
+    if (fault === "foreign-row") rows[1]!.runId = "foreign";
+    if (fault === "foreign-event") resolved.runId = "foreign";
+    if (fault === "wrong-schema") resolved.schema = "made-up";
+    if (fault === "wrong-version") resolved.schemaVersion = 2;
+    if (fault === "wrong-protocol") rows[1]!.protocolSchemaVersion = 2;
+    if (fault === "wrong-order") resolved.sourceSeq = 1;
+    if (fault === "missing-sequence") delete resolved.sourceSeq;
+    expect(grade(rows)).toBe(false);
+  });
+  it.each(["question-count", "mode", "id", "prompt", "required", "choices", "option-id", "option-label", "custom-disabled"])("rejects a changed native form: %s", fault => {
+    const form = structuredClone(questionSet) as Record<string, any>;
+    if (fault === "question-count") form.questions.pop();
+    if (fault === "mode") form.questions[1].answerMode = "single_select";
+    if (fault === "id") form.questions[0].id = "color";
+    if (fault === "prompt") form.questions[0].prompt = "Choose something else";
+    if (fault === "required") form.questions[0].required = false;
+    if (fault === "choices") form.questions[1].options.pop();
+    if (fault === "option-id") form.questions[0].options[0].id = "cobalt";
+    if (fault === "option-label") form.questions[0].options[0].label = "Cobalt impostor";
+    if (fault === "custom-disabled") form.questions[1].customAnswer.enabled = false;
+    expect(hasHermesNativeQuestionBatch(form)).toBe(false);
+  });
+});
 
 describe("Hermes managed API connection qualification", () => {
   const suite = runnerSuites.find(s => s.id === "hermes-api-connections")!;

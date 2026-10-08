@@ -34,6 +34,7 @@ export type RunnerTaskFlow =
   | "single_turn"
   | "plan_revision_acceptance"
   | "question_resume_completion"
+  | "native_question_completion"
   | "plan_approval_completion"
   | "warm_three_turn"
   | "instruction_persistence"
