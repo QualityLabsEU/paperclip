@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { buildNativeExecutionInput, isNativeAcpxPermissionModePinned } from "./native-execution-input.js";
+import { nativeRuntimeContextFixture } from "./runtime-context.test-fixture.js";
+import { parseNativeExecutionInput } from "../../vendor/paperclip-runner/index.js";
 import { projectHermesConnection, restoreHermesCredential } from "./hermes-connection.js";
 import type { AiConnectionMetadata } from "@paperclipai/shared";
 describe("Hermes Connections projection", () => {
@@ -61,5 +64,27 @@ describe("Hermes Connections projection", () => {
     expect(JSON.parse(restoreHermesCredential("xai", original, JSON.stringify(refreshed)))).toMatchObject({ account: { refresh_token: "refresh-new", expires_at: 200, metadata: "keep" } });
     refreshed.providers["xai-oauth"].tokens.access_token = jwt("other", 300);
     expect(() => restoreHermesCredential("xai", original, JSON.stringify(refreshed))).toThrow("account identity");
+  });
+});
+
+// Use the server constructor and the same policy projection as its transport factory.
+describe("server-launched Hermes permission policy", () => {
+  it.each(["approve-all", "approve-reads"] as const)("pins v7 %s policy before native transport admission", permissionMode => {
+    const input = buildNativeExecutionInput({
+      companyId: "company", runId: "run", agentId: "agent",
+      issue: { id: "issue", identifier: "HERMES-1", title: "Server launch", description: null, workMode: "standard" },
+      taskPrompt: "Run the task.", workspace: { id: "workspace", cwd: "/workspace", repoUrl: null, repoRef: null, branchName: null },
+      normalizedSessionId: null, provider: "acpx", acpxAgent: "hermes", model: "hermes-fixture",
+      hermesConnectionFingerprint: "1".repeat(64), acpxPermissionMode: permissionMode,
+      completionContract: { id: "contract", sha256: "a".repeat(64), schemaVersion: "paperclip.run-result.v1",
+        contract: { revision: "1", objective: "Run the task.", criteria: [{ id: "output", requirement: "Run the task." }] } },
+      runtimeContext: nativeRuntimeContextFixture(),
+    });
+    expect(input.schema).toBe("paperclip.native-execution-input.v7");
+    expect(input.provider).toMatchObject({ kind: "acpx", agent: "hermes", permissionMode });
+    expect(isNativeAcpxPermissionModePinned(input)).toBe(true);
+    expect(isNativeAcpxPermissionModePinned(parseNativeExecutionInput({ ...input, schema: "paperclip.native-execution-input.v6" }))).toBe(true);
+    expect(isNativeAcpxPermissionModePinned({ ...input, schema: "paperclip.native-execution-input.v3" })).toBe(false);
+    expect(isNativeAcpxPermissionModePinned({ ...input, provider: { kind: "codex", model: null, approvalPolicy: "never" } })).toBe(false);
   });
 });

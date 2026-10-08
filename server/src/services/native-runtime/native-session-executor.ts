@@ -1,3 +1,4 @@
+import { isNativeAcpxPermissionModePinned } from "./native-execution-input.js";
 import { agents } from "@paperclipai/db";
 import { dotRunnerBroker } from "../dot-runner-broker.js";
 import { configuredEnvironment } from "../../vendor/paperclip-runner/index.js";
@@ -12961,10 +12962,7 @@ async function createRunnerdBackendWithinSessionClaim(
               acpxCandidateProfile: resolveAcpxQualification(input.execution.provider, process.env),
               acpxPermissionMode: input.execution.provider.permissionMode,
               acpxMode: input.execution.provider.mode,
-              acpxPermissionModePinned:
-                input.execution.schema === "paperclip.native-execution-input.v4" ||
-                input.execution.schema === "paperclip.native-execution-input.v5" ||
-                input.execution.schema === "paperclip.native-execution-input.v6",
+              acpxPermissionModePinned: isNativeAcpxPermissionModePinned(input.execution),
               acpxRuntimeDirectory: remoteRunnerFilesystemRoot
                 ? posix.join(remoteRunnerFilesystemRoot, "acpx")
                 : resolve(
