@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { devNull, tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
@@ -16,7 +17,8 @@ function checkout() {
     env: { PATH: process.env.PATH, GIT_CONFIG_GLOBAL: devNull, GIT_CONFIG_NOSYSTEM: "1" } }).trim();
   git("init", "-b", "qualification");
   writeFileSync(join(root, "source.txt"), "original\n");
-  git("add", "source.txt");
+  writeFileSync(join(root, "pnpm-lock.yaml"), "original lock\n");
+  git("add", "source.txt", "pnpm-lock.yaml");
   git("-c", "user.name=Fixture", "-c", "user.email=fixture@example.test", "-c", "commit.gpgsign=false", "-c", `core.hooksPath=${devNull}`, "commit", "-m", "fixture");
   return { root, git, sha: git("rev-parse", "HEAD") };
 }
@@ -60,5 +62,43 @@ describe("Hermes qualification controller source admission", () => {
   it("rejects unreadable source without accepting an operator-supplied SHA", () => {
     const env = { PATH: process.env.PATH, PAPERCLIP_RUNNER_E2E_SOURCE_SHA: "a".repeat(40) };
     expect(() => prepareHermesQualificationSource(selected, "/does-not-exist", env)).toThrow("readable Git source before credentials");
+  });
+});
+
+describe("approved qualification dependency lock", () => {
+  const resolved = "reviewed resolved lock\n";
+  const digest = createHash("sha256").update(resolved).digest("hex");
+  it("admits only the independently verified lock replacement and records its digest and dirty state", () => {
+    const f = checkout(); writeFileSync(join(f.root, "pnpm-lock.yaml"), resolved);
+    const env = { PATH: process.env.PATH, PAPERCLIP_RUNNER_E2E_LOCK_SHA256: digest };
+    expect(prepareHermesQualificationSource(selected, f.root, env)).toMatchObject({
+      sha: f.sha, workingTreeClean: false, approvedLockSha256: digest,
+    });
+    expect(resolveRunnerE2ESource(null, env).sha).toBe(f.sha);
+  });
+  it("still records a verified lock when it already matches the commit", () => {
+    const f = checkout();
+    const originalDigest = createHash("sha256").update("original lock\n").digest("hex");
+    expect(prepareHermesQualificationSource(selected, f.root, {
+      PATH: process.env.PATH, PAPERCLIP_RUNNER_E2E_LOCK_SHA256: originalDigest,
+    })).toMatchObject({ workingTreeClean: true, approvedLockSha256: originalDigest });
+  });
+  it.each(["missing", "incorrect", "malformed"])("rejects a replacement with %s approval before recording source", approval => {
+    const f = checkout(); writeFileSync(join(f.root, "pnpm-lock.yaml"), resolved);
+    const env: NodeJS.ProcessEnv = { PATH: process.env.PATH,
+      ...(approval === "missing" ? {} : { PAPERCLIP_RUNNER_E2E_LOCK_SHA256: approval === "incorrect" ? "a".repeat(64) : "not-a-digest" }) };
+    expect(() => prepareHermesQualificationSource(selected, f.root, env)).toThrow();
+    expect(env.PAPERCLIP_RUNNER_E2E_SOURCE_SHA).toBeUndefined();
+  });
+  it.each(["source", "untracked", "staged", "deleted", "symlink"])("rejects %s changes even alongside an approved digest", kind => {
+    const f = checkout(); const lock = join(f.root, "pnpm-lock.yaml"); writeFileSync(lock, resolved);
+    if (kind === "source") writeFileSync(join(f.root, "source.txt"), "changed\n");
+    if (kind === "untracked") writeFileSync(join(f.root, "extra.txt"), "changed\n");
+    if (kind === "staged") f.git("add", "pnpm-lock.yaml");
+    if (kind === "deleted" || kind === "symlink") rmSync(lock);
+    if (kind === "symlink") { writeFileSync(join(f.root, "resolved.txt"), resolved); symlinkSync("resolved.txt", lock); }
+    expect(() => prepareHermesQualificationSource(selected, f.root, {
+      PATH: process.env.PATH, PAPERCLIP_RUNNER_E2E_LOCK_SHA256: digest,
+    })).toThrow();
   });
 });

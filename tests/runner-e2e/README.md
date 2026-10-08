@@ -1489,6 +1489,10 @@ Detached checkouts record `HEAD` unless an explicitly matched target SHA supplie
 its ref. Read-only `--list` and `--matrix-json` discovery require no source
 admission or credentials. This receipt identifies the controller; runtime/image
 provenance and live behavior still require their independent checks.
+The paid workflow may restore its reviewed target lockfile: only an unstaged
+modification of the tracked `pnpm-lock.yaml` is allowed, and its complete bytes
+must match `PAPERCLIP_RUNNER_E2E_LOCK_SHA256`. The receipt records that approved
+digest and the actual working-tree cleanliness. Other edits remain rejected.
 
 When a Hermes cell is selected, the trusted workflow provisions its pinned
 Python closure on Linux before exposing credentials, and selects the same

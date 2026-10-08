@@ -855,3 +855,12 @@ billing. The initial sandbox socket denial is a separate infrastructure outcome.
 Hermes remains pending the full original Mac/Daytona, subscription, connection,
 attachment/control/state/routine and public-consumer gates. The ledger still
 retains $23 against the $25 cap; unknown charges are not counted as free.
+
+Review of `12098ba3` found that the source check rejected the trusted paid
+workflow's resolved target lock. Admission now allows only its unstaged tracked
+`pnpm-lock.yaml` replacement after independently hashing the complete regular
+file against the workflow's approved SHA-256. The campaign receipt preserves
+that digest and reports the actual dirty state instead of calling the working
+tree clean. Other edits, staged replacements, missing/mismatched approval,
+deletions and symlinks remain rejected. All eighteen source-admission tests and
+Product E2E TypeScript pass. The root lockfile itself remains unchanged.
