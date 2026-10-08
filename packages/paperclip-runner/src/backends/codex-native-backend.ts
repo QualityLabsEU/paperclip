@@ -181,7 +181,7 @@ function createTransportBackedNativeSessionBackend(
       transportFactory: options.transportFactory,
       dynamicTools: options.dynamicTools,
       dynamicToolHandler: options.dynamicToolHandler,
-      deferCommittedQuestionResults: input.provider.kind === "acpx" && input.provider.agent === "hermes",
+      deferCommittedHumanInputResults: input.provider.kind === "acpx" && input.provider.agent === "hermes",
       completionFeedback: options.completionFeedback,
       environment: options.environment,
       workingDirectoryAuthority: options.workingDirectoryAuthority,

@@ -268,8 +268,12 @@ class Controls(unittest.IsolatedAsyncioTestCase):
             "status": "pending", "continuationPolicy": "wake_assignee"}}
         name = "mcp__paperclip__request_human_input"
         updates = []
-        for carrier in [result, {"result": result}, {"result": json.dumps(result)},
-                        {"result": "Question saved", "structuredContent": result}]:
+        carriers = []
+        for kind in ("ask_user_questions", "request_confirmation", "request_checkbox_confirmation"):
+            committed = {**result, "interaction": {**result["interaction"], "kind": kind}}
+            carriers.extend([committed, {"result": committed}, {"result": json.dumps(committed)},
+                             {"result": "Human input saved", "structuredContent": committed}])
+        for carrier in carriers:
             with self.subTest(carrier=carrier):
                 self.state.cancel_event.clear()
                 self.bridge._committed_wait_updates.clear()
@@ -313,7 +317,7 @@ class Controls(unittest.IsolatedAsyncioTestCase):
                  ("mcp__paperclip__request_human_input", {"result": "Saved a pending question"}),
                  ("mcp__paperclip__request_human_input", {"result": original, "error": "denied"}),
                  ("mcp__paperclip__request_human_input", {**original, "disposition": "rejected"})]
-        for key, value in [("status", "resolved"), ("kind", "request_confirmation"),
+        for key, value in [("status", "resolved"), ("kind", "future_interaction"), ("kind", []),
                            ("continuationPolicy", "none"), ("sourceRunId", None), ("id", "")]:
             cases.append(("mcp__paperclip__request_human_input",
                           {**original, "interaction": {**original["interaction"], key: value}}))

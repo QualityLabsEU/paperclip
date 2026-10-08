@@ -58,7 +58,7 @@ def committed_human_input_wait(name, result):
         return False
     interaction = result.get("interaction")
     return (result.get("disposition") == "applied" and isinstance(interaction, dict)
-            and interaction.get("kind") == "ask_user_questions"
+            and interaction.get("kind") in ("ask_user_questions", "request_confirmation", "request_checkbox_confirmation")
             and interaction.get("status") == "pending"
             and interaction.get("continuationPolicy") == "wake_assignee"
             and all(isinstance(interaction.get(key), str) and bool(interaction[key])

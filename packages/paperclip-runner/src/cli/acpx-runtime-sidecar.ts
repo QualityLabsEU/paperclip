@@ -15,7 +15,7 @@ import type {
   AcpPermissionDecision,
 } from "acpx/runtime";
 
-import { acpxProfileClientCapabilities, bindAcpxExtensionTurn, validateAcpxRichEvent, createAcpxProfileExtensionAdapter, isHermesCommittedQuestionCompletion, type AcpxExtensionInput } from "../drivers/acpx/profile-extensions.js";
+import { acpxProfileClientCapabilities, bindAcpxExtensionTurn, validateAcpxRichEvent, createAcpxProfileExtensionAdapter, isHermesCommittedHumanInputCompletion, type AcpxExtensionInput } from "../drivers/acpx/profile-extensions.js";
 import type { PaperclipQuestionSet } from "../contracts/question-set.js";
 import { readProviderUsageBilling, type ProviderUsageBilling } from "../contracts/usage-billing.js";
 import { createAcpxToolEventNormalizer, createGrokMessageNormalizer } from "../provider-events.js";
@@ -635,7 +635,7 @@ async function pumpTurn(
       toolEvidence?.tool(event);
       const normalized = normalizeMessage(normalizeToolEvent(boundRuntimeEventForNormalization(event)));
       if (openParams?.agent === "hermes" && event.type === "tool_call"
-        && isHermesCommittedQuestionCompletion({ ...normalized, rawOutput: event.rawOutput }, runId ?? "")) {
+        && isHermesCommittedHumanInputCompletion({ ...normalized, rawOutput: event.rawOutput }, runId ?? "")) {
         if (committedQuestions.length >= MAX_PENDING_INPUTS) throw new Error("Hermes committed question limit exceeded");
         committedQuestions.push(normalized);
         continue;

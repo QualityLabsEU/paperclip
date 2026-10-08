@@ -135,11 +135,12 @@ extend the task's execution deadline.
   authority. Missing, invalid or timed-out reads do not invent usage or cost.
   This optional execution-result field carries an existing v1 PRP event; it
   does not change persisted execution inputs or the Rust wire contract.
-- An applied pending `request_human_input` response stops Hermes in its native
+- An applied pending `request_human_input` response for a question, confirmation
+  or checkbox confirmation stops Hermes in its native
   tool completion callback, before another model request. The bridge publishes
   that tool's completed result after native finalization. Both Runner event
   pumps read the prompt usage receipt before forwarding this completion to the
-  controller. The tool bridge also defers its own completed question fact until
+  controller. The tool bridge also defers its own completed human-input fact until
   the native terminal notification, which follows that receipt. The managed
   Hermes profile selects this launch policy; other profiles retain their
   existing order. Other tool activity still streams immediately. Tool identities

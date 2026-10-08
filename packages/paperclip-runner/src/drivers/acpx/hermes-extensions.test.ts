@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { createAcpxProfileExtensionAdapter, isHermesCommittedQuestionCompletion, validateAcpxRichEvent } from "./profile-extensions.js";
+import { createAcpxProfileExtensionAdapter, isHermesCommittedHumanInputCompletion, validateAcpxRichEvent } from "./profile-extensions.js";
 
 describe("Hermes native extensions", () => {
-  const committed = { disposition: "applied", interaction: { id: "question", companyId: "company", issueId: "issue",
-    sourceRunId: "run", kind: "ask_user_questions", status: "pending", continuationPolicy: "wake_assignee" } };
   const completion = { type: "tool_call", tag: "tool_call_update", status: "completed", title: "mcp__paperclip__request_human_input" };
-  it("delays only the current run's structured committed question completion", () => {
+  it.each(["ask_user_questions", "request_confirmation", "request_checkbox_confirmation"])("delays only the current run's structured committed human input completion (%s)", kind => {
+    const committed = { disposition: "applied", interaction: { id: "input", companyId: "company", issueId: "issue",
+      sourceRunId: "run", kind, status: "pending", continuationPolicy: "wake_assignee" } };
     for (const rawOutput of [committed, JSON.stringify(committed), { result: committed },
       { result: JSON.stringify(committed) }, { result: "Saved", structuredContent: committed }]) {
-      expect(isHermesCommittedQuestionCompletion({ ...completion, rawOutput }, "run")).toBe(true);
+      expect(isHermesCommittedHumanInputCompletion({ ...completion, rawOutput }, "run")).toBe(true);
     }
     for (const event of [{ ...completion, title: "terminal", rawOutput: committed },
       { ...completion, status: "failed", rawOutput: committed }, { ...completion, tag: "tool_call", rawOutput: committed },
@@ -17,10 +17,12 @@ describe("Hermes native extensions", () => {
       { ...completion, rawOutput: { ...committed, disposition: "rejected" } },
       ...["status", "kind", "continuationPolicy", "sourceRunId", "id", "companyId", "issueId"].map(key => ({
         ...completion, rawOutput: { ...committed, interaction: { ...committed.interaction, [key]: "" } },
-      }))]) expect(isHermesCommittedQuestionCompletion(event, "run")).toBe(false);
-    expect(isHermesCommittedQuestionCompletion({ ...completion, rawOutput: committed }, "other-run")).toBe(false);
-    expect(isHermesCommittedQuestionCompletion({ ...completion, title: completion.title + ": Choose the color", rawOutput: committed }, "run")).toBe(true);
-    expect(isHermesCommittedQuestionCompletion({ ...completion, title: completion.title + "_other", rawOutput: committed }, "run")).toBe(false);
+      }))]) expect(isHermesCommittedHumanInputCompletion(event, "run")).toBe(false);
+    expect(isHermesCommittedHumanInputCompletion({ ...completion, rawOutput: committed }, "other-run")).toBe(false);
+    expect(isHermesCommittedHumanInputCompletion({ ...completion, title: completion.title + ": Choose the color", rawOutput: committed }, "run")).toBe(true);
+    expect(isHermesCommittedHumanInputCompletion({ ...completion, title: completion.title + "_other", rawOutput: committed }, "run")).toBe(false);
+    expect(isHermesCommittedHumanInputCompletion({ ...completion, rawOutput: { ...committed,
+      interaction: { ...committed.interaction, kind: "future_interaction" } } }, "run")).toBe(false);
   });
   const adapter = () => createAcpxProfileExtensionAdapter("hermes", { sessionId: "session", turnId: "turn", workspacePath: "/workspace" })!;
   it("keeps native child identities stable across start, progress and completion", async () => {

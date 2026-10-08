@@ -44,11 +44,11 @@ import {
 } from "./codex-app-server-driver.test-support.js";
 
 describe("Codex app-server Codex driver", () => {
-  it.each([true, false])("orders committed bridge question results after native usage only for the managed policy (%s)", async defer => {
+  it.each([true, false].flatMap(defer => ["ask_user_questions", "request_confirmation", "request_checkbox_confirmation"].map(kind => ({ defer, kind }))))("orders committed bridge human input results after native usage only for the managed policy ($kind, $defer)", async ({ defer, kind }) => {
     const transport = new FakeCodexTransport();
     const committed = { disposition: "applied", interaction: { id: "question", companyId: "company", issueId: "issue",
-      sourceRunId: "run-question", kind: "ask_user_questions", status: "pending", continuationPolicy: "wake_assignee" } };
-    const session = await makeDriver([transport], { deferCommittedQuestionResults: defer,
+      sourceRunId: "run-question", kind, status: "pending", continuationPolicy: "wake_assignee" } };
+    const session = await makeDriver([transport], { deferCommittedHumanInputResults: defer,
       dynamicTools: [{ name: "request_human_input", inputSchema: { type: "object" } }],
       dynamicToolHandler: async () => committed,
     }).openSession({ runId: "run-question", normalizedSessionId: "normalized-question", workingDirectory: WORKSPACE });

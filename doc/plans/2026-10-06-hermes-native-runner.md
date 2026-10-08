@@ -1068,3 +1068,44 @@ Codex regressions pass 318 checks. The final result-copy and ordering tests pass
 51 checks. Runner TypeScript and generated contracts pass. The pinned runtime
 and Rust inputs are unchanged from `1f3af78114`. This remains deterministic
 proof. Clean-head live billing, fresh cloud CI and review remain required.
+
+### 2026-10-08 governed confirmation correction
+
+The clean `d54a98895c` Mac question workflow passes in 71.476 seconds. A second
+workflow preserves the exact pending interaction across a controller restart
+and a fresh browser document, then resumes Hermes to completion in 107.945
+seconds. Both have zero automatic retries and passing cleanup. Each has two
+settled, reported OpenRouter receipts with healthy configured budgets. Their
+reported totals are $0.002000649 and $0.001891331. Inspected screenshots show
+the pending form, Cobalt answer, thought card, one final response, Done state
+and available composer. This proves assigned Paperclip human input, not live
+native `clarify_callback`. That head has 54 passing cloud checks, two skips,
+and fresh Greptile 5/5 with no unresolved threads. Its credential-free Linux
+job verifies the recorded closure and passes four native fixtures.
+
+A separate clean-head planning workflow exposes the same early-stop problem
+for `request_confirmation`. The plan is accepted, but its first run remains
+pending and unpriced; the company pauses and the wake fails. The owned test
+launcher was cancelled after preserving that public state. Its original
+243.189-second infrastructure failure and `not_started` cleanup verdict remain
+unchanged. Independent checks confirm no owned process group, listener or
+temporary instance remains. Unknown spend stays fully reserved.
+
+The bridge and both event boundaries now accept the three closed canonical
+human-input kinds: questions, confirmations and checkbox confirmations. Each
+must be an applied pending result from assigned `request_human_input`, with
+`wake_assignee` and the original identity. Other kinds, tools, resolved results
+and prose cannot stop work. This delays the fact only; the controller retains
+wait, approval and accounting authority. The internal launch policy is named
+for human input. The native regression covers immediate shutdown for each
+kind. The bridge-only closure update retains verified dependencies and the
+interpreter; the shared account cache is unchanged. Fresh live confirmation
+proof, cloud CI and review remain required before claiming this correction
+qualified. Actual Daytona and the broader release gates remain pending.
+
+The correction passes 57 focused ordering/cancellation checks, 315 shared
+Runner regressions and seven distribution fixtures. Runner TypeScript and
+generated protocol/sidecar contracts pass. All six credential-free native
+fixtures pass in 87.507 seconds, including 38 pinned Python checks and immediate
+shutdown with a complete usage delta for each of the three human-input kinds.
+These fixtures do not establish live approval, billing or Daytona proof.

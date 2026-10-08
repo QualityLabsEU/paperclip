@@ -115,7 +115,7 @@ export function acpxProfileClientCapabilities(agent: QualifiedAcpxAgent): Record
 /** Delay this tool's display completion until its native prompt receipt is read.
  * This grants no wait or accounting authority; the controller validates both.
  */
-export function isHermesCommittedQuestionCompletion(event: AcpRuntimeEventShape, runId: string): boolean {
+export function isHermesCommittedHumanInputCompletion(event: AcpRuntimeEventShape, runId: string): boolean {
   if (event.type !== "tool_call" || event.tag !== "tool_call_update" || event.status !== "completed"
     || !(event.title === "mcp__paperclip__request_human_input"
       || event.title?.startsWith("mcp__paperclip__request_human_input: "))) return false;
@@ -134,7 +134,9 @@ export function isHermesCommittedQuestionCompletion(event: AcpRuntimeEventShape,
   }
   if (!result || "error" in result || result.disposition !== "applied") return false;
   const interaction = object(result.interaction);
-  return interaction !== null && interaction.kind === "ask_user_questions" && interaction.status === "pending"
+  return interaction !== null && typeof interaction.kind === "string"
+    && ["ask_user_questions", "request_confirmation", "request_checkbox_confirmation"].includes(interaction.kind)
+    && interaction.status === "pending"
     && interaction.continuationPolicy === "wake_assignee" && interaction.sourceRunId === runId
     && ["id", "companyId", "issueId"].every(key => typeof interaction[key] === "string" && Boolean(interaction[key]));
 }

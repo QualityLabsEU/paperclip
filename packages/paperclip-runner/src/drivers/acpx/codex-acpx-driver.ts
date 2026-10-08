@@ -1,7 +1,7 @@
 import { isProviderMode } from "../../contracts/provider-mode.js";
 import { acpxProfileActivity, type AcpxActivityAdapter, type AcpxToolEvidence } from "./profile-activity.js";
 import { requireAcpxResponseDelivery } from "./response-delivery.js";
-import { acpxProfileClientCapabilities, bindAcpxExtensionTurn, validateAcpxRichEvent, createAcpxProfileExtensionAdapter, isHermesCommittedQuestionCompletion, type AcpxExtensionInput } from "./profile-extensions.js";
+import { acpxProfileClientCapabilities, bindAcpxExtensionTurn, validateAcpxRichEvent, createAcpxProfileExtensionAdapter, isHermesCommittedHumanInputCompletion, type AcpxExtensionInput } from "./profile-extensions.js";
 import { createHash, randomBytes } from "node:crypto";
 
 import type {
@@ -1467,7 +1467,7 @@ class CodexAcpxSession implements HarnessSession {
         const projected = activity.toolExecutionId && event.type === "tool_call" && typeof event.toolCallId === "string"
           ? { ...event, toolCallId: activity.toolExecutionId(event.toolCallId) } : event;
         const normalized = normalizeMessage(normalizeToolEvent(projected));
-        if (this.#agent === "hermes" && isHermesCommittedQuestionCompletion(normalized, this.#input.runId)) {
+        if (this.#agent === "hermes" && isHermesCommittedHumanInputCompletion(normalized, this.#input.runId)) {
           if (committedQuestions.length >= 16) throw new Error("Hermes committed question limit exceeded");
           committedQuestions.push(normalized);
           continue;

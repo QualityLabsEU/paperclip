@@ -1,4 +1,4 @@
-import { isAcpxCanonicalInputMethod, isHermesCommittedQuestionCompletion } from "../acpx/profile-extensions.js";
+import { isAcpxCanonicalInputMethod, isHermesCommittedHumanInputCompletion } from "../acpx/profile-extensions.js";
 import { isSemanticToolOutcomeUnknownError } from "../../contracts/native-session-backend.js";
 import type { HarnessRuntimeRequest, PaperclipQuestionSet } from "../../contracts/harness-driver.js";
 import {
@@ -142,11 +142,11 @@ async function handleServerRequestBody(
                 result,
               },
             };
-            if (state.deferCommittedQuestionResults && tool === "request_human_input"
-              && isHermesCommittedQuestionCompletion({ type: "tool_call", tag: "tool_call_update", status: "completed",
+            if (state.deferCommittedHumanInputResults && tool === "request_human_input"
+              && isHermesCommittedHumanInputCompletion({ type: "tool_call", tag: "tool_call_update", status: "completed",
                 title: "mcp__paperclip__request_human_input", rawOutput: result }, state.runId)) {
-              if (state.committedQuestionResults.size >= 16) throw new Error("Hermes committed question result limit exceeded");
-              state.committedQuestionResults.set(callId, { payload: structuredClone(completed), turnId, itemId: callId });
+              if (state.committedHumanInputResults.size >= 16) throw new Error("Hermes committed human input result limit exceeded");
+              state.committedHumanInputResults.set(callId, { payload: structuredClone(completed), turnId, itemId: callId });
             } else {
               state.emit("item.completed", completed, { turnId, itemId: callId });
             }
