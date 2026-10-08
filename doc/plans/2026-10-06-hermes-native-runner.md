@@ -1172,3 +1172,14 @@ Cloud diagnostics now retain the candidate file manifest before rejected setup
 removes its temporary distribution. The original materializer and closure pin
 checks remain unchanged. Exact differing files must be identified and explained
 before changing any reviewed runtime pin.
+
+The diagnostic manifest establishes that only `python/lib/libpython3.12.dylib`
+differs; the other 19,248 files are identical. Explicitly re-signing a task-owned
+copy with 4 KiB pages reproduces the rejected cloud hash
+`c592b475f247692c43a3c9de87d999c888adf89456d6986722d781425a402486` and size
+18,075,920 bytes. Signing with 16 KiB pages reproduces the reviewed hash
+`076cd19d748b2409ba5d82b530b68506f07c8edb4d920ac2cfaa8c34e3311d97` and size
+17,970,928 bytes. Both signatures verify; the original runtime is untouched.
+The materializer now specifies 16 KiB signing pages explicitly. No runtime pin,
+dependency, native code, or credential boundary changes. Fresh cold cloud
+provisioning remains required to establish that the correction passes.
