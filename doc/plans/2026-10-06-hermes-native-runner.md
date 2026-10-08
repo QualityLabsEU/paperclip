@@ -1291,3 +1291,22 @@ typecheck and all 1,953 unit tests pass, with one existing skip; discovery lists
 exactly the two explicit cells. Native browser acceptance is still pending its
 live run. Controller restart, native cancellation/Stop, subscriptions, Bedrock,
 actual Daytona and the remaining original release matrix remain separate gates.
+
+The first live native-question browser campaign at
+`d35d986aab52d3c132f5dd243d39684b33d8c613` passes eight native card, reconnect,
+exact-delivery and duplicate-rejection checks. The native `clarify` tool returns
+the submitted batch. Its full attempt still fails with `candidate_failure`,
+cleanup passed, after 144.541 seconds. The production delivery guard treats the
+fixture's comma-separated negative clause as a file-output request, rejects
+`paperclip_finish`, and the provider attempts publication before the configured
+120-second native timeout. The original machine grade and unpriced per-run
+usage remain retained. A provider-key aggregate read shows $0.172703466 more
+usage; this is not a per-run settlement receipt and no budget hold is released.
+
+A credential-free reproduction confirms the guard's interpretation and that
+standalone prohibitions admit the same question-only task while preserving
+positive file-output requirements. Definition version 2 uses those explicit
+prohibitions and the current completion claim shape. An admission test calls the
+actual production file/document guard. Product E2E typecheck, all 1,954 Vitest
+tests with one existing skip, and exact discovery pass for this correction.
+The production guard is unchanged. A fresh live attempt remains required.

@@ -40,9 +40,9 @@ export const hermesNativeQuestionTask: RunnerTaskFixture = {
       { id: "targets", question: "Choose the fixture targets", choices: ["Linux", "Mac"], multi_select: true },
       { id: "notes", question: "Describe the fixture constraint" },
     ]),
-    "Wait for the actual native callback. Do not answer your own questions, guess the reviewer's selections, substitute request_human_input, ask through prose, or create a plan or files. If clarify is unavailable, report that limitation without claiming completion.",
+    "Wait for the actual native callback. Do not answer your own questions. Do not guess the reviewer's selections. Do not substitute request_human_input. Do not ask through prose. Do not create files or plans. If clarify is unavailable, report that limitation without claiming completion.",
     `After the actual native result arrives, form your summary as HERMES-NATIVE-${nonce}-<exact returned notes user_response>. The notes are supplied by the reviewer; copy that returned text verbatim.`,
-    "Call paperclip_finish once with the current completion contract revision, satisfied objective, this computed summary and no remaining work. Wait for acceptance, then emit only that exact summary as your final answer.",
+    "Use the current turn completion revision and criterion IDs. Call paperclip_finish exactly once with {reportedWorkDisposition:'done',summary:COMPUTED_SUMMARY,completionClaim:{contractRevision:CURRENT_TURN_REVISION,objectiveSatisfied:true,criteria:[{criterionId:'objective',status:'satisfied',evidenceRefs:[]}],remainingWork:[]},evidence:[],verification:[]}. COMPUTED_SUMMARY and CURRENT_TURN_REVISION are placeholders for the actual returned-text summary and current revision. Wait for acceptance, then emit only that exact summary as your final answer.",
   ].join("\n"),
   buildVisibleMarker: nonce => `HERMES-NATIVE-${nonce}-${hermesNativeAnswerText(nonce)}`,
   buildMatchers: (nonce, execution) => [

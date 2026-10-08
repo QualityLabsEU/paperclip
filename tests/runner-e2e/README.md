@@ -1607,6 +1607,13 @@ budgets, settled reported billing, pre-credential source admission and cleanup
 pipeline. It allows one attempt and records its harness source digest. Its
 browser-reconnect scope does not qualify controller restart, cancellation,
 Stop, subscriptions, or Daytona until each corresponding live check passes.
+Definition version 2 checks the question-only objective against the production
+file/document delivery guard before any live execution. The first version's
+comma-separated prohibition triggered a file-output requirement: its native
+callback/reconnect checks passed, but completion rejected and the run timed out.
+That failed attempt is retained. Standalone prohibitions clarify the same
+question-only task; the production delivery guard and positive file requirements
+remain in force.
 
 ```sh
 pnpm test:e2e:runner -- --list --suite hermes-native-interactions

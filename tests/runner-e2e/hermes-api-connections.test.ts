@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { runnerMatrix, runnerSuites, suiteDefinitionHash } from "./catalog.js";
 import { buildMatrixJobs, parseRunnerSelectors, selectRunnerExecutions } from "./selectors.js";
 import { buildRunnerE2EProcessEnvironment } from "./harness-env.js";
+import { explicitlyRequestsFileOutput, explicitlyRequestsTaskDocumentOutput } from "../../server/src/services/native-runtime/native-deliverable-feedback.js";
 import { captureHermesApiAccountOwner, captureHermesApiBudgets, captureHermesOpenRouterSettlement, gradeHermesApiConnection, isHermesOpenRouterWorkflow, isHermesConnectionSuite, HERMES_NATIVE_INTERACTION_SUITE, hasExactHermesNativeQuestionResponse, hasHermesNativeQuestionBatch, hermesNativeAnswerText } from "./hermes-api-connections.js";
 
 describe("Hermes native browser questions", () => {
@@ -47,6 +48,13 @@ describe("Hermes native browser questions", () => {
     const answer = hermesNativeAnswerText("fixture-1");
     expect(cells[0]!.task.buildPrompt("fixture-1")).not.toContain(answer);
     expect(cells[0]!.task.buildVisibleMarker("fixture-1")).toContain(answer);
+  });
+  it("admits a question-only objective through the production delivery guard without suppressing file requirements", () => {
+    const prompt = cells[0]!.task.buildPrompt("fixture-guard");
+    expect(explicitlyRequestsFileOutput(prompt)).toBe(false);
+    expect(explicitlyRequestsTaskDocumentOutput(prompt)).toBe(false);
+    expect(explicitlyRequestsFileOutput("Write a JSON file with the returned answers.")).toBe(true);
+    expect(explicitlyRequestsTaskDocumentOutput("Write a document on this task with the returned answers.")).toBe(true);
   });
   it.each(["acpx-runtime", "acpx-runtime-sidecar"])("accepts a complete native delivery from %s", adapter => {
     expect(hasHermesNativeQuestionBatch(questionSet)).toBe(true);

@@ -1219,8 +1219,9 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
     groups: ["native"], profiles: [extendedHarnessProfiles.find(profile => profile.qualificationCandidate === "hermes")!],
     environments: runnerEnvironments, tasks: [hermesNativeQuestionTask], expectedMatrixSize: 2,
     definitionMetadata: {
-      version: 1, qualification: "pending", scheduling: "explicit-only", accountMethod: "api_key", accountMode: "responsible_user",
+      version: 2, qualification: "pending", scheduling: "explicit-only", accountMethod: "api_key", accountMode: "responsible_user",
       providerTurns: 1, lifecycle: "per-turn", nativeMethod: "_hermes/ask_questions", maximumAttemptsPerCell: 1,
+      objectiveAdmission: "production-delivery-guard-question-only",
       budgetMonthlyCents: HERMES_API_CONNECTION_BUDGET_CENTS, billing: "reported-cost-and-budget-health",
       coverage: "native-question-batch-browser-reconnect-exact-delivery", sourceDigest: hermesApiConnectionDefinitionDigest,
     },
