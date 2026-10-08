@@ -1134,3 +1134,20 @@ roots; separate verified runtime admission still checks their manifests and
 bytes before credentials. A 43-test source/workflow selection passes, including
 tracked asset edits, staged/deleted files, root symlinks, neighboring unmanaged
 assets, and archive placement. These are fixture checks, not paid workflow proof.
+
+### 2026-10-08 Mac cloud qualification
+
+The native transport workflow now includes standard GitHub-hosted Mac arm64 and
+Linux amd64 jobs. Each job checks its platform, builds and stages the release
+daemon in the cloud, provisions the reviewed Python closure, and runs the same
+credential-free production transport fixtures against the exact staged binary.
+Evidence records the PR head, actual checkout and source tree, runtime closure,
+OS, Node version, fixture outcome, and tested binary checksum. The downloadable
+binary archive preserves executable permissions. Fixture logs and failed-job
+provenance remain available; an uploaded binary alone is not a qualification pass.
+
+No local Docker or Rust compilation is needed. A passing cloud Mac fixture is a
+prerequisite for current-source local browser qualification, not a substitute
+for the live provider, published installation, or actual Daytona release gates.
+Local workflow lint and all 44 focused source/security tests pass. Cloud execution
+of the new Mac job remains required; this configuration is not a passing result.

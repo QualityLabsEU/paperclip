@@ -204,8 +204,12 @@ native control, attachment, persistence, remote restoration and permission mode
 must pass its release criterion with inspectable live evidence before promotion.
 The implementation record is included in that qualification PR.
 
-The `Hermes Native Transport` PR workflow runs the same native fixtures on Linux
-amd64 with a stripped provider environment and deterministic loopback endpoints.
-Its CI artifacts include exact source/runtime provenance and fixture logs. This
-is credential-free transport and host-sandbox evidence; it does not replace
-paid-provider, browser, subscription or Daytona qualification.
+The `Hermes Native Transport` PR workflow builds and runs the same native fixtures
+on GitHub-hosted Linux amd64 and Mac arm64, with a stripped provider environment
+and deterministic loopback endpoints. Its CI artifacts include source checkout
+and tree identity, runtime closure, tool versions, fixture logs, and a checksum
+for the exact staged daemon used by the fixtures. A binary archive preserves
+executable permissions for subsequent acceptance work without local Rust builds.
+Check the recorded job and fixture outcome before using an artifact; failed jobs
+also retain evidence. This is credential-free transport and host-sandbox evidence;
+it does not replace paid-provider, browser, subscription or Daytona qualification.

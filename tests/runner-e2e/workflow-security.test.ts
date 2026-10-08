@@ -56,6 +56,34 @@ describe("public repository paid workflow security", () => {
     expect(upload).toContain("hermes-native-evidence/");
     expect(upload).not.toMatch(/hermes-fixture-home|provider-assets|runtimeDirectory/);
   });
+  it("qualifies both native targets in cloud and binds the exported binary to the tested artifact", async () => {
+    const workflow = await readFile(path.join(repositoryRoot, ".github/workflows/runner-hermes-native.yml"), "utf8");
+    const targets = workflow.slice(workflow.indexOf("    strategy:"), workflow.indexOf("    timeout-minutes:"));
+    expect(targets).toContain("fail-fast: false");
+    expect(targets.match(/- name:/gu)).toHaveLength(2);
+    expect(targets).toMatch(/name: Linux amd64\s+runner: ubuntu-22\.04\s+platform: linux\s+architecture: x64/u);
+    expect(targets).toMatch(/name: Mac arm64\s+runner: macos-15\s+platform: darwin\s+architecture: arm64/u);
+    expect(targets).toContain("runs-on: ${{ matrix.runner }}");
+    expect(workflow).toContain("process.platform !== process.env.EXPECTED_PLATFORM || process.arch !== process.env.EXPECTED_ARCHITECTURE");
+    const provision = workflow.slice(workflow.indexOf("      - name: Provision the pinned Python closure"), workflow.indexOf("      - name: Run native fixtures"));
+    expect(provision).toContain('test "$(uname -s)" = Darwin');
+    expect(provision).toContain('test "$(uname -m)" = arm64');
+    expect(provision).toContain("uv==0.12.17");
+    expect(provision).toContain("provider-assets/hermes/darwin-arm64");
+    const fixtures = workflow.slice(workflow.indexOf("      - name: Run native fixtures"), workflow.indexOf("      - name: Record source"));
+    expect(fixtures).toContain('PAPERCLIP_RUNNER_BINARY="$PWD/dist/bin/paperclip-runnerd"');
+    expect(fixtures).toContain('TMPDIR="$RUNNER_TEMP"');
+    const evidence = workflow.slice(workflow.indexOf("      - name: Record source"));
+    expect(evidence).toContain("prHeadSha: process.env.HERMES_PR_HEAD_SHA");
+    expect(evidence).toContain("['rev-parse', 'HEAD^{tree}']");
+    expect(evidence).toContain("const binaryPath = join(root, 'dist/bin/paperclip-runnerd')");
+    expect(evidence).toContain("createHash('sha256').update(binary).digest('hex')");
+    expect(evidence).toContain("runnerBinaryTarget(binary) !== platform");
+    expect(evidence).toContain("binarySha256, binaryBytes: binary?.byteLength ?? null");
+    expect(evidence).toContain("paperclip-runnerd.tar.gz");
+    expect(evidence).toContain("SHA256SUMS");
+    expect(evidence).toContain("hermes-native-${{ matrix.platform }}-${{ matrix.architecture }}");
+  });
   it("provisions selected Hermes assets before credentials and uses the same selection for image identity and packs", async () => {
     const workflow = await readFile(path.join(repositoryRoot, ".github/workflows/runner-full-stack-e2e.yml"), "utf8");
     const catalog = workflow.slice(workflow.indexOf("  catalog:"), workflow.indexOf("  daytona_image:"));

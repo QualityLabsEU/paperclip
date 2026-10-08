@@ -26,8 +26,20 @@ concurrency:
 
 jobs:
   native_transport:
-    name: Hermes native fixture (Linux amd64, no credentials)
-    runs-on: ubuntu-22.04
+    name: Hermes native fixture (${{ matrix.name }}, no credentials)
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux amd64
+            runner: ubuntu-22.04
+            platform: linux
+            architecture: x64
+          - name: Mac arm64
+            runner: macos-15
+            platform: darwin
+            architecture: arm64
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     steps:
       - name: Checkout source
@@ -51,9 +63,15 @@ jobs:
           version: 9.15.4
 
       - name: Qualify the job's provider Node interpreter
+        env:
+          EXPECTED_PLATFORM: ${{ matrix.platform }}
+          EXPECTED_ARCHITECTURE: ${{ matrix.architecture }}
         run: |
           node <<'NODE'
           const fs = require('node:fs');
+          if (process.platform !== process.env.EXPECTED_PLATFORM || process.arch !== process.env.EXPECTED_ARCHITECTURE) {
+            throw new Error('execution host does not match the qualified platform');
+          }
           const mode = fs.statSync(process.execPath).mode & 0o777;
           fs.chmodSync(process.execPath, mode & ~0o022);
           if ((fs.statSync(process.execPath).mode & 0o022) !== 0) {
@@ -78,6 +96,8 @@ jobs:
           save-if: false
 
       - name: Build verified runner and provider entrypoints
+        env:
+          CARGO_BUILD_JOBS: "2"
         run: |
           set -euo pipefail
           pnpm --filter @paperclipai/paperclip-runner build:typescript
@@ -86,9 +106,20 @@ jobs:
       - name: Provision the pinned Python closure without credentials
         run: |
           set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends python3-venv bubblewrap
-          bash tests/runner-e2e/provision-hermes-linux.sh
+          if [ "$(uname -s)" = Linux ]; then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends python3-venv bubblewrap
+            bash tests/runner-e2e/provision-hermes-linux.sh
+          else
+            test "$(uname -s)" = Darwin
+            test "$(uname -m)" = arm64
+            hermes_build_root="$(mktemp -d "$RUNNER_TEMP/hermes-build.XXXXXX")"
+            trap 'rm -rf "$hermes_build_root"' EXIT
+            python3 -m venv "$hermes_build_root"
+            "$hermes_build_root/bin/pip" install --disable-pip-version-check --no-input uv==0.12.17
+            PATH="$hermes_build_root/bin:$PATH" node packages/paperclip-runner/scripts/provision-hermes.mjs \
+              "$GITHUB_WORKSPACE/packages/paperclip-runner/provider-assets/hermes/darwin-arm64"
+          fi
 
       - name: Run native fixtures against a deterministic loopback model
         id: fixtures
@@ -97,8 +128,10 @@ jobs:
           set -euo pipefail
           mkdir -m 700 "$RUNNER_TEMP/hermes-fixture-home"
           # No paid environment, secrets, or credentials reach either fixture.
-          # The execution host must pass the real bubblewrap namespace probe.
+          # The host must pass its real bubblewrap or sandbox-exec probe.
           env -i PATH="$PATH" HOME="$RUNNER_TEMP/hermes-fixture-home" \
+            TMPDIR="$RUNNER_TEMP" \
+            PAPERCLIP_RUNNER_BINARY="$PWD/dist/bin/paperclip-runnerd" \
             PAPERCLIP_HERMES_QUALIFY=1 \
             node --test --test-concurrency=1 scripts/qualify-hermes-runtime.test.mjs \
               scripts/qualify-hermes-runnerd.test.mjs \
@@ -108,6 +141,7 @@ jobs:
         if: always()
         env:
           HERMES_FIXTURE_OUTCOME: ${{ steps.fixtures.outcome }}
+          HERMES_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/hermes-native-evidence"
@@ -121,27 +155,50 @@ jobs:
           import { join } from 'node:path';
           const root = 'packages/paperclip-runner';
           const version = JSON.parse(await readFile(join(root, 'src/providers/hermes/version.json'), 'utf8'));
-          const manifest = JSON.parse(await readFile(join(root, 'provider-assets/hermes/linux-x64/manifest.json'), 'utf8').catch(() => 'null'));
+          const platform = `${process.platform}-${process.arch}`;
+          const manifest = JSON.parse(await readFile(join(root, 'provider-assets/hermes', platform, 'manifest.json'), 'utf8').catch(() => 'null'));
+          const binaryPath = join(root, 'dist/bin/paperclip-runnerd');
+          const binary = await readFile(binaryPath).catch(() => null);
+          const binarySha256 = binary ? createHash('sha256').update(binary).digest('hex') : null;
+          if (binary) {
+            const { runnerBinaryTarget } = await import('./packages/paperclip-runner/dist/live/runner-binary.js');
+            if (runnerBinaryTarget(binary) !== platform) throw new Error('tested daemon target does not match the native job');
+          }
           const evidence = {
             qualification: 'native transport fixture only; no paid model, browser or Daytona proof',
+            prHeadSha: process.env.HERMES_PR_HEAD_SHA,
             sourceSha: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
-            platform: `${process.platform}-${process.arch}`, node: process.version,
+            sourceTreeSha: execFileSync('git', ['rev-parse', 'HEAD^{tree}'], { encoding: 'utf8' }).trim(),
+            platform, node: process.version,
+            rust: execFileSync('rustc', ['--version'], { encoding: 'utf8' }).trim(),
+            cargo: execFileSync('cargo', ['--version'], { encoding: 'utf8' }).trim(),
+            runnerCargoLockSha256: createHash('sha256').update(await readFile(join(root, 'runner/Cargo.lock'))).digest('hex'),
             fixtureOutcome: process.env.HERMES_FIXTURE_OUTCOME,
+            binarySha256, binaryBytes: binary?.byteLength ?? null,
             kernel: execFileSync('uname', ['-r'], { encoding: 'utf8' }).trim(),
-            osRelease: await readFile('/etc/os-release', 'utf8'),
+            osRelease: process.platform === 'darwin'
+              ? execFileSync('sw_vers', [], { encoding: 'utf8' }).trim()
+              : await readFile('/etc/os-release', 'utf8'),
             runtime: version,
+            python: manifest
+              ? execFileSync(join(root, 'provider-assets/hermes', platform, 'python/bin/python3.12'), ['-I', '-B', '--version'], { encoding: 'utf8' }).trim()
+              : null,
             closureSha256: manifest ? createHash('sha256').update(JSON.stringify(manifest.entries)).digest('hex') : null,
             files: manifest?.entries?.length ?? null,
             model: 'deterministic loopback fixture', credentials: 'none',
           };
           await writeFile(join(process.env.RUNNER_TEMP, 'hermes-native-evidence/provenance.json'), JSON.stringify(evidence, null, 2) + '\n');
+          if (binary) {
+            await writeFile(join(process.env.RUNNER_TEMP, 'hermes-native-evidence/SHA256SUMS'), `${binarySha256}  paperclip-runnerd\n`);
+            execFileSync('tar', ['-czf', join(process.env.RUNNER_TEMP, 'hermes-native-evidence/paperclip-runnerd.tar.gz'), '-C', join(root, 'dist/bin'), 'paperclip-runnerd']);
+          }
           NODE
 
       - name: Upload fixture evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: hermes-native-linux-amd64-${{ github.run_id }}-${{ github.run_attempt }}
+          name: hermes-native-${{ matrix.platform }}-${{ matrix.architecture }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/hermes-native-evidence/
           if-no-files-found: warn
           retention-days: 14
