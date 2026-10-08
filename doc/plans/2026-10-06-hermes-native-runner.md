@@ -46,7 +46,7 @@ because fixtures pass.
   selection, ephemeral credential staging, refresh ownership and session
   compatibility. API, subscription, custom protocol and Bedrock projections
   have focused tests. Provider authentication is still unqualified live.
-- Native execution v6 with backward parsing for v1–v5, authorized typed image
+- Native execution v7 with backward parsing for v1–v5 and recorded Hermes v6, authorized typed image
   and text attachments through TypeScript/Rust/sidecar, and bounded frames.
   Ordinary semantic-result limits remain unchanged.
 - Native incremental reasoning/text/tool events, question forms, acknowledged
@@ -1109,3 +1109,19 @@ generated protocol/sidecar contracts pass. All six credential-free native
 fixtures pass in 87.507 seconds, including 38 pinned Python checks and immediate
 shutdown with a complete usage delta for each of the three human-input kinds.
 These fixtures do not establish live approval, billing or Daytona proof.
+
+## 2026-10-08 master synchronization
+
+The three implementation branches were replayed onto master
+`5717523b9ea7a2d76efbd6eb73414de9c06c6f96`, preserving their original refs and
+qualification records. Master now owns Dot native input v6. New Hermes inputs use
+v7; the closed reader accepts recorded ACPX Hermes v6 inputs and normalizes them
+to v7. Dot v6 keeps its remote binding, empty credential path, and lack of
+workspace access. Focused contract tests cover both identities, legacy Hermes
+replay, authorized attachments, and rejection of cross-profile fields.
+
+All live results recorded above remain evidence for their original checkout and
+runner binary. Master changed Rust inputs, so the retained Mac binary cannot
+qualify the synchronized source. Fresh Rust builds run in cloud CI. A new Mac
+binary, current image, and the outstanding live matrix remain qualification
+requirements. No local Docker or Rust build is used for this synchronization.
