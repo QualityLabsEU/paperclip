@@ -10,10 +10,10 @@ describe("historical ACPX profile decoding", () => {
     }
   });
   it("decodes retained Copilot revisions and the current profile without widening other providers", () => {
-    for (const version of [1, 5, 6, 12, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32]) {
+    for (const version of [1, 5, 6, 12, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33]) {
       expect(isSupportedAcpxProfileVersion("copilot", version)).toBe(true);
     }
-    expect(isSupportedAcpxProfileVersion("copilot", 33)).toBe(false);
+    expect(isSupportedAcpxProfileVersion("copilot", 34)).toBe(false);
     for (const agent of ["cursor", "pi", "claude", "codex", "grok"]) {
       expect(isSupportedAcpxProfileVersion(agent, 23)).toBe(false);
       expect(isSupportedAcpxProfileVersion(agent, 24)).toBe(false);
