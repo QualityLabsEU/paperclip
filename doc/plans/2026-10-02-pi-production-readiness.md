@@ -38,8 +38,8 @@ The following current-cloud paths pass with runtime `b696e131`, harness
 | File edit, one exact successful command, authenticated public download, registered deliverable, finish, Done and finalized copy-back | `pi-core-0-1791470879` | 23 files; archive SHA256 `9a1c41e2ccad75f89a069ff571a3aa9f8cb94ae80c1bd397f7c886338b9a09bd`; definition 5 |
 | Three browser follow-up turns retain native session/process/workspace identity and append the earlier work | `pi-core-1-1791471072` | 23 files; archive SHA256 `d10310a2720a0d6c0636ce389fc6cc5faa887cc5c95bd697cdf0172619973609`; definition 2 |
 | Human plan approval resumes work and completion through the public product | `pi-core-3-1791472300` | 22 files; archive SHA256 `8c069ff176cb94166429901957f80e8b22c36ddf0f2047193889c4b7059aedf3`; definition 5 |
-| Same-turn browser steering and human denial stay on the original run | `pi-core-4-1791472621` | 39 files; archive SHA256 `ce1f35ceaa66e2edaed070a26d25fcb24251be72726fb4372d057ab36425e1c3`; controls definition 3 |
-| Stop during pending native permission cancels work and retires the owned runtime | `pi-core-5-1791472865` | 33 files; archive SHA256 `771f132bdc192d08a106b2b35322ade1c8baafc837949770d76ea60e571770a5`; controls definition 3 |
+| Same-turn browser steering and human denial stay on the original run | `pi-core-4-1791472621` | 39 files; archive SHA256 `ce1f35ceaa66e2edaed070a26d25fcb24251be72726fb4372d057ab36425e1c3`; controls definition 9 |
+| Stop during pending native permission cancels work and retires the owned runtime | `pi-core-5-1791472865` | 33 files; archive SHA256 `771f132bdc192d08a106b2b35322ade1c8baafc837949770d76ea60e571770a5`; controls definition 9 |
 
 Every listed canonical result and independent cleanup check passes. All retained
 files are hash-verified. These are exact-source passes; a changed runtime must
