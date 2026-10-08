@@ -289,6 +289,11 @@ export type AcpxPackageJsonResolver = (
   issuerPackageJsonPath?: string,
 ) => string;
 
+const rootedPackageResolvers = new WeakMap<AcpxPackageJsonResolver, {
+  root: string;
+  manifest: string;
+}>();
+
 export function createAcpxPackageJsonResolver(
   providerPackageRoot: string | undefined,
   providerPackageManifest?: string,
@@ -332,7 +337,7 @@ export function createAcpxPackageJsonResolver(
       "ACPX provider node_modules resolves outside the selected provider root",
     );
   }
-  return (packageName, issuerPackageJsonPath) => {
+  const resolver: AcpxPackageJsonResolver = (packageName, issuerPackageJsonPath) => {
     const canonicalIssuer =
       issuerPackageJsonPath === undefined
         ? canonicalManifest
@@ -353,6 +358,21 @@ export function createAcpxPackageJsonResolver(
     }
     return packageJsonPath;
   };
+  rootedPackageResolvers.set(resolver, { root: canonicalRoot, manifest: canonicalManifest });
+  return resolver;
+}
+
+function hasPublishedCodexPlatformDeclaration(resolver: AcpxPackageJsonResolver, runtimeManifest: string): boolean {
+  const authority = rootedPackageResolvers.get(resolver);
+  if (!authority || !pathIsInside(authority.root, runtimeManifest)) return false;
+  const selected = readResolverPackageJson(authority.manifest);
+  const runtime = readResolverPackageJson(runtimeManifest);
+  const declarations = selected.optionalDependencies as Record<string, unknown> | undefined;
+  return selected.name === "@paperclipai/server"
+    && runtime.name === QUALIFIED_CODEX_LINUX_X64_RUNTIME.runtimePackageName
+    && runtime.version === QUALIFIED_CODEX_LINUX_X64_RUNTIME.runtimePackageVersion
+    && runtime.optionalDependencies === undefined
+    && declarations?.[QUALIFIED_CODEX_LINUX_X64_RUNTIME.packageName] === QUALIFIED_CODEX_LINUX_X64_RUNTIME.dependencyDeclaration;
 }
 
 // npm installs an optional platform alias outside a bundled server graph.
@@ -368,7 +388,7 @@ function isDeclaredHoistedCodexPlatform(root: string, manifest: string, issuer: 
     if (selected.name !== "@paperclipai/server" || runtime.name !== qualified.runtimePackageName
       || runtime.version !== qualified.runtimePackageVersion
       || optional(selected)?.[packageName] !== qualified.dependencyDeclaration
-      || optional(runtime)?.[packageName] !== qualified.dependencyDeclaration) return false;
+      || (runtime.optionalDependencies !== undefined && optional(runtime)?.[packageName] !== qualified.dependencyDeclaration)) return false;
     if (realpathSync(resolvePackageJsonFromIssuer(packageName, manifest)) !== packageJsonPath) return false;
     const declaredSlot = (createRequire(manifest).resolve.paths(packageName) ?? []).some((directory) => {
       if (!pathIsInside(dirname(directory), root)) return false;
@@ -610,6 +630,14 @@ export async function verifyQualifiedAcpxInstallation(
   profile: QualifiedAcpxProfile,
   resolvePackageJson: AcpxPackageJsonResolver = defaultPackageJsonResolver,
 ): Promise<VerifiedAcpxInstallation> {
+  // Keep the selected package authority available when its bundled Codex
+  // wrapper delegates platform installation to the published server manifest.
+  if (resolvePackageJson === defaultPackageJsonResolver && process.env.PAPERCLIP_ACPX_PROVIDER_PACKAGE_ROOT !== undefined) {
+    resolvePackageJson = createAcpxPackageJsonResolver(
+      process.env.PAPERCLIP_ACPX_PROVIDER_PACKAGE_ROOT,
+      process.env.PAPERCLIP_ACPX_PROVIDER_PACKAGE_MANIFEST,
+    );
+  }
   const builtin = profile.agent === "grok";
   if (builtin && (profile.agentServerPackage !== "builtin:grok-acp" || profile.agentServerVersion !== "1" || profile.agentRuntimePackage !== "native:grok" || profile.agentRuntimeVersion !== "1.0.13")) {
     throw new Error("Grok builtin profile identity mismatch");
@@ -985,14 +1013,12 @@ async function verifyQualifiedRuntimeExecutable(input: {
   }
 
   const optionalDependencies = input.runtimePackage.optionalDependencies;
-  if (
-    typeof optionalDependencies !== "object" ||
-    optionalDependencies === null ||
-    Array.isArray(optionalDependencies) ||
-    (optionalDependencies as Record<string, unknown>)[
-      qualification.packageName
-    ] !== qualification.dependencyDeclaration
-  ) {
+  const ownDeclaration = typeof optionalDependencies === "object"
+    && optionalDependencies !== null && !Array.isArray(optionalDependencies)
+    && (optionalDependencies as Record<string, unknown>)[qualification.packageName] === qualification.dependencyDeclaration;
+  const publishedDeclaration = input.profile.agent === "codex" && optionalDependencies === undefined
+    && hasPublishedCodexPlatformDeclaration(input.resolvePackageJson, input.runtimePackageJsonPath);
+  if (!ownDeclaration && !publishedDeclaration) {
     throw new Error(
       `ACPX ${input.profile.agent} runtime omitted its verified platform executable package`,
     );

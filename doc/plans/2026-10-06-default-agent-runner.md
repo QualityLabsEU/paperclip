@@ -47,6 +47,14 @@ the prepared package as well as the added cross-platform payloads. Docker images
 still preinstall their own qualified runtime dependencies. Paperclip's own
 runner release assets remain in scope.
 
+Actual npm install testing exposed a collision with the unchanged legacy Codex
+adapter. Move platform dependency declarations from the bundled wrapper metadata
+to the published server manifest, preserving the wrapper code and patched bridge.
+The existing installer checks must prove both native and legacy version selection,
+and the runtime must still verify the selected executable's version and digest.
+Direct/source runtimes retain their own dependency declarations. A CI credential
+test fixture also reserves its ports before making its unchanged denial assertion.
+
 Reopen packaging and installed-consumer verification for this correction.
 The green checks at `36d9eb0c3c6b9ca5234432b97349dc7317cfa916` are historical;
 they do not verify the changed dependency distribution. Reuse the existing

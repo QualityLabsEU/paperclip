@@ -54,7 +54,7 @@ afterEach(async () => {
 });
 
 describe("ACPX installation integrity", () => {
-  it("admits only the declared qualified Codex platform in its npm-hoisted slot", async () => {
+  it.each([false, true])("admits only the declared qualified Codex platform in its npm-hoisted slot (published platform declaration: %s)", async (publishedDeclaration) => {
     const parent = await realpath(await mkdtemp(join(tmpdir(), "paperclip-codex-npm-hoist-")));
     temporaryDirectories.push(parent);
     const root = join(parent, "node_modules/@paperclipai/server");
@@ -63,7 +63,7 @@ describe("ACPX installation integrity", () => {
     const platform = join(platformRoot, "package.json");
     const alias = "npm:@openai/codex@0.160.0-linux-x64";
     const selected = { name: "@paperclipai/server", optionalDependencies: { "@openai/codex-linux-x64": alias } };
-    const runtimeMetadata = { name: "@openai/codex", version: "0.160.0", optionalDependencies: selected.optionalDependencies };
+    const runtimeMetadata = { name: "@openai/codex", version: "0.160.0", ...(!publishedDeclaration && { optionalDependencies: selected.optionalDependencies }) };
     const platformMetadata = { name: "@openai/codex", version: "0.160.0-linux-x64", os: ["linux"], cpu: ["x64"] };
     await mkdir(dirname(runtime), { recursive: true });
     await mkdir(platformRoot, { recursive: true });
@@ -83,6 +83,7 @@ describe("ACPX installation integrity", () => {
       [join(root, "package.json"), { ...selected, optionalDependencies: { "@openai/codex-linux-x64": "latest" } }],
       [runtime, { ...runtimeMetadata, version: "0.159.0" }],
       [runtime, { ...runtimeMetadata, optionalDependencies: {} }],
+      [runtime, { ...runtimeMetadata, optionalDependencies: { "@openai/codex-linux-x64": "latest" } }],
       [platform, { ...platformMetadata, version: "0.159.0-linux-x64" }],
       [platform, { ...platformMetadata, name: "unqualified-provider" }],
       [platform, { ...platformMetadata, cpu: ["arm64"] }],
@@ -114,7 +115,7 @@ describe("ACPX installation integrity", () => {
       writeFile(join(root, "package.json"), JSON.stringify({ name: "@paperclipai/server", optionalDependencies })),
       writeFile(join(bridge, "package.json"), JSON.stringify({ name: "@agentclientprotocol/codex-acp", version: "1.6.2", bin: "server.js" })),
       writeFile(join(bridge, "server.js"), command),
-      writeFile(join(runtime, "package.json"), JSON.stringify({ name: "@openai/codex", version: "0.160.0", optionalDependencies })),
+      writeFile(join(runtime, "package.json"), JSON.stringify({ name: "@openai/codex", version: "0.160.0" })),
       writeFile(native, "unqualified native bytes", { mode: 0o755 }),
     ]);
     const profile = { ...resolveQualifiedAcpxProfile("codex", "gpt-5.6-sol"), commandDigest: `sha256:${createHash("sha256").update(command).digest("hex")}` };
@@ -131,10 +132,21 @@ describe("ACPX installation integrity", () => {
         await mkdir(stale, { recursive: true });
         await writeFile(join(stale, "package.json"), JSON.stringify({ ...metadata, version: "0.159.0-linux-x64" }));
       }
+      // A callback without an explicit selected package authority cannot
+      // adopt the published server's platform declaration implicitly.
+      await expect(verifyQualifiedAcpxInstallation(profile, (...args) => resolver(...args))).rejects.toThrow(
+        "runtime omitted its verified platform executable package",
+      );
       await expect(verifyQualifiedAcpxInstallation(profile, resolver)).rejects.toThrow(staleBundledAlias
         ? /runtime executable package version mismatch/
         : /digest mismatch/);
+      vi.stubEnv("PAPERCLIP_ACPX_PROVIDER_PACKAGE_ROOT", root);
+      vi.stubEnv("PAPERCLIP_ACPX_PROVIDER_PACKAGE_MANIFEST", undefined);
+      await expect(verifyQualifiedAcpxInstallation(profile)).rejects.toThrow(staleBundledAlias
+        ? /runtime executable package version mismatch/
+        : /digest mismatch/);
     } finally {
+      vi.unstubAllEnvs();
       platformSpy.mockRestore();
       archSpy.mockRestore();
     }

@@ -68,7 +68,10 @@ existing legacy login path because native execution is not qualified there.
 Release packages retain the pinned Codex JavaScript dependency graph, but do not
 bundle Codex native binaries. The published manifest declares the official,
 exact-version platform packages as optional dependencies. npm installs the
-package for the consumer's operating system and architecture. Docker images
+package for the consumer's operating system and architecture. Those declarations
+belong to the published server manifest; the bundled JavaScript wrapper delegates
+platform installation there so npm can keep native and legacy versions separate.
+The wrapper code and patched ACP bridge stay unchanged. Docker images
 preinstall their qualified runtime dependencies during the image build.
 Release assembly checks the source revision and Paperclip runner binary
 identities before publication. This packaging does not change agent defaults or

@@ -93,7 +93,7 @@ const inside = (root, candidate) => {
 export function stageBundledProviderOptionalDependencies(destinationDir, publishManifest, profiles) {
   const graphRoot = resolve(destinationDir, "node_modules");
   if (realpathSync(graphRoot) !== graphRoot) throw new Error("Bundled Codex graph must be a canonical owned directory");
-  const result = structuredClone(publishManifest), remove = new Set(), optional = {};
+  const result = structuredClone(publishManifest), remove = new Set(), optional = {}, normalize = new Map();
   const profile = profiles.find(value => value.agent === "codex");
   if (profiles.length !== 1 || !profile) throw new Error("Bundled provider graph must contain its qualified Codex profile");
   const targets = ["linux-x64", "linux-arm64", "darwin-x64", "darwin-arm64", "win32-x64", "win32-arm64"];
@@ -152,9 +152,15 @@ export function stageBundledProviderOptionalDependencies(destinationDir, publish
       if (binding !== profile.agentRuntimePackage) continue;
       if (metadata.name !== profile.agentRuntimePackage || metadata.version !== profile.agentRuntimeVersion) throw new Error("Bundled Codex runtime version mismatch");
       runtimeCount++;
-      if (Object.keys(metadata.optionalDependencies ?? {}).length !== targets.length
-        || targets.some(target => metadata.optionalDependencies?.[`${profile.agentRuntimePackage}-${target}`] !== declarations[`${profile.agentRuntimePackage}-${target}`])) {
+      const delegated = metadata.optionalDependencies === undefined
+        && Object.entries(declarations).every(([name, specifier]) => result.optionalDependencies?.[name] === specifier);
+      if (!delegated && (Object.keys(metadata.optionalDependencies ?? {}).length !== targets.length
+        || targets.some(target => metadata.optionalDependencies?.[`${profile.agentRuntimePackage}-${target}`] !== declarations[`${profile.agentRuntimePackage}-${target}`]))) {
         throw new Error("Bundled Codex platform declaration is not qualified");
+      }
+      if (!delegated) {
+        const normalized = { ...metadata }; delete normalized.optionalDependencies;
+        normalize.set(resolve(packageDirectory, "package.json"), normalized);
       }
       const vendor = resolve(packageDirectory, "vendor");
       if (lstatExists(vendor)) { ownedDirectory(vendor); remove.add(vendor); }
@@ -165,7 +171,11 @@ export function stageBundledProviderOptionalDependencies(destinationDir, publish
     if (result.optionalDependencies?.[name] !== undefined && result.optionalDependencies[name] !== specifier) throw new Error(`Bundled Codex platform conflicts with published dependency: ${name}`);
     optional[name] = specifier;
   }
-  // Validate the complete graph before deleting any producer payload.
+  // A bundled wrapper's optional edges make npm treat missing platform slots
+  // as bundled too. Delegate those exact declarations to the unbundled server
+  // root so normal npm can install the correct host version beside legacy deps.
+  // Validate the complete graph before changing metadata or deleting payloads.
+  for (const [path, metadata] of normalize) writeFileSync(path, `${JSON.stringify(metadata, null, 2)}\n`);
   for (const directory of remove) rmSync(directory, { recursive: true, force: true });
   result.optionalDependencies = { ...result.optionalDependencies, ...optional };
   for (const field of ["bundleDependencies", "bundledDependencies"]) {
@@ -332,6 +342,22 @@ export function materializeDockerProviderGraph(serverDirectory, architecture, { 
     if (![packageName, profile.agentRuntimePackage].includes(installedMetadata.name) || installedMetadata.version !== packageVersion
       || !installedMetadata.os?.includes("linux") || !installedMetadata.cpu?.includes("x64")) throw new Error("Docker Codex host package identity mismatch");
     cpSync(installed, resolve(staged, "node_modules", packageName), { recursive: true, dereference: false });
+    // This private image graph is never published as an npm bundle. Its host
+    // payload is already installed, so retain the wrapper's original authority.
+    const stagedMetadata = JSON.parse(readFileSync(resolve(staged, "package.json"), "utf8"));
+    const runtimeManifest = realpathSync(createRequire(resolve(staged, "node_modules", profile.agentServerPackage, "package.json"))
+      .resolve(`${profile.agentRuntimePackage}/package.json`));
+    if (!inside(resolve(staged, "node_modules"), runtimeManifest)) throw new Error("Docker Codex runtime escapes its staged graph");
+    const runtimeMetadata = JSON.parse(readFileSync(runtimeManifest, "utf8"));
+    if (runtimeMetadata.name !== profile.agentRuntimePackage || runtimeMetadata.version !== profile.agentRuntimeVersion
+      || runtimeMetadata.optionalDependencies !== undefined) throw new Error("Docker Codex normalized runtime identity mismatch");
+    const declarations = Object.fromEntries(["linux-x64", "linux-arm64", "darwin-x64", "darwin-arm64", "win32-x64", "win32-arm64"]
+      .map(target => [`${profile.agentRuntimePackage}-${target}`, `npm:${profile.agentRuntimePackage}@${profile.agentRuntimeVersion}-${target}`]));
+    if (Object.entries(declarations).some(([name, specifier]) => stagedMetadata.optionalDependencies?.[name] !== specifier)) {
+      throw new Error("Docker Codex root platform declarations must match its qualified profile");
+    }
+    runtimeMetadata.optionalDependencies = declarations;
+    writeFileSync(runtimeManifest, `${JSON.stringify(runtimeMetadata, null, 2)}\n`);
     mergeBundledProviderGraph(staged, serverDirectory);
     return { target, materialized: true, packageName, packageVersion, installedBy: "npm", providerCalls: 0, lifecycleScriptsRun: false };
   } finally { rmSync(temporary, { recursive: true, force: true }); }

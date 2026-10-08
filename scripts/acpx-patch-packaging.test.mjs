@@ -203,7 +203,7 @@ test("published Codex bridge uses its qualified producer closure without consume
   assert.throws(() => configureBundledProviderOverrides(conflict, serverPackage.bundleDependencies, rootPackage, profileData), /conflicting producer override/);
 });
 
-test("Codex bundles retain pinned JavaScript and publish all official consumer platform aliases without native payloads", (t) => {
+test("Codex bundles retain pinned JavaScript and delegate official consumer platform aliases without native payloads", (t) => {
   const { directory, graph, bridge, runtime, producer, nested, profiles, publish } = codexFixture(t);
   const before = [bridge, runtime].map(path => readFileSync(join(path, "package.json"), "utf8"));
   const staged = stageBundledProviderOptionalDependencies(directory, publish, profiles);
@@ -214,7 +214,11 @@ test("Codex bundles retain pinned JavaScript and publish all official consumer p
   assert.equal(existsSync(nested), false, "Transitive producer platform packages must also be removed");
   assert.equal(existsSync(join(runtime, "vendor")), false, "Wrapper fallback native payload must be removed");
   assert.equal(existsSync(join(graph, "unrelated-linux-x64")), true);
-  assert.deepEqual([bridge, runtime].map(path => readFileSync(join(path, "package.json"), "utf8")), before);
+  assert.equal(readFileSync(join(bridge, "package.json"), "utf8"), before[0], "The patched bridge metadata is unchanged");
+  const originalRuntime = JSON.parse(before[1]); delete originalRuntime.optionalDependencies;
+  assert.deepEqual(JSON.parse(readFileSync(join(runtime, "package.json"), "utf8")), originalRuntime,
+    "Only the wrapper platform declarations move to the published authority root");
+  assert.equal(readFileSync(join(runtime, "bin/codex.js"), "utf8"), "// official JavaScript fixture, never executed\n");
   assert.deepEqual(stageBundledProviderOptionalDependencies(directory, staged, profiles), staged);
   writeFileSync(join(directory, "package.json"), JSON.stringify(staged));
   const packs = JSON.parse(execFileSync("npm", ["pack", "--ignore-scripts", "--offline", "--json"], {
@@ -235,9 +239,15 @@ test("Codex bundle validation fails before deleting producer binaries for altere
   writeFileSync(file, JSON.stringify({ ...original, optionalDependencies: { ...codexOptional, "@openai/codex-untrusted": "0.160.0" } }));
   assert.throws(() => stageBundledProviderOptionalDependencies(directory, publish, profiles), /not qualified/);
   writeFileSync(file, JSON.stringify(original));
+  const missing = { ...original }; delete missing.optionalDependencies;
+  writeFileSync(file, JSON.stringify(missing));
+  assert.throws(() => stageBundledProviderOptionalDependencies(directory, publish, profiles), /not qualified/,
+    "Missing wrapper declarations require the exact published-root delegation mapping");
+  writeFileSync(file, JSON.stringify(original));
   assert.throws(() => stageBundledProviderOptionalDependencies(directory, { ...publish,
     optionalDependencies: { "@openai/codex-darwin-arm64": "npm:@openai/codex@0.156.1-darwin-arm64" } }, profiles), /conflicts with published/);
   assert.equal(existsSync(producer), true);
+  assert.equal(readFileSync(file, "utf8"), JSON.stringify(original), "Conflicting root declarations must not normalize metadata");
 });
 
 test("Codex stripping rejects linked native payloads and wrapper fallback directories without touching external files", (t) => {
@@ -619,6 +629,7 @@ printf 'patched spawnEnvironment runtime\\n' > "$target/dist/runtime.js"
   }
   assert.equal(existsSync(join(destinationDir, "node_modules/@openai/codex/vendor")), false);
   assert.equal(stagedManifest.paperclipProviderArtifacts, undefined);
+  assert.equal(JSON.parse(readFileSync(join(destinationDir, "node_modules/@openai/codex/package.json"), "utf8")).optionalDependencies, undefined);
   assert.equal(stagedManifest.optionalDependencies["@esbuild/darwin-arm64"], "0.28.2");
   assert.equal(stagedManifest.optionalDependencies["@esbuild/darwin-x64"], "0.28.2");
   assert.equal(existsSync(join(destinationDir, "node_modules/@esbuild/linux-x64")), false);
@@ -662,6 +673,9 @@ printf 'patched spawnEnvironment runtime\\n' > "$target/dist/runtime.js"
       FAKE_CALL_LOG: callLog, FAKE_NATIVE_ARTIFACTS: fixtureArtifacts }, encoding: "utf8" }).trim().split("\n").at(-1));
   assert.equal(imageReceipt.materialized, true);
   assert.equal(imageReceipt.installedBy, "npm");
+  const imageRuntime = join(imageServer, "node_modules/.paperclip-native-providers/node_modules/@openai/codex/package.json");
+  assert.deepEqual(JSON.parse(readFileSync(imageRuntime, "utf8")).optionalDependencies, codexOptional,
+    "The private Docker graph restores only the validated original Codex declarations after host installation");
   assert.equal(imageReceipt.packageName, "@openai/codex-linux-x64");
   assert.equal(imageReceipt.packageVersion, "0.160.0-linux-x64");
   const imageGraph = join(imageServer, "node_modules/.paperclip-native-providers/node_modules");
