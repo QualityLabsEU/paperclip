@@ -48,8 +48,10 @@ their protocol, endpoint and authentication choice. Bedrock retains its managed
 region and bearer credential. These are implemented projections, not evidence
 that each provider/method has passed live qualification.
 
-Native execution input v6 carries a value-free connection fingerprint and
-optional authorized attachments. Existing v1–v5 inputs remain replayable. The
+Native execution input v7 carries a value-free connection fingerprint and
+optional authorized attachments. Existing v1–v5 inputs and Dot v6 remain
+replayable. The reader also accepts recorded Hermes v6 qualification inputs
+when their provider is explicitly ACPX Hermes, normalizing them to v7. The
 fingerprint covers the selected account epoch and routing configuration; token
 refresh does not replace a compatible session. Model, account, endpoint and
 permission changes use the existing replacement rules.

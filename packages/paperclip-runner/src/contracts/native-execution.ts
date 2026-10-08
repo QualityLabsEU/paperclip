@@ -406,7 +406,7 @@ export function parseNativeExecutionInput(value: unknown): NativeExecutionInput 
   ], "input");
   if (!isV2 && input.schema !== NATIVE_EXECUTION_INPUT_SCHEMA_V1) {
     throw new NativeExecutionInputError(
-      `input.schema must be ${NATIVE_EXECUTION_INPUT_SCHEMA_V1}, ${NATIVE_EXECUTION_INPUT_SCHEMA_V2}, ${NATIVE_EXECUTION_INPUT_SCHEMA_V3}, ${NATIVE_EXECUTION_INPUT_SCHEMA_V4}, or ${NATIVE_EXECUTION_INPUT_SCHEMA}`,
+      `input.schema must be ${NATIVE_EXECUTION_INPUT_SCHEMA_V1}, ${NATIVE_EXECUTION_INPUT_SCHEMA_V2}, ${NATIVE_EXECUTION_INPUT_SCHEMA_V3}, ${NATIVE_EXECUTION_INPUT_SCHEMA_V4}, ${NATIVE_EXECUTION_INPUT_SCHEMA}, ${NATIVE_EXECUTION_INPUT_SCHEMA_V6}, or ${NATIVE_EXECUTION_INPUT_SCHEMA_V7}`,
     );
   }
 
@@ -640,7 +640,7 @@ export function parseNativeExecutionInput(value: unknown): NativeExecutionInput 
     if (provider.mode !== undefined && !isProviderMode(provider.mode)) {
       throw new NativeExecutionInputError("input.provider.mode must be a bounded nonempty provider mode identifier");
     }
-    if (provider.agent === "hermes" && (!isV6 || typeof provider.connectionFingerprint !== "string" || !/^[a-f0-9]{64}$/.test(provider.connectionFingerprint))) throw new NativeExecutionInputError("Hermes requires a v6 input with a pinned connection fingerprint");
+    if (provider.agent === "hermes" && (!isV6 || typeof provider.connectionFingerprint !== "string" || !/^[a-f0-9]{64}$/.test(provider.connectionFingerprint))) throw new NativeExecutionInputError("Hermes requires a v7 input with a pinned connection fingerprint");
     if (provider.connectionFingerprint !== undefined && provider.agent !== "hermes") throw new NativeExecutionInputError("Only Hermes accepts a connection fingerprint");
     if (providerModel === null) {
       throw new NativeExecutionInputError("input.provider.model is required for acpx");

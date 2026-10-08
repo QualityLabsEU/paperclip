@@ -82,7 +82,7 @@ test('pinned Hermes streams images and semantic completion through Rust PRP and 
   const resolved = resolveQualifiedAcpxProfile('hermes', 'hermes-fixture');
   const profile = Object.fromEntries(['driverKind', 'protocolVersion', 'acpxVersion', 'agent', 'agentProfileVersion', 'agentServerPackage', 'agentServerVersion', 'agentRuntimePackage', 'agentRuntimeVersion', 'commandDigest'].map(key => [key, resolved[key]]));
   const input = parseNativeExecutionInput({
-    schema: 'paperclip.native-execution-input.v6', executionMode: 'default', planningContext: null,
+    schema: 'paperclip.native-execution-input.v7', executionMode: 'default', planningContext: null,
     binding: { runId: identity.runId, companyId: identity.companyId, issueId: identity.issueId, agentId: identity.agentId, executionWorkspaceId: 'hermes-prp-workspace' },
     session: { normalizedSessionId: identity.sessionId, driverKind: 'acpx_runtime', protocolVersion: 1 },
     task: { identifier: 'HERMES-PRP', title: 'Native transport fixture', description: null, prompt: 'Complete the native transport fixture.', workMode: 'standard' },

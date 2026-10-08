@@ -109,7 +109,7 @@ export interface BuildNativeExecutionInput {
 }
 export function buildNativeExecutionInput(input: BuildNativeExecutionInput & { provider: "openai_dot"; dotBinding: DotBindingSnapshot }): NativeExecutionInputV6;
 export function buildNativeExecutionInput(input: BuildNativeExecutionInput & { provider: "acpx"; acpxAgent: "hermes" }): NativeExecutionInputV7;
-export function buildNativeExecutionInput(input: BuildNativeExecutionInput & { provider?: Exclude<BuildNativeExecutionInput["provider"], "openai_dot"> }): NativeExecutionInputV5;
+export function buildNativeExecutionInput(input: BuildNativeExecutionInput & { provider?: Exclude<BuildNativeExecutionInput["provider"], "openai_dot">; acpxAgent?: Exclude<NativeAcpxAgent, "hermes"> }): NativeExecutionInputV5;
 export function buildNativeExecutionInput(input: BuildNativeExecutionInput): NativeExecutionInputV5 | NativeExecutionInputV6 | NativeExecutionInputV7;
 export function buildNativeExecutionInput(input: BuildNativeExecutionInput): NativeExecutionInputV5 | NativeExecutionInputV6 | NativeExecutionInputV7 {
   if (input.issue.workMode !== "standard" && input.issue.workMode !== "planning" && input.issue.workMode !== "ask") {
