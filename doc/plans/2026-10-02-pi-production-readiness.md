@@ -330,9 +330,17 @@ Pi closure takes 4.22 seconds to copy and 1.38 seconds to delete. Cancellation
 during an admitted read drains and deletes the partial copy in 0.28 seconds; no
 snapshots remain. This free repair-engine proof does not qualify packaged Runner
 bytes. The source must be rebuilt and admitted before another paid attempt. All
-33 release cases remain required.
+33 release cases belonged to the earlier full-release scope.
 
-| Release gate | Current evidence |
+### Historical profile-18 release-gate snapshot
+
+The table below preserves the older full-release scope and its source-specific
+evidence. It is historical. The current delivery gates are the seven passing
+profile-19 daily-use and human-control paths in the opening section. Accounting
+and the wider acceptance matrix are deferred; the old package/image freeze and
+remaining case counts below are not current delivery instructions.
+
+| Historical release gate | Historical evidence |
 | --- | --- |
 | Offline cancellation proof | Profile 18 passes all 49 Pi ACP protocol checks. Historical profile 17 remains decodable; exact launch requires profile 18. |
 | Snapshot retirement proof | Shipping source `06a3d9739` passes 271 focused TypeScript tests, one existing skip, 16 Rust transport tests and Runner typecheck. Actual installed native copy, cancellation and deletion probes pass. All six actual live attempts have independent zero-snapshot cleanup. Installed real Pi RPC recovery and pending cancellation also pass with exact-child retirement. |
