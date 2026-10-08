@@ -5601,6 +5601,48 @@ describe("native terminal-turn accounting", () => {
     }
   });
 
+  it.each(["shutdown", "duplicate", "wrong_biller"] as const)("journals closed Hermes usage after governed input yield (%s)", async scenario => {
+    const previous = process.env.PAPERCLIP_RUNNER_ACPX_QUALIFICATION;
+    process.env.PAPERCLIP_RUNNER_ACPX_QUALIFICATION = JSON.stringify([{ agent: "hermes", model: "fixture-model" }]);
+    try {
+      const onUsage = vi.fn(async (_receipt: import("@paperclipai/adapter-utils").AdapterUsageCheckpoint) => {});
+      const usage: PrpEvent = {
+        schema: "paperclip.prp.event.v1", schemaVersion: 1, sourceKind: "runner", sourceInstanceId: "provider",
+        sourceEventId: "provider:shutdown-usage:2", sourceSeq: 2, priority: 1,
+        runId: execution.binding.runId, normalizedSessionId: "session", turnId: "turn",
+        eventType: "item.completed", emittedAt: new Date().toISOString(),
+        payload: { kind: "usage", usage: {
+          runDelta: { inputTokens: 31, outputTokens: 7, providerCostUsd: 0.25 }, runDeltaComplete: true,
+          billing: { schema: "paperclip.usage.billing/v1", source: "provider_reported", biller: "openrouter", currency: "USD",
+            complete: true, requestCount: 1, reportedRequestCount: 1, amountUsd: 0.25, amountUsdExact: "0.250000000" },
+        } },
+      };
+      state.execute.mockReset().mockImplementationOnce(async () => {
+        await accountingEvents.committed!({ ...usage, sourceSeq: 1, sourceEventId: "provider:shutdown-usage:1",
+          eventType: "turn.started", payload: {} });
+        if (scenario === "duplicate") await accountingEvents.committed!(usage);
+        return { result: { summary: "Waiting for an answer", reportedWorkDisposition: "yielded" },
+          terminal: { runTerminalState: "succeeded", reportedWorkDisposition: "yielded" }, turnId: "turn",
+          normalizedSessionId: "session", providerSessionId: null, driverKind: "test", driverVersion: "1",
+          nativeEventCount: 1, highestContiguousSourceSeq: 1,
+          // An unrelated attachment/session snapshot must not supply billing.
+          usage: { runDelta: { inputTokens: 999, outputTokens: 999, providerCostUsd: 999 } },
+          settledUsageEvent: usage };
+      });
+      const result = await executePaperclipNativeSession({ db: leaseDb(), runnerInstanceId: "runner", onUsage,
+        billingIdentity: { provider: "deepseek", biller: scenario === "wrong_biller" ? "anthropic" : "openrouter", billingType: "metered_api" },
+        execution: { ...execution, provider: { kind: "acpx", agent: "hermes", model: "fixture-model", permissionMode: "approve-all", profile: QUALIFIED_ACPX_PROFILES.hermes } } as NativeExecutionInput });
+      expect(result).toMatchObject({ usageComplete: true, costUsd: scenario === "wrong_biller" ? null : 0.25,
+        costStatus: scenario === "wrong_biller" ? "unpriced" : "reported", usage: { inputTokens: 31, outputTokens: 7 } });
+      expect(onUsage.mock.calls.at(-1)![0]).toMatchObject({ costUsd: result.costUsd, complete: true });
+      if (scenario === "wrong_biller") expect(result.settlement).toBeUndefined();
+      else expect(result.settlement).toMatchObject({ providerWorkEnded: true, usageComplete: true });
+    } finally {
+      if (previous === undefined) delete process.env.PAPERCLIP_RUNNER_ACPX_QUALIFICATION;
+      else process.env.PAPERCLIP_RUNNER_ACPX_QUALIFICATION = previous;
+    }
+  });
+
   it.each(["committed", "duplicate"] as const)("saves completed usage before returning to result commitment (%s)", async mode => {
     const onUsage = vi.fn(async (_receipt: import("@paperclipai/adapter-utils").AdapterUsageCheckpoint) => {});
     const failure = new Error("stopped after result commit, before executor returns");

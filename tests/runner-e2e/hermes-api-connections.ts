@@ -10,6 +10,10 @@ const present = (value: unknown) => typeof value === "string" && value.trim().le
 export const HERMES_API_CONNECTION_BUDGET_CENTS = 200;
 export const isHermesConnectionSuite = (suiteId: string) =>
   suiteId === "hermes-api-connections" || suiteId === "hermes-bedrock-connections";
+export const isHermesOpenRouterWorkflow = (execution: {
+  suite: { id: string }; profile: { qualificationCandidate?: string; credential: string };
+}) => execution.suite.id === "extended-harnesses"
+  && execution.profile.qualificationCandidate === "hermes" && execution.profile.credential === "OPENROUTER_API_KEY";
 export const hermesBedrockConnectionChoice = {
   credential: "AWS_BEARER_TOKEN_BEDROCK",
   model: "us.anthropic.claude-haiku-4-5-20251001-v1:0",

@@ -109,6 +109,7 @@ export class CodexSessionState {
   sourceSequence: number;
   activeTurnId: string | null;
   usageSnapshot: Record<string, unknown> | null = null;
+  lastAccountingUsageEvent: PrpEvent | null = null;
   codexUsageBaseline: CodexUsageBaseline | null = null;
   result: PrpStructuredRunResult | null = null;
   resultFingerprint: string | null = null;
@@ -435,7 +436,7 @@ export class CodexSessionState {
     refs: { turnId?: string; itemId?: string } = {},
   ): void {
     const sourceSeq = ++this.sourceSequence;
-    this.eventQueue.push({
+    const event: PrpEvent = {
       schema: "paperclip.prp.event.v1",
       sourceEventId: `${this.runnerInstanceId}:${this.runId}:${sourceSeq}`,
       sourceSeq,
@@ -450,7 +451,12 @@ export class CodexSessionState {
       priority: eventType === "run.result.proposed" ? 0 : 1,
       emittedAt: this.now().toISOString(),
       payload,
-    });
+    };
+    // A governed wait revokes accepted output before transport shutdown.
+    // Keep only its usage fact independently of the closed transcript queue.
+    if (eventType === "item.completed" && payload.kind === "usage")
+      this.lastAccountingUsageEvent = structuredClone(event);
+    this.eventQueue.push(event);
   }
 
   emitGoalCapabilities(): void {

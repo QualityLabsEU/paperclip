@@ -765,6 +765,7 @@ class CodexAcpxSession implements HarnessSession {
     turnId: string;
   } | null = null;
   #usage: Record<string, unknown> | null = null;
+  #accountingUsageEvent: PrpEvent | null = null;
   #assistantText = "";
   #assistantMessageId: string | null = null;
   #closed = false;
@@ -885,6 +886,7 @@ class CodexAcpxSession implements HarnessSession {
     }
     const turnId = `turn-${randomBytes(12).toString("hex")}`;
     this.#activeTurnId = turnId;
+    this.#accountingUsageEvent = null;
     this.#turnControls.begin(turnId);
     this.#assistantText = "";
     this.#assistantMessageId = null;
@@ -1249,6 +1251,10 @@ class CodexAcpxSession implements HarnessSession {
 
   async usage(): Promise<Record<string, unknown> | null> {
     return this.#usage === null ? null : structuredClone(this.#usage);
+  }
+
+  async accountingUsageEvent(): Promise<PrpEvent | null> {
+    return this.#accountingUsageEvent === null ? null : structuredClone(this.#accountingUsageEvent);
   }
 
   async transcript(): Promise<HarnessTranscriptSnapshot> {
@@ -2000,6 +2006,8 @@ class CodexAcpxSession implements HarnessSession {
       return false;
     }
     this.#sourceSequence = sourceSeq;
+    if (eventType === "item.completed" && payload.kind === "usage")
+      this.#accountingUsageEvent = structuredClone(event);
     this.#retainTranscriptEvent(event);
     return true;
   }

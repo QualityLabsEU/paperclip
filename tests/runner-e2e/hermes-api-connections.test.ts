@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { runnerMatrix, runnerSuites, suiteDefinitionHash } from "./catalog.js";
 import { buildMatrixJobs, parseRunnerSelectors, selectRunnerExecutions } from "./selectors.js";
 import { buildRunnerE2EProcessEnvironment } from "./harness-env.js";
-import { captureHermesApiAccountOwner, captureHermesApiBudgets, captureHermesOpenRouterSettlement, gradeHermesApiConnection } from "./hermes-api-connections.js";
+import { captureHermesApiAccountOwner, captureHermesApiBudgets, captureHermesOpenRouterSettlement, gradeHermesApiConnection, isHermesOpenRouterWorkflow } from "./hermes-api-connections.js";
 
 describe("Hermes managed API connection qualification", () => {
   const suite = runnerSuites.find(s => s.id === "hermes-api-connections")!;
@@ -14,6 +14,16 @@ describe("Hermes managed API connection qualification", () => {
     expect(cells.every(e => e.task.id === "hello-complete" && e.task.expectedRunCount === 1 && e.task.automaticRetryPolicy === "single_attempt")).toBe(true);
     expect(suite.definitionMetadata).toMatchObject({ qualification: "pending", accountMethod: "api_key", accountMode: "responsible_user", coverage: "api-account-native-completion-only", budgetMonthlyCents: 200, maximumAttemptsPerCell: 1 });
     expect(selectRunnerExecutions(parseRunnerSelectors(["--all"])).some(e => e.suite.id === suite.id)).toBe(false);
+  });
+  it("requires accounting for every Hermes OpenRouter product workflow without widening other provider cells", () => {
+    const workflow = runnerMatrix.filter(isHermesOpenRouterWorkflow);
+    expect(workflow).toHaveLength(10);
+    expect(new Set(workflow.map(cell => cell.task.id))).toEqual(new Set([
+      "hello-complete", "question-resume-complete", "plan-approve-complete", "structured-question-restart-resume", "file-edit-validate",
+    ]));
+    expect(workflow.every(cell => cell.suite.definitionMetadata?.hermesBudgetMonthlyCents === 200)).toBe(true);
+    expect(isHermesOpenRouterWorkflow({ ...workflow[0]!, profile: { ...workflow[0]!.profile, qualificationCandidate: "cursor" } })).toBe(false);
+    expect(isHermesOpenRouterWorkflow({ ...workflow[0]!, profile: { ...workflow[0]!.profile, credential: "ANTHROPIC_API_KEY" } })).toBe(false);
   });
   it.each([
     ["XAI_API_KEY", "grok-4.7"],

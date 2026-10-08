@@ -1210,7 +1210,8 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
     groups: ["native"], profiles: extendedHarnessProfiles, environments: runnerEnvironments,
     tasks: [...openRouterBreadthTasks, localIntegrityTasks[1]!, extendedHarnessFileTask],
     expectedMatrixSize: 40,
-    definitionMetadata: { version: 1, qualification: "pending", scheduling: "explicit-only", admission: "host-exact-candidate-and-model", authenticatedDiscoveryDate: "2026-09-28" },
+    definitionMetadata: { version: 2, qualification: "pending", scheduling: "explicit-only", admission: "host-exact-candidate-and-model", authenticatedDiscoveryDate: "2026-09-28",
+      hermesBilling: "per-run-reported-cost-and-budget-health", hermesBudgetMonthlyCents: 200, hermesSettlementSourceDigest: hermesApiConnectionDefinitionDigest },
   },
   {
     id: "hermes-api-connections", label: "Hermes managed API connections", manualOnly: true,

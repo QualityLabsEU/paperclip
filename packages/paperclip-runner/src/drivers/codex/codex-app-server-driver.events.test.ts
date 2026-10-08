@@ -350,6 +350,32 @@ describe("Codex app-server Codex driver", () => {
     });
   });
 
+  it("retains bound usage from shutdown after the transcript consumer relinquishes ownership", async () => {
+    const transport = new FakeCodexTransport();
+    const session = await makeDriver([transport]).openSession({
+      runId: "run-shutdown-usage", normalizedSessionId: "normalized-shutdown-usage", workingDirectory: WORKSPACE,
+    });
+    const turn = await session.startTurn({ message: { role: "user", text: "Ask a question." } });
+    transport.push("turn/started", { threadId: "thread-1", turn: { id: turn.turnId, status: "inProgress" } });
+    const originalClose = transport.close.bind(transport);
+    transport.close = async () => {
+      transport.push("thread/tokenUsage/updated", { threadId: "thread-1", turnId: turn.turnId,
+        tokenUsage: { total: { inputTokens: 31, outputTokens: 7 } } });
+      transport.push("turn/completed", { threadId: "thread-1", turn: { id: turn.turnId, status: "interrupted", items: [] } });
+      await originalClose();
+    };
+    // The public event queue closes before transport.close emits its suffix.
+    expect(await session.accountingUsageEvent?.()).toBeNull();
+    await session.close({ reason: "durable question yield" });
+    const receipt = await session.accountingUsageEvent?.();
+    expect(receipt).toMatchObject({ sourceKind: "runner", runId: "run-shutdown-usage",
+      normalizedSessionId: "normalized-shutdown-usage", turnId: turn.turnId,
+      eventType: "item.completed", payload: { kind: "usage", usage: { runDelta: { inputTokens: 31, outputTokens: 7 }, runDeltaComplete: true } } });
+    expect(validatePrpEvent(receipt).ok).toBe(true);
+    receipt!.payload.kind = "mutated";
+    expect((await session.accountingUsageEvent?.())?.payload.kind).toBe("usage");
+  });
+
   it("normalizes provider message and reasoning phases onto every streamed item event", async () => {
     const transport = new FakeCodexTransport();
     const session = await makeDriver([transport]).openSession({

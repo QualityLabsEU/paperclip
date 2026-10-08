@@ -127,6 +127,14 @@ extend the task's execution deadline.
   are incomplete. Missing token totals stay unknown, incomplete charges stay
   unpriced, and the existing controller finalization and capture-failure fences
   still control acknowledgement. Older incomplete receipts remain pending.
+- A governed input wait can stop transcript consumption before native usage
+  arrives. For Hermes's per-turn lifecycle, the runtime joins the authenticated
+  notification mapper after owned shutdown and reads its last usage event.
+  This read-only fact must match the original runner, session, run and turn,
+  then enters the existing durable accounting journal. It cannot reopen tool
+  authority. Missing, invalid or timed-out reads do not invent usage or cost.
+  This optional execution-result field carries an existing v1 PRP event; it
+  does not change persisted execution inputs or the Rust wire contract.
 - Paperclip owns task titles. Hermes keeps its immediate derived session title;
   its paid background title upgrade is disabled in the managed profile so it
   cannot start inference after a turn's usage receipt has closed.

@@ -954,3 +954,46 @@ The adapter failure-path suite passes all 31 tests after the build completes;
 the earlier concurrent-build test failures remain in their original log.
 This is offline and deterministic proof. A new clean-head live campaign and
 fresh CI/review remain required. Docker is confirmed stopped.
+
+### 2026-10-08 input-yield accounting correction
+
+At `d968e1d002`, all three stacked PRs passed their checks and fresh review.
+The Linux native transport job passed against the current closure in 99.743
+seconds using a deterministic loopback model. That is Linux transport proof,
+not execution in Daytona or paid-provider qualification.
+
+The Mac OpenRouter completion campaign passed 15 checks in 44.170 seconds,
+with cleanup and reported settled cost of `$0.000645327`. The question retry
+passed six behavioral checks in 91.154 seconds, but its first, input-yield run
+had pending unpriced accounting. Its continuation emitted a reported complete
+`$0.002543140` wire receipt. The original results remain unchanged; the question
+behavioral pass does not qualify billing. An earlier question attempt failed
+during provider startup and remains a separate infrastructure failure.
+
+The transcript consumer revokes tool authority at a governed wait before
+Hermes emits terminal usage. The per-turn runtime now reads the last bound
+usage fact after owned shutdown and notification drainage, then journals it
+through the existing accounting path. Session baselines cannot substitute.
+Wrong session/run/turn/source, missing receipts and timed-out reads retain
+unknown accounting. The versioned extended-harnesses oracle now requires every
+run in a Hermes/OpenRouter workflow to settle reported cost with healthy
+200-cent budgets before cleanup.
+
+Focused proof passes 258 Runner tests, including shutdown retry and bounded
+read failure, and 613 native-executor tests, including duplicate receipts and
+wrong biller, plus five durable-journal tests and 64 Codex lifecycle/recovery
+regression tests. Product E2E oracle tests pass 88 checks. The production
+Rust/image fixture passes in 17.850 seconds using the retained binary. The
+Python and ACPX/control/restore fixture passes in 110.567 seconds. Runner,
+server and Product E2E TypeScript and generated contracts pass. These use a
+deterministic loopback model. Clean-head live question accounting, full cloud
+checks and review remain required for this correction. A full API-authority
+guard implicitly rebuilt Rust before hitting a loopback sandbox error. Its
+failed log is retained, and 828,116,992 bytes of unused cache were removed.
+All subsequent full build guards run in cloud CI. Docker remains stopped.
+The 29 authenticated Runner API integration tests pass separately with the
+retained binary and loopback access. Package-boundary checks pass. Optional
+forbidden/tracked-import guards still report existing violations in unchanged
+files; their failed logs are retained. These are not passing guard results.
+The total reserved amount remains `$23` against the `$25` cap; unknown spend
+retains its reservation. Hermes remains pending qualification.

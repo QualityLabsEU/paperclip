@@ -8859,6 +8859,20 @@ async function executePaperclipNativeSessionWithinScope(
     // session.usage() may be an attachment baseline, a partial report, or a
     // cumulative session total. Use the observed run delta, and require its
     // turn to match the terminal result before certifying it as complete.
+    if (input.execution.provider.kind === "acpx" && input.execution.provider.agent === "hermes"
+        && native.settledUsageEvent) {
+      // The runtime returns this fact only after the exact per-turn close.
+      // Persist through the existing durable receipt path; never infer price
+      // from a session usage baseline or reopen the terminated event consumer.
+      const event = native.settledUsageEvent;
+      if (!validatePrpEvent(event).ok || event.runId !== input.execution.binding.runId
+          || event.normalizedSessionId !== native.normalizedSessionId
+          || event.turnId !== native.turnId || event.eventType !== "item.completed"
+          || event.sourceKind !== "runner" || event.payload.kind !== "usage") {
+        throw new Error("native shutdown accounting event binding mismatch");
+      }
+      await observeAccountingEvent(event);
+    }
     if (turnAccounting) {
       const snapshot = turnAccounting.finish(native.turnId);
       observedAccountingUsage = snapshot.usage;

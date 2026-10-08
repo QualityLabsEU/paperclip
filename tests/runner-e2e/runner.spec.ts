@@ -1,5 +1,5 @@
 import { runPlanTaskFlow } from "./plan-task-flow.js";
-import { captureHermesApiAccountOwner, captureHermesApiBudgets, captureHermesOpenRouterSettlement, gradeHermesApiConnection, isHermesConnectionSuite } from "./hermes-api-connections.js";
+import { captureHermesApiAccountOwner, captureHermesApiBudgets, captureHermesOpenRouterSettlement, gradeHermesApiConnection, isHermesConnectionSuite, isHermesOpenRouterWorkflow } from "./hermes-api-connections.js";
 import { assertNativeCompletionSelection, NATIVE_COMPLETION_PREFLIGHT_ENV, verifyNativeCompletionPreflight } from "./native-completion-admission.js";
 import { assertNativeInstructionSelection, verifyNativeInstructionPreflight, NATIVE_INSTRUCTION_PREFLIGHT_ENV, NATIVE_INSTRUCTION_SUITE, NATIVE_INSTRUCTION_DEFAULT_SHA256 } from "./native-instruction-consolidation.js";
 import { captureNativeDefault, gradeNativeDefault, nativeCompletionWorkspaceDigest } from "./native-completion-defaults.js";
@@ -906,6 +906,11 @@ for (const execution of executions) {
         const receipt = await captureHermesApiBudgets({ api, companyId: fixtures.company.id, agentId: fixtures.agent.id });
         await writeSanitizedJson(snapshotsDir, "hermes-api-budgets-before-execution.json", receipt, secrets);
         if (!receipt.checks.every(check => check.passed)) throw new Error("Hermes API budgets failed admission before task creation");
+      }
+      if (isHermesOpenRouterWorkflow(execution)) {
+        const receipt = await captureHermesApiBudgets({ api, companyId: fixtures.company.id, agentId: fixtures.agent.id });
+        await writeSanitizedJson(snapshotsDir, "hermes-workflow-budgets-before-execution.json", receipt, secrets);
+        if (!receipt.checks.every(check => check.passed)) throw new Error("Hermes workflow budgets failed admission before task creation");
       }
       if (["native-completion", NATIVE_INSTRUCTION_SUITE].includes(execution.suite.id)) {
         const receipt = await captureNativeDefault({ api, agentId: fixtures.agent.id, companyId: fixtures.company.id });
@@ -2707,6 +2712,7 @@ for (const execution of executions) {
         {
           issue,
           run,
+          runs: selectedRuns,
           comments: terminal.comments,
           interactions: terminal.interactions,
           planLifecycleEvidence,
@@ -2915,6 +2921,22 @@ for (const execution of executions) {
         matcherResults.push(...checks.map(check => ({ matcher: { kind: "json_path" as const, path: `hermesConnection.${check.id}`, expected: true }, passed: check.passed, detail: "Public native run metadata must match the selected managed API account and exact model." })));
         await writeSanitizedJson(snapshotsDir, "hermes-api-connection.json", { checks }, secrets);
         expect(checks.every(check => check.passed), "Hermes managed account and native model attribution").toBe(true);
+      }
+      if (isHermesOpenRouterWorkflow(execution)) {
+        let receipts: Array<Awaited<ReturnType<typeof captureHermesOpenRouterSettlement>>> = [];
+        try {
+          await expect.poll(async () => {
+            receipts = await Promise.all(selectedRuns.map(run => captureHermesOpenRouterSettlement({ api,
+              companyId: fixtures!.company.id, agentId: fixtures!.agent.id, issueId: issue!.id, runId: run.id })));
+            return receipts.length === selectedRuns.length && receipts.every(receipt => receipt.checks.every(check => check.passed));
+          }, { timeout: 30_000, message: "Every Hermes workflow run must settle reported cost and retain budget health before cleanup" }).toBe(true);
+        } finally {
+          await writeSanitizedJson(snapshotsDir, "hermes-openrouter-workflow-settlement.json", { receipts }, secrets);
+          matcherResults.push(...receipts.flatMap((receipt, index) => receipt.checks.map(check => ({
+            matcher: { kind: "json_path" as const, path: `hermesBilling.run${index + 1}.${check.id}`, expected: true }, passed: check.passed,
+            detail: "Each public run, including input-yield runs, must have settled reported cost and healthy budgets before teardown.",
+          }))));
+        }
       }
       if (runsCompletionUpdateProbe(execution) && credentials.OPENAI_API_KEY) {
         const qualification = completionQualityStatus(completionQuality);

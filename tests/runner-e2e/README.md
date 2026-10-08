@@ -1478,6 +1478,13 @@ need their separate conformance/qualification evidence.
 Hermes uses an existing managed OpenRouter connection through the ordinary
 connection fixture. It remains pending qualification; the native transport
 fixture does not substitute for these browser and remote workflows.
+The ten Hermes/OpenRouter cells set 200-cent company and agent budgets and
+verify them through public reads before creating work. Before cleanup, every
+run, including a run that yields for human input, must have settled reported
+wire cost and healthy budget state. The per-run receipts are retained in
+`hermes-openrouter-workflow-settlement.json`; `api-state.json` also retains all
+selected runs. Extended-harnesses definition version 2 records this stronger
+oracle. Older behavioral passes do not prove this accounting requirement.
 
 Before loading local credentials, the launcher records the checked-out controller
 SHA and ref for every selected Hermes candidate, including API and Bedrock cells.

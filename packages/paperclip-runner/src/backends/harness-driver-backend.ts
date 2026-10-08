@@ -873,6 +873,10 @@ class HarnessNativeSession implements NativeSession {
     return this.#withProtocolIntegrity(() => this.#session.usage?.() ?? null);
   }
 
+  async accountingUsageEvent(): Promise<PrpEvent | null> {
+    return this.#withProtocolIntegrity(() => this.#session.accountingUsageEvent?.() ?? null);
+  }
+
   close(input: { reason: string }) {
     return this.#session.close(input);
   }

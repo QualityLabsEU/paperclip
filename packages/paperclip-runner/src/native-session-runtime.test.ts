@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { QUALIFIED_ACPX_PROFILES } from "./drivers/acpx/qualified-profiles.js";
 import { describe, expect, it, vi } from "vitest";
 
 import type { ControlPlanePort } from "./contracts/control-plane-port.js";
@@ -225,6 +226,64 @@ function highestContiguous(events: PrpEvent[]): number {
 }
 
 describe("executeNativeSession recovery", () => {
+  it.each(["bound", "close_retry", "unavailable", "wrong_run", "wrong_session", "wrong_turn", "wrong_source", "tool_event", "invalid", "warm", "legacy_provider"])(
+    "reads a passive shutdown receipt only for its closed Hermes turn (%s)", async scenario => {
+      let closed = false;
+      const usageEvent: PrpEvent = runnerEvent(3, "item.completed", { kind: "usage", usage: {
+        runDelta: { inputTokens: 31, outputTokens: 7, providerCostUsd: 0.25 }, runDeltaComplete: true,
+      } });
+      if (scenario === "wrong_run") usageEvent.runId = "another-run";
+      if (scenario === "wrong_session") usageEvent.normalizedSessionId = "another-session";
+      if (scenario === "wrong_turn") usageEvent.turnId = "another-turn";
+      if (scenario === "wrong_source") usageEvent.sourceInstanceId = "another-source";
+      if (scenario === "tool_event") usageEvent.payload.kind = "dynamicToolCall";
+      if (scenario === "invalid") usageEvent.schemaVersion = 99;
+      const read = vi.fn(async () => { expect(closed).toBe(true);
+        if (scenario === "unavailable") return await new Promise<never>(() => undefined);
+        return usageEvent; });
+      let closeAttempts = 0;
+      const session: NativeSession = {
+        identity: () => identity,
+        async capabilities() { return { resume: true, typedEvents: true, steering: false, interruption: true, structuredResult: true }; },
+        async *events() { yield runnerEvent(1, "turn.started"); yield runnerEvent(2, "turn.completed"); },
+        async startTurn() { return { turnId: "turn-recovery" }; },
+        async result() { return { result: yieldedResult, terminal: { ...terminal, reportedWorkDisposition: "yielded" }, turnId: "turn-recovery" }; },
+        async snapshot() { return { backendKind: "mock", sessionId: "driver-recovery", identity,
+          providerSessionId: "provider-recovery", cursor: null, activeTurnId: null, pendingRuntimeRequests: [], lineage: [] }; },
+        async close() {
+          if (scenario === "close_retry" && ++closeAttempts === 1) throw new Error("First shutdown acknowledgement lost");
+          closed = true;
+        },
+        accountingUsageEvent: read,
+      };
+      const appended: PrpEvent[] = [];
+      const enrichmentFailures: string[] = [];
+      const prepared = preparedInput();
+      const { qualificationStatus: _status, permissionPolicy: _policy, ...profile } = QUALIFIED_ACPX_PROFILES.hermes;
+      const outcome = await executeNativeSession({
+        input: scenario === "legacy_provider" ? input : { ...prepared, schema: "paperclip.native-execution-input.v6",
+          session: { ...prepared.session, driverKind: "acpx_runtime" },
+          provider: { kind: "acpx", agent: "hermes", model: "fixture-model", permissionMode: "approve-all", profile, connectionFingerprint: "1".repeat(64) } },
+        requireSessionCloseBeforeReturn: true, keepSessionOpen: scenario === "warm",
+        backend: { async descriptor() { return { kind: "mock", name: "shutdown-usage", version: "1", capabilities: await session.capabilities(),
+          runtimeContextCapabilities: { instructions: "native", skills: "native", mcp: "native" } }; },
+          async openSession() { return session; } },
+        controlPlane: { async openRun() {}, async checkpointSession() {},
+          async appendEvent(event) { appended.push(event); return { cursor: event.sourceSeq, highestContiguousSourceSeq: event.sourceSeq, disposition: "committed" }; },
+          async replayEvents() { return { events: [], highestContiguousSourceSeq: 0 }; }, async completeRun() {} },
+        runnerInstanceId: "runner-recovery", controlPlaneInstanceId: "control-recovery",
+        onPostCompletionEnrichmentFailure: async ({ stage }) => { enrichmentFailures.push(stage); },
+      });
+      if (["bound", "close_retry"].includes(scenario)) expect(outcome.settledUsageEvent).toEqual(usageEvent);
+      else expect(outcome.settledUsageEvent).toBeUndefined();
+      expect(appended.some(event => event.payload.kind === "usage")).toBe(false);
+      if (["warm", "legacy_provider"].includes(scenario)) expect(read).not.toHaveBeenCalled();
+      else expect(read).toHaveBeenCalledOnce();
+      if (!["bound", "close_retry", "warm", "legacy_provider"].includes(scenario)) expect(enrichmentFailures).toEqual(["usage"]);
+      if (scenario === "warm") await session.close({ reason: "test cleanup" });
+    },
+  );
+
   it.each([
     { label: "continues a restart-lost Codex turn", allowed: true, error: { code: "provider_turn_lost_on_restore", recoverable: true } },
     { label: "requires the control plane restart claim", allowed: false, error: { code: "provider_turn_lost_on_restore", recoverable: true } },

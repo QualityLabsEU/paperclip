@@ -1,5 +1,5 @@
 import { NATIVE_COMPLETION_BUDGET_CENTS } from "./native-completion-defaults.js";
-import { HERMES_API_CONNECTION_BUDGET_CENTS, isHermesConnectionSuite } from "./hermes-api-connections.js";
+import { HERMES_API_CONNECTION_BUDGET_CENTS, isHermesConnectionSuite, isHermesOpenRouterWorkflow } from "./hermes-api-connections.js";
 import type { AiConnectionBinding } from "../../packages/shared/src/ai-connections.js";
 import path from "node:path";
 import { installedReleaseDaytonaPlugin } from "./installed-release.js";
@@ -137,7 +137,7 @@ export async function setupLiveFixtures(input: {
       return api.post<CompanyRecord>("/api/companies", {
         name: `Runner E2E ${execution.id} ${input.executionNonce}`,
         description: "Ephemeral paid full-stack runner acceptance fixture",
-        budgetMonthlyCents: isHermesConnectionSuite(execution.suite.id) ? HERMES_API_CONNECTION_BUDGET_CENTS
+        budgetMonthlyCents: isHermesConnectionSuite(execution.suite.id) || isHermesOpenRouterWorkflow(execution) ? HERMES_API_CONNECTION_BUDGET_CENTS
           : ["native-completion", "native-instruction-consolidation", "native-connection-guidance"].includes(execution.suite.id)
           || (execution.suite.id === "everyday-workflows" && ["hire-reuse", "delegate-feedback"].includes(execution.task.id)) ? NATIVE_COMPLETION_BUDGET_CENTS
           : execution.suite.id === "task-titles" ? TASK_TITLE_BUDGET_CENTS
@@ -306,7 +306,7 @@ export async function setupLiveFixtures(input: {
         || (execution.suite.id === "everyday-workflows" && ["hire-reuse", "delegate-feedback"].includes(execution.task.id))) {
         agent.budgetMonthlyCents = 1_000;
       }
-      if (isHermesConnectionSuite(execution.suite.id)) agent.budgetMonthlyCents = HERMES_API_CONNECTION_BUDGET_CENTS;
+      if (isHermesConnectionSuite(execution.suite.id) || isHermesOpenRouterWorkflow(execution)) agent.budgetMonthlyCents = HERMES_API_CONNECTION_BUDGET_CENTS;
       if (managedHiring) {
         const account = value<ManagedAccountFixture>(resolved, "ai-connection");
         const config = agent.adapterConfig as Record<string, unknown>;

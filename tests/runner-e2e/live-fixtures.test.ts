@@ -97,6 +97,7 @@ describe("live runner fixtures", () => {
     ["runner-acpx-hermes-api-openai", "hermes-api-connections", "hello-complete"],
     ["runner-acpx-hermes-api-xai", "hermes-api-connections", "hello-complete"],
     ["runner-acpx-hermes-api-google", "hermes-api-connections", "hello-complete"],
+    ["runner-acpx-hermes", "extended-harnesses", "question-resume-complete"],
     ["runner-acpx-hermes-bedrock", "hermes-bedrock-connections", "hello-complete"],
     ["runner-codex", "hiring-templates", "hire-coder-template-reuse"],
     ["runner-acpx-claude", "hiring-templates", "hire-coder-template-reuse"],
@@ -161,7 +162,7 @@ describe("live runner fixtures", () => {
         },
       });
       expect(connected).toBe(true);
-      if (["hermes-api-connections", "hermes-bedrock-connections"].includes(suite)) {
+      if (["hermes-api-connections", "hermes-bedrock-connections"].includes(suite) || profile === "runner-acpx-hermes") {
         expect(companyBody.budgetMonthlyCents).toBe(200);
         expect(agentBody.budgetMonthlyCents).toBe(200);
       }
