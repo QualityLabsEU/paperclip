@@ -24,23 +24,25 @@ export function pendingCopilotContextPermission(events: readonly unknown[], comp
   if (!permissions.length) return undefined; // Native notice can follow the durable card.
   if (permissions.length !== 1 || !permissions[0]!.declineOffered) throw new Error("Context fixture permission is ambiguous");
   const native = permissions[0]!, group = notices.filter(n => n.toolCallId === native.toolCallId);
+  const tools = group.filter(n => n.stage === "tool");
   const started = group.filter(n => n.stage === "tool" && n.status === "pending" && n.operation === (discovery ? undefined : "read"));
   const canonical = rows.filter(r => r.eventType === "tool.execution.started" && record(record(record(r.payload).prpEvent).payload).executionId === native.toolCallId);
-  if (started.length !== 1 || canonical.length !== 1 || group.length !== 2
+  if (tools.length > 1 || started.length !== tools.length || canonical.length > 1 || group.length !== permissions.length + tools.length
     || group.some(n => n.target !== undefined || n.commandSha256 !== undefined || n.shellId !== undefined || n.readTargetSha256 !== undefined)) throw new Error("Context fixture lacks an exact read-only origin");
-  for (const r of [row, canonical[0]!, ...group.map(n => rows.find(r => r.seq === n.seq)!)]) {
+  for (const r of [row, ...canonical, ...group.map(n => rows.find(r => r.seq === n.seq)!)]) {
     const e = record(record(r?.payload).prpEvent);
     if (r?.companyId !== companyId || r.runId !== runId || e.schema !== "paperclip.prp.event.v1" || e.sourceKind !== "runner"
       || e.eventType !== r.eventType || e.runId !== runId || e.turnId !== native.turnId || e.normalizedSessionId !== frame.normalizedSessionId
       || e.sourceInstanceId !== frame.sourceInstanceId || r.sourceInstanceId !== e.sourceInstanceId || r.sourceSeq !== e.sourceSeq
       || !Number.isSafeInteger(e.sourceSeq) || !Number.isSafeInteger(r.seq)) throw new Error("Context fixture has foreign durable evidence");
   }
-  const tool = record(record(record(canonical[0]!.payload).prpEvent).payload);
-  if (tool.name !== `paperclip-${operationId}` || tool.operation !== (discovery ? "search" : "read") || tool.readOnly !== true || tool.target !== null || tool.transport !== "builtin"
-    || request.schema !== "paperclip.runtime_request.v2" || request.type !== "permission" || request.status !== "pending"
+  if (request.schema !== "paperclip.runtime_request.v2" || request.type !== "permission" || request.status !== "pending"
     || request.requestKind !== "permission_approval" || request.turnId !== native.turnId || request.method !== "session/request_permission"
     || !(hasAcpxNativeOrigin(request.origin, "copilot", "session/request_permission") || hasAcpxNativeOrigin(request.origin, "acpx", "session/request_permission"))
     || !Array.isArray(request.choices) || !["accept", "decline"].every(key => request.choices.some((c: Row) => c.key === key))) throw new Error("Context fixture cannot approve this card");
+  const tool = record(record(record(canonical[0]?.payload).prpEvent).payload);
+  if (canonical.length && (tool.name !== `paperclip-${operationId}` || tool.operation !== (discovery ? "search" : "read") || tool.readOnly !== true || tool.target !== null || tool.transport !== "builtin")) throw new Error("Context fixture cannot approve this card");
+  if (!started.length || !canonical.length) return undefined; // Await matching origin rows within the existing deadline.
   if (discovery && !isCopilotContextDiscoveryProgress(tool.progress)) throw new Error("Context discovery must search only for the required context tool");
   return { operationId, runId, requestId: native.requestId!, turnId: native.turnId, toolCallId: native.toolCallId };
 }

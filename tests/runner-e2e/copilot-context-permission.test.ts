@@ -31,7 +31,7 @@ describe("Copilot initial context permission fixture", () => {
     const { rows } = JSON.parse(await readFile(new URL("./fixtures/copilot-context-permission-v15.json", import.meta.url), "utf8"));
     const company = rows[0].companyId, run = rows[0].runId;
     expect(pendingCopilotContextPermission(rows, company, run)).toMatchObject({ runId: run, requestId: expect.any(String), toolCallId: expect.any(String) });
-    for (const kind of ["mutation", "other-prompt", "not-read-only", "foreign-company", "foreign-source", "foreign-bridge", "missing-decline", "duplicate", "unknown-target", "missing-read-origin"]) {
+    for (const kind of ["mutation", "other-prompt", "not-read-only", "foreign-company", "foreign-source", "foreign-bridge", "missing-decline", "duplicate", "unknown-target"]) {
       const bad = structuredClone(rows);
       const payload = (r: any) => r.payload.prpEvent.payload;
       if (kind === "mutation") payload(bad[2]).operation = "edit";
@@ -43,9 +43,23 @@ describe("Copilot initial context permission fixture", () => {
       if (kind === "missing-decline") payload(bad[0]).request.choices = [{ key: "accept" }];
       if (kind === "duplicate") bad.push(structuredClone(bad[0]));
       if (kind === "unknown-target") payload(bad[1]).details.push({ name: "target", value: "other.txt" });
-      if (kind === "missing-read-origin") bad.splice(2, 1);
       expect(() => pendingCopilotContextPermission(bad, company, run), kind).toThrow();
     }
+  });
+  it("waits for permission-first tool rows without approving incomplete evidence", async () => {
+    const { rows } = JSON.parse(await readFile(new URL("./fixtures/copilot-context-permission-v15.json", import.meta.url), "utf8"));
+    const company = rows[0].companyId, run = rows[0].runId;
+    for (const missing of [[1], [2], [1, 2]]) {
+      const partial = rows.filter((_: unknown, index: number) => !missing.includes(index));
+      expect(pendingCopilotContextPermission(partial, company, run)).toBeUndefined();
+    }
+    const foreign = structuredClone(rows).filter((_: unknown, index: number) => index !== 2);
+    foreign[0].companyId = "foreign";
+    expect(() => pendingCopilotContextPermission(foreign, company, run)).toThrow("foreign durable evidence");
+    const mutation = structuredClone(rows).filter((_: unknown, index: number) => index !== 1);
+    mutation.find((row: any) => row.eventType === "tool.execution.started").payload.prpEvent.payload.readOnly = false;
+    expect(() => pendingCopilotContextPermission(mutation, company, run)).toThrow("cannot approve this card");
+    expect(pendingCopilotContextPermission(rows, company, run)).toMatchObject({ operationId: "get_task_context" });
   });
   it("waits for the native notice when the durable request arrives first", async () => {
     const { rows } = JSON.parse(await readFile(new URL("./fixtures/copilot-context-permission-v15.json", import.meta.url), "utf8"));
