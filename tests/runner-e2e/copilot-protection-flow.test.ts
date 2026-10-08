@@ -26,7 +26,7 @@ function projected(name: string, target = "copilot-denied-nonce.txt") {
 describe("Copilot Product protection integration", () => {
   it("registers two explicit cases on both environments with honest terminal expectations", () => {
     const cells = runnerMatrix.filter(x => x.suite.id === "copilot-protection");
-    expect(cells[0]!.suite.definitionMetadata).toMatchObject({ version: 20, titleCreation: "explicit-search-composer", taskBinding: "browser-creation-response-id", naturalSettlementObservationMs: 2000, denialTerminal: "correlated-provider-settlement-and-audited-run-stop",
+    expect(cells[0]!.suite.definitionMetadata).toMatchObject({ version: 22, titleCreation: "explicit-search-composer", taskBinding: "browser-creation-response-id", naturalSettlementObservationMs: 2000, denialTerminal: "correlated-provider-settlement-and-audited-run-stop",
       denialSettlementEvidence: "paperclip.e2e.copilot-denial-settlement.v4", activeTurnCancellation: "not-implied-by-completed-provider-turn" });
     expect(suiteDefinitionHash(cells[0]!.suite)).not.toBe(suiteDefinitionHash({ ...cells[0]!.suite, definitionMetadata: { version: 2 } }));
     expect(cells).toHaveLength(4); expect(new Set(cells.map(c => c.environment.id))).toEqual(new Set(["local", "daytona"]));
@@ -154,6 +154,22 @@ describe("Copilot Product protection integration", () => {
       expect(proof.commandExit?.code).toBe(0); expect(proof.commandExit!.observedAtMs).toBeLessThanOrEqual(observedAtMs);
       expect(await readFile(join(root, "marker"), "utf8")).toBe(fixture.marker);
     } finally { await fixture.close(); await rm(root, { recursive: true, force: true }); }
+  });
+  it("holds only the owned child until the controller releases the observed finish boundary", async () => {
+    const root = await mkdtemp("/tmp/pc-copilot-gated-command-"); const fixture = await createAttachedCommandFixture(join(root, "marker"), 100, true);
+    const client = spawn("/bin/sh", ["-c", fixture.command], { stdio: "ignore" });
+    const exited = new Promise<number | null>(resolve => client.once("exit", resolve));
+    try {
+      const deadline = Date.now() + 3000;
+      while (!fixture.snapshot().childPid && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 20));
+      await new Promise(resolve => setTimeout(resolve, 200));
+      expect(fixture.snapshot()).toMatchObject({ connections: 1, failure: null, commandExit: null, childGone: false, clientGone: false });
+      const release = fixture.releaseAfterFinish();
+      expect(() => fixture.releaseAfterFinish()).toThrow();
+      expect(await exited).toBe(0);
+      expect(fixture.snapshot().commandExit!.observedAtMs).toBeGreaterThan(release.releasedAtMs);
+      expect(await readFile(join(root, "marker"), "utf8")).toBe(fixture.marker);
+    } finally { await fixture.close(); await exited; await rm(root, { recursive: true, force: true }); }
   });
 });
 

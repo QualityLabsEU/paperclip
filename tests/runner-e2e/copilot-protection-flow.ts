@@ -7,7 +7,7 @@ import { pollUntil, type RunnerApi } from "./api.js";
 import { collectRunEvents } from "./run-observations.js";
 import { createTaskThroughUi } from "./user-actions.js";
 import { approveCopilotContextThroughUi, prepareCopilotContext } from "./copilot-context-permission.js";
-import { copilotFinishAttemptBeforeCommandExit, onlyCopilotAttachedOperations, readCopilotSemanticCompletion } from "./copilot-semantic-evidence.js";
+import { copilotAttachedFinishReady, copilotFinishAttemptBeforeCommandExit, onlyCopilotAttachedOperations, readCopilotSemanticCompletion } from "./copilot-semantic-evidence.js";
 import { copilotOrigin, readCopilotToolEvidence, type CopilotToolNotice } from "./copilot-evidence.js";
 import { createAttachedCommandFixture, createDeniedTargetFixture, bindDeniedTargetPrompt, exists, observeRunProcesses, retainRunProcessIdentity } from "./copilot-local-fixtures.js";
 import { gradeCopilotAttachedSettlement, gradeCopilotDeniedWrite, type CopilotDeniedWriteEvidence } from "./copilot-protection-cases.js";
@@ -125,7 +125,7 @@ export async function runCopilotProtectionFlow(input: {
   };
   const watcher = localTarget?.watcher;
   const markerPath = join(workspacePath, `copilot-settlement-${nonce}.txt`);
-  const command = deny || remote ? undefined : await createAttachedCommandFixture(markerPath);
+  const command = deny || remote ? undefined : await createAttachedCommandFixture(markerPath, 4000, true);
   const exactCommand = () => remoteCommand ?? command;
   let watchReceipt: CopilotDeniedWriteEvidence["mutationObservation"] | undefined;
   const check = (id: string, passed: boolean, detail: string) => { checks.push({ id, passed, detail }); expect(passed, detail).toBe(true); };
@@ -246,6 +246,15 @@ export async function runCopilotProtectionFlow(input: {
       check("negative-task-unfinished", issue.status === "in_progress", "The negative test does not claim the task is done");
       check("no-extra-native-operation", countCopilotToolOrigins(copilotActionNotices(notices, notices.find(n => n.stage === "tool" && n.toolCallId === request.toolCallId)!, remoteFixture ? { actionFile: remoteFixture.actionFile, events: runEvents } : undefined, runEvents)) === 1, "No alternate native edit, command or delegated operation is permitted");
     } else {
+      let finishOrigin: CopilotToolNotice | undefined;
+      await wait("native finish while the exact attached command is live", state => {
+        const origins = state.notices.filter(n => n.stage === "tool" && n.status === "pending" && n.operation === "execute" && n.commandSha256 === exactCommand()!.commandSha256);
+        if (origins.length !== 1) return false;
+        finishOrigin = copilotAttachedFinishReady(state.notices, origins[0]!);
+        return Boolean(finishOrigin);
+      });
+      const release = remote ? await remoteFixture!.releaseAttachedCommand() : command!.releaseAfterFinish();
+      await input.evidence("copilot-attached-release.json", { finishOrigin, release, source: "fixture controller releases only its own finite child after the actual native finish receipt; final grading unchanged" });
       await wait("attached command and task settlement", s => s.issue.status === "done" && s.runs[0]?.status === "succeeded" && (remote || (s.processes.captured && s.processes.live.length === 0)));
       // Preserve independent local proof before any command matcher can abort.
       const { external: localExternal, markerMatches: localMarkerMatches, afterCleanupMarkerMatches: localAfterCleanupMarkerMatches, matched } =

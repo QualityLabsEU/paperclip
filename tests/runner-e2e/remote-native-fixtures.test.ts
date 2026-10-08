@@ -460,7 +460,7 @@ describe("actual generated observer state machine", () => {
     };
     const net = { createServer(fn: (socket: any) => void) { handlers.push(fn); return server; } };
     const context = {
-      require(name: string) { if (name === "node:fs") return fs; if (name === "node:net") return net; if (name === "node:child_process") return { spawn: vi.fn(() => { const child = Object.assign(new EventEmitter(), { pid: 88, exitCode: null, signalCode: null, kill: vi.fn() }); children.push(child); return child; }) }; if (name === "node:path") return { join: (...paths: string[]) => paths.join("/"), dirname: (path: string) => path.slice(0, path.lastIndexOf("/")), basename: (path: string) => path.slice(path.lastIndexOf("/") + 1) }; if (name === "node:crypto") return { createHash }; throw new Error("unexpected module"); },
+      require(name: string) { if (name === "node:fs") return fs; if (name === "node:net") return net; if (name === "node:child_process") return { spawn: vi.fn((_node: string, argv: string[]) => { const child = Object.assign(new EventEmitter(), { argv, stdin: { end: vi.fn() }, pid: 88, exitCode: null, signalCode: null, kill: vi.fn() }); children.push(child); return child; }) }; if (name === "node:path") return { join: (...paths: string[]) => paths.join("/"), dirname: (path: string) => path.slice(0, path.lastIndexOf("/")), basename: (path: string) => path.slice(path.lastIndexOf("/") + 1) }; if (name === "node:crypto") return { createHash }; throw new Error("unexpected module"); },
       process: { argv: ["node", `${config.root}/observer.cjs`, Buffer.from(JSON.stringify(config)).toString("base64")], execPath: "/node", hrtime: { bigint: () => 12345n }, exit: vi.fn(), kill: vi.fn() },
       Buffer, __filename: `${config.root}/observer.cjs`,
       setInterval(fn: () => void) { intervals.push(fn); return 1; }, clearInterval: vi.fn(),
@@ -709,6 +709,25 @@ describe("actual generated observer state machine", () => {
     o.handlers[1]!(socket); socket.emit("data", Buffer.from(JSON.stringify({ nonce: config.clientNonce, pid: 23 }) + "\n"));
     expect(o.children).toHaveLength(0); expect(socket.destroy).toHaveBeenCalled();
     expect(o.request("snapshot")[0].result.attached.failure).toBe("client_rejected");
+  });
+  it("releases a gated remote child once, through the owned controller after publication", async () => {
+    const o = await observerHarness(); o.request("snapshot");
+    const config = { marker: "result.txt", markerText: "settled", delayMs: 100, clientNonce: "test-gated-client", waitForFinishAttempt: true };
+    const fixture = o.request("attached", config)[0].result;
+    expect(o.request("release-attached")[0].ok).toBe(false);
+    o.request("publish", { path: o.config.actionFile, text: "exact action" });
+    expect(o.request("release-attached")[0].ok).toBe(false);
+    o.proc.set(23, { ppid: 21, group: 21, ticks: "300", argv: ["/node", fixture.clientScript, fixture.clientSocket, config.clientNonce] });
+    const replies: any[] = [], socket = Object.assign(new EventEmitter(), { end: (value: string) => replies.push(JSON.parse(value)), destroy: vi.fn() });
+    o.handlers[1]!(socket); socket.emit("data", Buffer.from(JSON.stringify({ nonce: config.clientNonce, pid: 23 }) + "\n"));
+    expect(o.children).toHaveLength(1); expect(o.files.has("/workspace/result.txt")).toBe(false);
+    expect(() => new Script(o.children[0].argv[1])).not.toThrow();
+    expect(o.request("release-attached")[0]).toMatchObject({ ok: true, result: { releasedAtMs: expect.any(Number) } });
+    expect(o.children[0].stdin.end).toHaveBeenCalledExactlyOnceWith("release\n");
+    expect(o.request("release-attached")[0].ok).toBe(false);
+    expect(replies).toHaveLength(0);
+    o.children[0].exitCode = 0; o.children[0].emit("exit", 0, null);
+    expect(replies).toEqual([{ code: 0 }]); expect(o.files.get("/workspace/result.txt")?.toString()).toBe("settled");
   });
   it("scopes actual runtime symlinks/state churn out while retaining sentinel and sibling coverage", async () => {
     const o = await observerHarness();

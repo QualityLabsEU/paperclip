@@ -158,3 +158,15 @@ export function copilotFinishAttemptBeforeCommandExit(proof: CopilotSemanticComp
   return Number.isFinite(proof.nativePendingObservedAtMs) && proof.nativePendingObservedAtMs >= 0
     && Number.isFinite(commandExitAtMs) && commandExitAtMs > proof.nativePendingObservedAtMs;
 }
+
+/** Fixture scheduling only; final grading still verifies the complete durable receipt and acceptance. */
+export function copilotAttachedFinishReady(notices: readonly CopilotToolNotice[], command: CopilotToolNotice): CopilotToolNotice | undefined {
+  const matches = notices.filter(n => n.semanticOperationId === "paperclip_finish" && n.semanticOutcome === "returned" && n.stage === "tool" && n.status === "completed"
+    && n.runId === command.runId && n.turnId === command.turnId && n.sessionId === command.sessionId && n.seq > command.seq);
+  if (!matches.length) return undefined;
+  if (matches.length !== 1) throw new Error("Attached fixture has ambiguous finish receipts");
+  const finish = matches[0]!, pending = notices.filter(n => n.toolCallId === finish.toolCallId && n.stage === "tool" && n.status === "pending"
+    && n.runId === command.runId && n.turnId === command.turnId && n.sessionId === command.sessionId && n.seq > command.seq && n.seq < finish.seq);
+  if (pending.length !== 1) throw new Error("Attached fixture lacks the matching finish origin");
+  return pending[0];
+}

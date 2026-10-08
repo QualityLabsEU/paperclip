@@ -31,7 +31,7 @@ function relative(value: string): string {
 }
 // Only closed diagnostic enums cross the remote boundary; SDK errors and output
 // are never retained. These diagnostics explain failed evidence, not qualification.
-const RPC_PHASES = ["runtime-ready", "install", "wait", "close", "arm", "publish", "snapshot", "attached", "read", "inject-loss", "provider-death"] as const;
+const RPC_PHASES = ["runtime-ready", "install", "wait", "close", "arm", "publish", "snapshot", "attached", "release-attached", "read", "inject-loss", "provider-death"] as const;
 const RPC_CODES = ["node_identity", "sentinel_type", "sentinel", "cwd", "runtime_root_identity", "runtime_binary_identity", "proc_bound", "ambiguous_run_root", "runtime_not_ready", "runtime_identity_changed", "invalid_proc_identity", "invalid_proc_fields", "socket_error", "socket_timeout", "output_bound", "rpc_deadline", "remote_unknown", "transport_failure", "invalid_response", "readiness_deadline", "terminal_evidence_incomplete"] as const;
 type RpcPhase = typeof RPC_PHASES[number];
 type RpcCode = typeof RPC_CODES[number];
@@ -172,14 +172,15 @@ const server=net.createServer(socket=>{sockets.add(socket);socket.on('close',()=
  else if(r.op==='arm'){if(waiters.size)result={armed:true,sealed};else{armWaiters.add(socket);socket.on('close',()=>armWaiters.delete(socket));return}}
  else if(r.op==='publish'){if(sealed||publishedHash||r.path!==config.actionFile||typeof r.text!=='string'||Buffer.byteLength(r.text)>16384)throw Error('publish_bound');const p=path.join(config.binding.remoteCwd,config.actionFile);if(fs.realpathSync(path.dirname(p))!==path.dirname(p))throw Error('publish_parent');publishedHash=hash(r.text);try{fs.writeFileSync(p,r.text,{flag:'wx',mode:0o600})}catch(e){publishedHash=null;throw e}result={path:r.path,sha256:publishedHash,published:true};}
  else if(r.op==='read'){const p=r.path==='@cross-root'&&config.crossRoot?path.join(config.root,'cross-root-target'):path.join(config.binding.remoteCwd,r.path);if(r.path!=='@cross-root'&&!config.targets.includes(r.path))throw Error('unregistered_read');const status=file(p);if(status.absent)throw Error('file_missing');result={...status,base64:readSafe(p).toString('base64')};}
- else if(r.op==='attached'){if(attached||sealed)throw Error('attached_already_configured');if(!config.targets.includes(r.marker)||!Number.isInteger(r.delayMs)||r.delayMs<100||r.delayMs>8000)throw Error('attached_bounds');
-  attached={connections:0,failure:null,commandExit:null,markerWrittenAtMs:null,markerWrittenMonotonicNs:null,clientExitedAtMs:null,clientExitedMonotonicNs:null};
+ else if(r.op==='attached'){if(attached||sealed)throw Error('attached_already_configured');if(!config.targets.includes(r.marker)||!Number.isInteger(r.delayMs)||r.delayMs<100||r.delayMs>8000||(r.waitForFinishAttempt!==undefined&&typeof r.waitForFinishAttempt!=='boolean'))throw Error('attached_bounds');
+  attached={waitForFinishAttempt:r.waitForFinishAttempt===true,releasedAtMs:null,connections:0,failure:null,commandExit:null,markerWrittenAtMs:null,markerWrittenMonotonicNs:null,clientExitedAtMs:null,clientExitedMonotonicNs:null};
   const clientScript=path.join(config.root,'client.cjs'),clientSocket=path.join(config.root,'attached.sock');
-  fs.writeFileSync(clientScript,ATTACHED_CLIENT,{flag:'wx',mode:0o400});
+  fs.writeFileSync(clientScript,ATTACHED_CLIENT.replace('15000',attached.waitForFinishAttempt?'45000':'15000'),{flag:'wx',mode:0o400});
   const srv=net.createServer(s=>{sockets.add(s);s.on('close',()=>sockets.delete(s));s.on('error',()=>{});let b='';s.on('data',d=>{b+=d;if(b.length>1024){s.destroy();attached.failure='client_bound';return}if(!b.includes('\n'))return;s.removeAllListeners('data');try{const q=JSON.parse(b);attached.connections++;if(q.nonce!==r.clientNonce||attached.connections!==1)throw Error('client_identity');client=identity(q.pid);sample();if(journal.get(q.pid)?.startTicks!==client.startTicks)throw Error('client_not_owned_by_run');const argv=fs.readFileSync('/proc/'+q.pid+'/cmdline').toString().split('\0');if(argv[1]!==clientScript||argv[2]!==clientSocket||argv[3]!==r.clientNonce)throw Error('client_argv');
-   child=cp.spawn(process.execPath,['-e','setTimeout(()=>process.exit(0),'+r.delayMs+')'],{env:{PATH:'/usr/bin:/bin'},stdio:'ignore'});child.once('error',()=>{attached.failure='child_start';s.destroy()});child.once('exit',(code,signal)=>{attached.commandExit={code:code??-1,observedAtMs:Date.now(),observedMonotonicNs:process.hrtime.bigint().toString()};if(code!==0||signal){attached.failure='child_failed';s.destroy();return}try{fs.writeFileSync(path.join(config.binding.remoteCwd,r.marker),r.markerText,{flag:'wx'});attached.markerWrittenAtMs=Date.now();attached.markerWrittenMonotonicNs=process.hrtime.bigint().toString();s.end(JSON.stringify({code:0})+'\n')}catch{attached.failure='marker_failed';s.destroy()}});
+   const childScript=attached.waitForFinishAttempt?"const deadline=setTimeout(()=>process.exit(3),30000);process.stdin.once('data',b=>{if(b.toString()!=='release\\n')process.exit(2);clearTimeout(deadline);setTimeout(()=>process.exit(0),"+r.delayMs+")});":'setTimeout(()=>process.exit(0),'+r.delayMs+')';child=cp.spawn(process.execPath,['-e',childScript],{env:{PATH:'/usr/bin:/bin'},stdio:attached.waitForFinishAttempt?['pipe','ignore','ignore']:'ignore'});child.once('error',()=>{attached.failure='child_start';s.destroy()});child.once('exit',(code,signal)=>{attached.commandExit={code:code??-1,observedAtMs:Date.now(),observedMonotonicNs:process.hrtime.bigint().toString()};if(code!==0||signal){attached.failure='child_failed';s.destroy();return}try{fs.writeFileSync(path.join(config.binding.remoteCwd,r.marker),r.markerText,{flag:'wx'});attached.markerWrittenAtMs=Date.now();attached.markerWrittenMonotonicNs=process.hrtime.bigint().toString();s.end(JSON.stringify({code:0})+'\n')}catch{attached.failure='marker_failed';s.destroy()}});
   }catch{attached.failure='client_rejected';s.destroy()}})});srv.listen(clientSocket);attached.server=srv;result={clientScript,clientSocket};
  }
+ else if(r.op==='release-attached'){if(sealed||!publishedHash||!attached?.waitForFinishAttempt||attached.releasedAtMs!==null||!child?.stdin||child.exitCode!==null||child.signalCode!==null)throw Error('attached_release_boundary');attached.releasedAtMs=Date.now();child.stdin.end('release\n');result={releasedAtMs:attached.releasedAtMs};}
  else if(r.op==='provider-death'){
   if(providerDeathDispatched||!publishedHash||sealed)throw Error('death_boundary');
   const observed=sample();if(!complete||!observed.captured)throw Error('death_owner');
@@ -235,7 +236,8 @@ export interface RemoteNativeFixture {
   readFile(path: string): Promise<Buffer>;
   publishAction(path: string, text: string): Promise<void>;
   killOwnedCopilot(): Promise<Record<string, unknown>>;
-  setupAttachedCommand(input: { marker: string; markerText: string; delayMs: number }): Promise<{ command: string; commandSha256: string }>;
+  setupAttachedCommand(input: { marker: string; markerText: string; delayMs: number; waitForFinishAttempt?: boolean }): Promise<{ command: string; commandSha256: string }>;
+  releaseAttachedCommand(): Promise<{ releasedAtMs: number }>;
   /** Consumes the host-held terminal receipt; never queries a deleted lease. */
   finish(): Promise<RemoteNativeSnapshot>;
   /** Only fixture-owned observer cleanup. Never deletes a sandbox or lease. */
@@ -494,6 +496,12 @@ export async function bindRemoteNativeFixture(options: RemoteNativeFixtureOption
       fail(result.clientScript === `${root}/client.cjs` && result.clientSocket === `${root}/attached.sock`, "attached_identity");
       const command = `${quote(NODE)} ${quote(result.clientScript as string)} ${quote(result.clientSocket as string)} ${quote(clientNonce)}`;
       return { command, commandSha256: digest(command) };
+    },
+    async releaseAttachedCommand() {
+      fail(!closed && published && !finished, "attached_release_boundary");
+      const result = record(await rpc({ op: "release-attached" }));
+      fail(Number.isSafeInteger(result.releasedAtMs) && (result.releasedAtMs as number) >= 0, "attached_release_ack");
+      return { releasedAtMs: result.releasedAtMs as number };
     },
     async finish() {
       if (finished) return finished;

@@ -123,7 +123,8 @@ export interface CopilotRemoteFixture {
   binding: CopilotRemoteBinding; remoteCwd: string; actionFile: string;
   snapshot(label: string): Promise<CopilotRemoteSnapshot>;
   killOwnedCopilot(): Promise<Record<string, unknown>>;
-  setupAttachedCommand(input: { marker: string; markerText: string; delayMs: number }): Promise<{ command: string; commandSha256: string }>;
+  setupAttachedCommand(input: { marker: string; markerText: string; delayMs: number; waitForFinishAttempt?: boolean }): Promise<{ command: string; commandSha256: string }>;
+  releaseAttachedCommand(): Promise<{ releasedAtMs: number }>;
   finish(): Promise<CopilotRemoteSnapshot>; readFile(relative: string): Promise<Buffer>; close(): Promise<void>;
 }
 export interface CopilotRemoteBootstrap {
@@ -185,7 +186,7 @@ export async function prepareCopilotRemoteAction(input: {
 }) {
   const f = input.fixture;
   if (f.binding.companyId !== input.companyId || f.binding.environmentId !== input.environmentId || f.binding.runId !== input.runId || f.remoteCwd !== f.binding.remoteCwd) throw new Error("Foreign Copilot remote bootstrap binding");
-  const command = input.markerText === undefined ? undefined : await f.setupAttachedCommand({ marker: input.target, markerText: input.markerText, delayMs: 4000 });
+  const command = input.markerText === undefined ? undefined : await f.setupAttachedCommand({ marker: input.target, markerText: input.markerText, delayMs: 4000, waitForFinishAttempt: true });
   const baseline = await f.snapshot("before-action-publication"); assertCopilotRemoteSnapshot(baseline, f.binding);
   if (baseline.setup.published || baseline.setup.path !== f.actionFile || !baseline.processes.captured || baseline.processes.live.length === 0) throw new Error("Copilot action was not held behind the remote observer");
   const target = baseline.targets[input.target];

@@ -183,12 +183,12 @@ export function observeRunProcesses() {
  * arguments or file path. The test owns/reaps the fixed finite child, records its
  * OS exit status, and holds the exact provider-launched client until that exit.
  */
-export async function createAttachedCommandFixture(markerPath: string, delayMs = 4000) {
+export async function createAttachedCommandFixture(markerPath: string, delayMs = 4000, waitForFinishAttempt = false) {
   if (!Number.isInteger(delayMs) || delayMs < 100 || delayMs > 8000) throw new Error("Invalid bounded fixture delay");
   const root = await mkdtemp("/tmp/pc-copilot-"); await mkdir(join(root, "private"), { mode: 0o700 });
   const socketPath = join(root, "private", "socket"), scriptPath = join(root, "client.cjs");
   const nonce = randomBytes(16).toString("hex"), marker = `${randomBytes(24).toString("hex")}\n`;
-  const script = `const net=require('node:net');const s=net.connect(process.argv[2]);let b='';s.setTimeout(15000,()=>process.exit(3));s.on('error',()=>process.exit(4));s.on('connect',()=>s.write(JSON.stringify({nonce:process.argv[3],pid:process.pid})+'\\n'));s.on('data',x=>{b+=x;if(b.includes('\\n')){const r=JSON.parse(b);s.end();process.exit(r.code===0?0:5);}});`;
+  const script = `const net=require('node:net');const s=net.connect(process.argv[2]);let b='';s.setTimeout(${waitForFinishAttempt ? 45000 : 15000},()=>process.exit(3));s.on('error',()=>process.exit(4));s.on('connect',()=>s.write(JSON.stringify({nonce:process.argv[3],pid:process.pid})+'\\n'));s.on('data',x=>{b+=x;if(b.includes('\\n')){const r=JSON.parse(b);s.end();process.exit(r.code===0?0:5);}});`;
   await writeFile(scriptPath, script, { mode: 0o400 });
   const command = `${quote(process.execPath)} ${quote(scriptPath)} ${quote(socketPath)} ${quote(nonce)}`;
   const commandSha256 = sha256(command);
@@ -199,6 +199,7 @@ export async function createAttachedCommandFixture(markerPath: string, delayMs =
   let exit: { observedAtMs: number; code: number; ownedProcessIdentityVerified: boolean; commandSha256: string } | null = null;
   const sockets = new Set<Socket>();
   let closed = false;
+  let releasedAtMs: number | null = null;
   const server = createServer(socket => {
     sockets.add(socket); socket.on("close", () => sockets.delete(socket)); socket.on("error", () => { failure = "fixture_socket_error"; });
     let buffer = "";
@@ -220,7 +221,10 @@ export async function createAttachedCommandFixture(markerPath: string, delayMs =
             }
           } catch { failure = "fixture_client_observation_failed"; clearInterval(clientObservation); }
         }, 25);
-        child = spawn(process.execPath, ["-e", `setTimeout(()=>process.exit(0),${delayMs})`], { env: { PATH: "/usr/bin:/bin" }, stdio: "ignore" });
+        const childScript = waitForFinishAttempt
+          ? `const deadline=setTimeout(()=>process.exit(3),30000);process.stdin.once('data',b=>{if(b.toString()!=='release\\n')process.exit(2);clearTimeout(deadline);setTimeout(()=>process.exit(0),${delayMs})});`
+          : `setTimeout(()=>process.exit(0),${delayMs})`;
+        child = spawn(process.execPath, ["-e", childScript], { env: { PATH: "/usr/bin:/bin" }, stdio: waitForFinishAttempt ? ["pipe", "ignore", "ignore"] : "ignore" });
         child.once("error", () => { failure = "fixture_child_start_failed"; socket.destroy(); });
         child.once("exit", (code, signal) => {
           exit = { observedAtMs: Date.now(), code: code ?? -1, ownedProcessIdentityVerified: Number.isInteger(child?.pid), commandSha256 };
@@ -237,6 +241,10 @@ export async function createAttachedCommandFixture(markerPath: string, delayMs =
   catch (error) { server.close(); await rm(root, { recursive: true, force: true }); throw error; }
   return {
     command, commandSha256, marker,
+    releaseAfterFinish() {
+      if (!waitForFinishAttempt || closed || releasedAtMs !== null || !child?.stdin || child.exitCode !== null || child.signalCode !== null) throw new Error("Attached fixture release requires one live owned child");
+      releasedAtMs = Date.now(); child.stdin.end("release\n"); return { releasedAtMs };
+    },
     snapshot() { const table = processTable(); return { connections, failure, markerWrittenAtMs, clientExitedAtMs, commandExit: exit, childPid: child?.pid ?? null, clientPid: client?.pid ?? null, clientGone: Boolean(client) && !table.some(p => sameObservedProcess(client, p)), childGone: Boolean(exit), observedAtMs: Date.now() }; },
     async close() {
       if (closed) return; closed = true; clearInterval(clientObservation);
