@@ -1,5 +1,5 @@
 {
-  "commandDigest": "sha256:7b459cc43771d4178898be8a362030ac2e4d8356c2a14a82334958959dd54e59",
+  "commandDigest": "sha256:482c4e997b4690c7e4a5375dd035560aaad69000f8f5291904d76f8c3a88284a",
   "declaration": {
     "schema": "paperclip.acpx_profile_declaration.v1",
     "agent": "copilot",
@@ -62,7 +62,7 @@
     "runtimeRequestNotificationSourceSha256": "6196c6175f11c69295dc00fc773201f4fdeca26c500653870253c43b81e65211",
     "guardedInstallationSourceSha256": "8afd25df307772e484e179e58bf54ce1510fe92be694482111d589f9f0ae6e77",
     "nativeExecutionSourceSha256": "4cdd702c233bf0d086ff2aeea8f02c6db8817ba0c0bcb5e64e355ee7a1c2dd77",
-    "profileCompatibilitySourceSha256": "fe521686dbd9884eec96ba0963ec00b6b58f4d891aa0292e0dc18b0d84770646",
+    "profileCompatibilitySourceSha256": "7e6afda2d2e5f1cdd09aaa75e4697905a40be175c6065b630b5dffa39c2c99a6",
     "installationSourceSha256": "9934653d6983905930099b1691b1f0c05461e04e950bb27dd0f92e64fc8e28e1",
     "assetOwnershipSourceSha256": "43005b7e896e0546c1f44cbe4ff3f34ad6d71f275f4b9a8113f73a71e77930c4",
     "assetInstallerSourceSha256": "d3bd9514e5920d0cc3567aa50487fb534c57a6f66b8da0d3f22c5f6e499c841f",
