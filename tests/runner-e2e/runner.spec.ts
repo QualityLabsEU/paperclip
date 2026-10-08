@@ -20,7 +20,7 @@ import { runBlockerFlow } from "./blocker-flow.js";
 import { largeJournalEvidence } from "./journal-evidence.js";
 import { observeBrowserBootstrap } from "./browser-bootstrap-diagnostics.js";
 import { runAccountingFlow } from "./accounting-flow.js";
-import type { Issue } from "../../packages/shared/src/types/issue.js";
+import type { Issue, PaperclipQuestionSetPayload } from "../../packages/shared/src/types/issue.js";
 import { lifecycleLiveCase, gradeLifecycleRepair } from "./lifecycle-live-cases.js";
 import { runContinuationFlow } from "./continuation-flow.js";
 import { runEverydayFlow } from "./everyday-flow.js";
@@ -31,7 +31,7 @@ import { verifyStockHarnessPreflight, STOCK_PREFLIGHT_ENV } from "./stock-harnes
 import { createTaskThroughUi, submitTaskReply } from "./user-actions.js";
 
 import { runFirstTaskFlow, setupFirstTaskFixtures } from "./first-task-flow.js";
-import { runChatFlow } from "./chat-flow.js";
+import { chatQuestionPresentation, runChatFlow } from "./chat-flow.js";
 import { restartChatServer } from "./chat-restart.js";
 import { matchesRunCount, minimumRunCount } from "./run-count.js";
 import { createHash, randomBytes } from "node:crypto";
@@ -158,6 +158,8 @@ interface InteractionRecord {
   continuationPolicy?: string;
   payload?: {
     version?: number;
+    submitLabel?: string | null;
+    questionSet?: PaperclipQuestionSetPayload;
     acceptLabel?: string;
     rejectLabel?: string;
     target?: {
@@ -1592,9 +1594,17 @@ for (const execution of executions) {
           .last()
           .check();
         // The one-question form is on its last page, so selecting the radio
-        // records the answer and the existing form button submits it.
+        // records the answer. Use the form's durable/native submit label.
+        const questionPresentation = chatQuestionPresentation({
+          ...questionInteraction.payload,
+          version: 1,
+          questions,
+        });
         await page
-          .getByRole("button", { name: "Submit answers", exact: true })
+          .getByRole("button", {
+            name: questionPresentation.submitLabel ?? "Submit answers",
+            exact: true,
+          })
           .last()
           .click();
         questionLifecycleEvidence = {

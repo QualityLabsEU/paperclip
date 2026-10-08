@@ -1183,3 +1183,54 @@ copy with 4 KiB pages reproduces the rejected cloud hash
 The materializer now specifies 16 KiB signing pages explicitly. No runtime pin,
 dependency, native code, or credential boundary changes. Fresh cold cloud
 provisioning remains required to establish that the correction passes.
+
+### 2026-10-08 current Mac browser and controller evidence
+
+At controller revision `7b2485dc6b0985d05bd4903503c517d8bd003d32`, fresh
+cloud Mac arm64 and Linux amd64 qualification passes all six native fixtures
+and 38 pinned Python checks on each target. The Mac closure remains
+`2230a296b80cb79079f0e6223449e18affb0e9543a476fb5901fb0524f18a0f5`;
+the tested Mac daemon remains
+`fef7167af720db91537bbc066e3b8129a15d59bb6425dd95efa2b8a1a00b4980`.
+This closes the cold signing-page-size prerequisite; it does not qualify a
+published package consumer, a current published image, or actual Daytona.
+
+The local managed OpenRouter API completion campaign
+`hermes-macos-current-api-openrouter-7b2485dc6b-20261008-corrected1`
+passes all 15 matchers and cleanup in 46.794 seconds. The exact model is
+`deepseek/deepseek-v4-flash-0731`; the selected public run has settled reported
+wire cost of $0.000955196. The screenshot shows the completed task, streamed
+reasoning row and one visible final answer. This is one API account/completion
+cell, not the remaining connection or interaction matrix.
+
+The first current question/controller-restart campaign fails with its original
+`cleanup_failure` grade and unknown cost retained. Its replacement server
+crashes on Node 24.19.0's bundled Undici `setTypeOfService EINVAL`, matching
+the [upstream issue](https://github.com/nodejs/undici/issues/5544) and
+[guard correction](https://github.com/nodejs/undici/pull/5547). A task-scoped,
+official checksum-verified Node 26.11.1 installation supplies the fixed
+bundled implementation without modifying the original runtime or repository
+dependencies. Two credential-free production controller restarts pass under
+that runtime. The same pinned Hermes closure and cloud-built daemon then pass
+all six exact native fixtures and 38 Python checks locally in 387.260 seconds.
+Earlier fixture failures remain retained: a workspace incorrectly placed under
+the temporary HOME, a restricted loopback launch, and a missing-history
+operation timeout during concurrent controller work. None is relabeled a pass.
+
+The subsequent campaign
+`hermes-macos-current-question-restart-7b2485dc6b-20261008-fixed26-corrected1`
+preserves the exact pending interaction across a successful controller restart.
+It fails before answer submission because the browser driver expects the
+literal button label `Submit answers`, while the saved canonical question set
+validly supplies `Submit` and the UI renders it. Its original `candidate_failure`
+grade remains retained, with cleanup passed and one settled reported run costing
+$0.002011867. No resumed provider turn is claimed. The driver now uses the
+existing canonical question-presentation helper to select the supplied label;
+question identity, answer, exact final output, run-count and accounting checks
+remain unchanged. A fresh complete browser run is still required.
+
+These controller-restart cases use the assigned Paperclip `request_human_input`
+tool. They do not qualify the Hermes-native `clarify_callback`, subscriptions,
+Bedrock, other protocols, attachments with a live vision model, proactive
+routines, the broader state/control matrix, or actual Daytona. Hermes remains
+pending qualification.
