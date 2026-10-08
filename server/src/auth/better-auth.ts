@@ -13,6 +13,13 @@ import {
 import type { Config } from "../config.js";
 import { resolvePaperclipInstanceId } from "../home-paths.js";
 import {
+  buildSocialSsoProviderOptions,
+  buildSocialSsoUserGate,
+  isSocialSsoConfigured,
+  type SocialSsoConfig,
+} from "./social-sso.js";
+import { logger } from "../middleware/logger.js";
+import {
   workspaceLoginHandoffPlugin,
   type WorkspaceHandoffExpectedIdentity,
 } from "./workspace-login-handoff-plugin.js";
@@ -257,6 +264,24 @@ export function createBetterAuthInstance(db: Db, config: Config, trustedOrigins:
     publicUrl,
   });
 
+  // Social SSO is opt-in per provider: entries exist only when the provider's
+  // OAuth client pair is set, and the sign-up gate rides along only when at
+  // least one provider is configured. With none set, neither key below is
+  // added and the instance is configured exactly as before SSO existed.
+  // Configs built before the field existed (tests) read as "no SSO".
+  const socialSso: SocialSsoConfig = config.authSocialSso ?? { github: null, google: null };
+  const socialSsoProviders = buildSocialSsoProviderOptions(socialSso);
+  if (socialSso.github && socialSso.github.orgs.length === 0) {
+    logger.warn(
+      "Social SSO: GitHub sign-in is configured but PAPERCLIP_SSO_GITHUB_ORGS is unset or empty; GitHub sign-ups will be rejected (fail closed)",
+    );
+  }
+  if (socialSso.google && socialSso.google.domains.length === 0) {
+    logger.warn(
+      "Social SSO: Google sign-in is configured but PAPERCLIP_SSO_GOOGLE_DOMAINS is unset or empty; Google sign-ups will be rejected (fail closed)",
+    );
+  }
+
   const authConfig = {
     baseURL: baseUrl,
     secret,
@@ -281,6 +306,10 @@ export function createBetterAuthInstance(db: Db, config: Config, trustedOrigins:
       override: process.env.PAPERCLIP_AUTH_RATE_LIMIT_ENABLED,
     }),
     advanced: buildBetterAuthAdvancedOptions({ disableSecureCookies }),
+    ...(socialSsoProviders ? { socialProviders: socialSsoProviders } : {}),
+    ...(isSocialSsoConfigured(socialSso)
+      ? { user: { validateUserInfo: buildSocialSsoUserGate(socialSso) } }
+      : {}),
     // Registered only for a managed workspace instance: the plugin is what makes
     // `Open workspace` password-independent, and a control-plane instance that
     // was never handed a workspace key must not expose the exchange at all.

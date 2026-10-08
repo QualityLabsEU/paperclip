@@ -176,6 +176,28 @@ Granular overrides remain available if needed (`PAPERCLIP_AUTH_PUBLIC_BASE_URL`,
 
 Set `PAPERCLIP_ALLOWED_HOSTNAMES` explicitly only when you need additional hostnames beyond the public URL host (for example Tailscale/LAN aliases or multiple private hostnames).
 
+### Optional Social Sign-In (GitHub / Google)
+
+Authenticated deployments can offer `Sign in with GitHub` / `Sign in with Google` buttons next to the email/password form. The feature is default-off: a provider is registered only when **both** of its client variables are set, and with none of them set the server behaves exactly as before.
+
+| Variable | Meaning |
+|---|---|
+| `PAPERCLIP_SSO_GITHUB_CLIENT_ID` / `PAPERCLIP_SSO_GITHUB_CLIENT_SECRET` | Register the GitHub provider when both are set |
+| `PAPERCLIP_SSO_GITHUB_ORGS` | Comma-separated GitHub org logins allowed to sign up |
+| `PAPERCLIP_SSO_GOOGLE_CLIENT_ID` / `PAPERCLIP_SSO_GOOGLE_CLIENT_SECRET` | Register the Google provider when both are set |
+| `PAPERCLIP_SSO_GOOGLE_DOMAINS` | Comma-separated Google Workspace hosted domains allowed to sign up |
+
+Sign-up gating:
+
+- **GitHub**: a social sign-up is accepted only if the user's OAuth token shows an *active* membership in one of `PAPERCLIP_SSO_GITHUB_ORGS`. The server requests the `read:org` scope this check needs, so the GitHub OAuth app must not restrict requested scopes.
+- **Google**: a social sign-up is accepted only if the id_token `hd` (hosted domain) claim matches one of `PAPERCLIP_SSO_GOOGLE_DOMAINS`. Personal `gmail.com` accounts have no `hd` claim and are rejected by design.
+- **Fail closed**: if a provider is configured but its gate list (`..._ORGS` / `..._DOMAINS`) is unset, sign-ups through that provider are **rejected** and the reason is logged, rather than falling back to allow-everyone.
+- A rejected sign-up creates no user, account, or session rows.
+
+The gate applies to social sign-ups only. Email/password accounts keep their existing behavior and remain governed by `PAPERCLIP_AUTH_DISABLE_SIGN_UP`. The `/api/health` response gains an `authProviders: { github, google }` block (enabled/disabled booleans only) when at least one provider is configured, which is how the login screen decides which buttons to render.
+
+The OAuth redirect URL to register with the provider is `<public URL>/api/auth/callback/github` or `<public URL>/api/auth/callback/google`.
+
 ### Optional Vercel Connect credentials
 
 Vercel Connect's backend integration is retained for controlled testing and
