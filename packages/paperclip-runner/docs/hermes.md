@@ -135,6 +135,13 @@ extend the task's execution deadline.
   authority. Missing, invalid or timed-out reads do not invent usage or cost.
   This optional execution-result field carries an existing v1 PRP event; it
   does not change persisted execution inputs or the Rust wire contract.
+- An applied pending `request_human_input` response stops Hermes in its native
+  tool completion callback, before another model request. The bridge publishes
+  that tool's completed result after native finalization. Both Runner event
+  pumps read the prompt usage receipt before forwarding this completion to the
+  controller. Other tool activity still streams immediately. Tool identities
+  and results are preserved; wait and accounting authority remain with the
+  controller. Missing usage remains unknown.
 - Paperclip owns task titles. Hermes keeps its immediate derived session title;
   its paid background title upgrade is disabled in the managed profile so it
   cannot start inference after a turn's usage receipt has closed.

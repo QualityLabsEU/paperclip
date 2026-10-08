@@ -1,7 +1,25 @@
 import { describe, expect, it } from "vitest";
-import { createAcpxProfileExtensionAdapter, validateAcpxRichEvent } from "./profile-extensions.js";
+import { createAcpxProfileExtensionAdapter, isHermesCommittedQuestionCompletion, validateAcpxRichEvent } from "./profile-extensions.js";
 
 describe("Hermes native extensions", () => {
+  const committed = { disposition: "applied", interaction: { id: "question", companyId: "company", issueId: "issue",
+    sourceRunId: "run", kind: "ask_user_questions", status: "pending", continuationPolicy: "wake_assignee" } };
+  const completion = { type: "tool_call", tag: "tool_call_update", status: "completed", title: "mcp__paperclip__request_human_input" };
+  it("delays only the current run's structured committed question completion", () => {
+    for (const rawOutput of [committed, JSON.stringify(committed), { result: committed },
+      { result: JSON.stringify(committed) }, { result: "Saved", structuredContent: committed }]) {
+      expect(isHermesCommittedQuestionCompletion({ ...completion, rawOutput }, "run")).toBe(true);
+    }
+    for (const event of [{ ...completion, title: "terminal", rawOutput: committed },
+      { ...completion, status: "failed", rawOutput: committed }, { ...completion, tag: "tool_call", rawOutput: committed },
+      { ...completion, rawOutput: "Saved a pending question" }, { ...completion, rawOutput: { ...committed, error: "denied" } },
+      { ...completion, rawOutput: { result: { ...committed, error: "denied" } } },
+      { ...completion, rawOutput: { ...committed, disposition: "rejected" } },
+      ...["status", "kind", "continuationPolicy", "sourceRunId", "id", "companyId", "issueId"].map(key => ({
+        ...completion, rawOutput: { ...committed, interaction: { ...committed.interaction, [key]: "" } },
+      }))]) expect(isHermesCommittedQuestionCompletion(event, "run")).toBe(false);
+    expect(isHermesCommittedQuestionCompletion({ ...completion, rawOutput: committed }, "other-run")).toBe(false);
+  });
   const adapter = () => createAcpxProfileExtensionAdapter("hermes", { sessionId: "session", turnId: "turn", workspacePath: "/workspace" })!;
   it("keeps native child identities stable across start, progress and completion", async () => {
     const context = { version: 1, sessionId: "session", turnToken: "token", childId: "child", delegationId: "batch", model: "exact-model", summary: "Read source", status: "completed" };

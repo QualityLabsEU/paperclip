@@ -72,16 +72,18 @@ test("pinned Hermes streams through the production ACPX host using a no-auth loc
       return;
     }
     const toolDone = body.messages.slice(lastUser + 1).some(message => message.role === "tool");
-    if (!toolDone && (userText.includes("NATIVE_TOOL_FIXTURE") || userText.includes("NATIVE_QUESTION_FIXTURE") || userText.includes("NATIVE_MCP_FIXTURE") || userText.includes("NATIVE_MEMORY_FIXTURE") || userText.includes("NATIVE_PLAN_FIXTURE"))) {
+    if (!toolDone && (userText.includes("NATIVE_TOOL_FIXTURE") || userText.includes("NATIVE_QUESTION_FIXTURE") || userText.includes("NATIVE_MCP_FIXTURE") || userText.includes("NATIVE_MEMORY_FIXTURE") || userText.includes("NATIVE_PLAN_FIXTURE") || userText.includes("NATIVE_GOVERNED_QUESTION_FIXTURE"))) {
       const question = userText.includes("NATIVE_QUESTION_FIXTURE");
+      const governed = userText.includes("NATIVE_GOVERNED_QUESTION_FIXTURE");
       const bridge = userText.includes("NATIVE_MCP_FIXTURE");
       const memory = userText.includes("NATIVE_MEMORY_FIXTURE");
       const plan = userText.includes("NATIVE_PLAN_FIXTURE");
-      const name = question ? "clarify" : memory ? "memory" : bridge ? body.tools.find(tool => tool.function?.name.endsWith("fixture_probe"))?.function.name ?? "missing_assigned_tool"
+      const name = governed ? body.tools.find(tool => tool.function?.name.endsWith("request_human_input"))?.function.name ?? "missing_question_tool"
+        : question ? "clarify" : memory ? "memory" : bridge ? body.tools.find(tool => tool.function?.name.endsWith("fixture_probe"))?.function.name ?? "missing_assigned_tool"
         : plan ? body.tools.find(tool => tool.function?.name.endsWith("write_document"))?.function.name ?? "missing_plan_tool" : "terminal";
       const args = question ? { question: "Choose the fixture color", choices: ["Cobalt", "Amber"] }
         : memory ? { action: "add", target: "memory", content: "NATIVE_PERSISTED_MEMORY: Project uses Cobalt." }
-        : bridge ? { marker: "assigned-tool-roundtrip" }
+        : governed || bridge ? { marker: "assigned-tool-roundtrip" }
         : plan ? { marker: "planning-workflow-roundtrip" }
         : { command: "printf 'native-hermes-command\\n' > command-proof.txt", timeout: 10 };
       res.write(`data: ${JSON.stringify({ id: "tool-fixture", object: "chat.completion.chunk", model: "hermes-fixture", created: 1, choices: [{ index: 0, delta: { role: "assistant", tool_calls: [{ index: 0, id: `native-${name}`, type: "function", function: { name, arguments: JSON.stringify(args) } }] }, finish_reason: null }] })}\n\n`);
@@ -111,8 +113,14 @@ test("pinned Hermes streams through the production ACPX host using a no-auth loc
     clientCapabilities: acpxProfileClientCapabilities("hermes"),
     systemInstructions: "This is a transport fixture. Reply briefly.",
     semanticTools: {
-      tools: ["fixture_probe", "write_document"].map(name => ({ name, description: "Return the supplied marker (simulated semantic authority).", inputSchema: { type: "object", properties: { marker: { type: "string" } }, required: ["marker"], additionalProperties: false } })),
-      handler: async call => { bridgeCalls.push({ tool: call.tool, arguments: call.arguments }); return { marker: "assigned-tool-returned" }; },
+      tools: ["fixture_probe", "write_document", "request_human_input"].map(name => ({ name, description: "Return the supplied marker (simulated semantic authority).", inputSchema: { type: "object", properties: { marker: { type: "string" } }, required: ["marker"], additionalProperties: false } })),
+      handler: async call => {
+        bridgeCalls.push({ tool: call.tool, arguments: call.arguments });
+        return call.tool === "request_human_input" ? { disposition: "applied", interaction: {
+          id: "fixture-question", companyId: "fixture-company", issueId: "fixture-issue", sourceRunId: "fixture-run",
+          kind: "ask_user_questions", status: "pending", continuationPolicy: "wake_assignee",
+        } } : { marker: "assigned-tool-returned" };
+      },
     },
     runtimeContext: { instructions: { workingCopy: { kind: "agent_files", rootPath: agentFiles, entryPath: "AGENTS.md" } }, skills: [], mcp: {} },
     environment: { PATH: process.env.PATH,
@@ -170,12 +178,33 @@ test("pinned Hermes streams through the production ACPX host using a no-auth loc
   assert.equal((await questionTurn.result).status, "completed");
   assert.equal(questions, 1, `Native clarify failed: ${JSON.stringify(requests.at(-1)?.body.messages?.filter(message => message.role === "tool"))}`);
   assert.ok(requests.some(row => row.body.messages?.some(message => message.role === "tool" && String(message.content).includes("Cobalt"))), "The native callback did not receive the submitted answer");
+  const governedRequestsBefore = requests.length;
+  const governedOrder = [];
+  const governed = host.startTurn({ text: "NATIVE_GOVERNED_QUESTION_FIXTURE: Save the assigned Paperclip question.", requestId: "governed-question-turn",
+    onExtensionNotification: async (method, params) => {
+      if (method === "_hermes/usage") {
+        assert.equal(params.tokens, "reported");
+        governedOrder.push("usage");
+      }
+    },
+  });
+  const governedEvents = [];
+  for await (const event of governed.events) {
+    governedEvents.push(event);
+    if (event.type === "tool_call" && event.tag === "tool_call_update" && event.status === "completed") governedOrder.push("question");
+  }
+  assert.equal((await governed.result).status, "cancelled", "Hermes continued after the committed question");
+  assert.equal(requests.length - governedRequestsBefore, 1, "Hermes started another model request after saving the question");
+  assert.deepEqual(governedOrder, ["usage", "question"], "The committed question result preceded final native usage");
+  assert.ok(governedEvents.some(event => event.type === "tool_call" && event.tag === "tool_call_update"
+    && event.status === "completed" && JSON.stringify(event.rawOutput).includes("fixture-question")),
+  `The committed native tool result was lost at interruption: ${JSON.stringify(governedEvents).slice(0, 8000)}`);
   for (const kind of ["MCP", "MEMORY"]) {
     const turn = host.startTurn({ text: `NATIVE_${kind}_FIXTURE: Use the native tool.`, requestId: `${kind.toLowerCase()}-turn` });
     for await (const _event of turn.events) { /* drain */ }
     assert.equal((await turn.result).status, "completed");
   }
-  assert.deepEqual(bridgeCalls, [{ tool: "fixture_probe", arguments: { marker: "assigned-tool-roundtrip" } }]);
+  assert.deepEqual(bridgeCalls, ["request_human_input", "fixture_probe"].map(tool => ({ tool, arguments: { marker: "assigned-tool-roundtrip" } })));
   assert.equal(host.steeringCapability()?.steering, true);
   assert.equal(host.steeringCapability()?.queuedFollowUp, false);
   const steering = host.startTurn({ text: "NATIVE_STEER_FIXTURE: Continue working until redirected.", requestId: "steering-turn" });

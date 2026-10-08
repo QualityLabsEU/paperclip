@@ -20,6 +20,7 @@ from acp_adapter.server import HermesACPAgent, _history_replay_updates, _mcp_ser
 from acp_adapter.session import SessionManager, _parse_model_config, _expand_acp_enabled_toolsets
 from acp_adapter.events import _send_update, make_step_cb
 from acp_adapter.tools import build_tool_start, build_tool_complete
+from agent.interrupt_compat import request_hard_interrupt
 from policy import authorize_tool, REPORTING_TOOLS
 from tool_process import tool_policy, install_tool_process_policy
 from billing import close_turn, fence_background_dispatch, install_billing_capture, start_turn
@@ -27,6 +28,41 @@ from billing import close_turn, fence_background_dispatch, install_billing_captu
 EXTENSION_VERSION = 1
 ANSWER_MAX_LENGTH = 65536
 USAGE_COUNTERS = ("input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens", "reasoning_tokens", "total_tokens", "estimated_cost_usd")
+
+
+def committed_human_input_wait(name, result):
+    # Only the authenticated assigned Paperclip operation can end native work
+    # at this boundary. Other tool output and model text cannot signal a wait.
+    if name != "mcp__paperclip__request_human_input" or not isinstance(result, dict):
+        return False
+    if "error" in result:
+        return False
+    # The pinned MCP handler wraps the authenticated server's JSON text or
+    # structuredContent in this carrier. Decode one level, never prose or an
+    # arbitrary tool's JSON. Direct structured results are accepted too.
+    if "disposition" not in result:
+        if set(result) - {"result", "structuredContent", "_meta"}:
+            return False
+        structured = result.get("structuredContent", result.get("result"))
+        if isinstance(structured, str):
+            if len(structured) > 65536:
+                return False
+            try:
+                structured = json.loads(structured)
+            except ValueError:
+                return False
+        if not isinstance(structured, dict):
+            return False
+        result = structured
+    if "error" in result:
+        return False
+    interaction = result.get("interaction")
+    return (result.get("disposition") == "applied" and isinstance(interaction, dict)
+            and interaction.get("kind") == "ask_user_questions"
+            and interaction.get("status") == "pending"
+            and interaction.get("continuationPolicy") == "wake_assignee"
+            and all(isinstance(interaction.get(key), str) and bool(interaction[key])
+                    for key in ("id", "companyId", "issueId", "sourceRunId")))
 
 
 def usage_snapshot(agent):
@@ -222,6 +258,7 @@ class ManagedHermesACPAgent(HermesACPAgent):
         self._usage_before = None
         self._billing = None
         self._billing_negotiated = False
+        self._committed_wait_updates = []
 
     def _build_model_state(self, state):
         from acp.schema import ModelInfo, SessionModelState
@@ -322,6 +359,7 @@ class ManagedHermesACPAgent(HermesACPAgent):
             self._billing = None
             self._active = None
             self._usage_before = None
+            self._committed_wait_updates.clear()
             for future in tuple(self._pending_questions):
                 future.cancel()
 
@@ -359,6 +397,12 @@ class ManagedHermesACPAgent(HermesACPAgent):
             **({"estimatedUsd": after["estimated_cost_usd"] - before["estimated_cost_usd"]} if estimated else {}),
             **({"billing": billing} if billing is not None else {}),
         })
+        # The controller yields when it sees the committed question result.
+        # Publish it only after native work and its turn receipt have finished;
+        # otherwise owned shutdown can overtake the final accounting response.
+        for update in self._committed_wait_updates:
+            await conn.session_update(session_id, update)
+        self._committed_wait_updates.clear()
         return response
 
     def _handle_slash_command(self, *args, **kwargs):
@@ -418,6 +462,15 @@ class ManagedHermesACPAgent(HermesACPAgent):
                 envelope = json.loads(result_text)
             except (ValueError, TypeError):
                 envelope = None
+            committed_wait = committed_human_input_wait(name, envelope)
+            if committed_wait:
+                # Stop inside the native completion callback, before publishing
+                # the tool result lets the controller observe the durable wait.
+                # Otherwise Hermes can start another paid request while the
+                # controller's cancellation crosses the transport boundary.
+                if not request_hard_interrupt(state.agent, tool_reason="user_interrupt"):
+                    raise ValueError("Hermes cannot stop at a committed Paperclip question")
+                state.cancel_event.set()
             # Native policy and MCP transport failures use this exact envelope;
             # an arbitrary successful payload mentioning errors is not a failure.
             is_error = (isinstance(envelope, dict) and set(envelope) == {"error"}
@@ -429,7 +482,11 @@ class ManagedHermesACPAgent(HermesACPAgent):
             # Hermes deliberately omits raw output for its polished/structured
             # cards. ACPX consumes rawOutput for the runner transcript; keep
             # native content (including diffs) and the original result together.
-            _send_update(conn, session_id, loop, update.model_copy(update={"raw_output": result_text}))
+            update = update.model_copy(update={"raw_output": result_text})
+            if committed_wait:
+                self._committed_wait_updates.append(update)
+            else:
+                _send_update(conn, session_id, loop, update)
 
         billing = self._billing
 

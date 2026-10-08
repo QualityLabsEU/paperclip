@@ -261,6 +261,73 @@ class Controls(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(updates[3].status, "failed")
         self.assertEqual(json.loads(updates[3].raw_output), {"error": "denied"})
 
+    async def test_committed_question_stops_before_its_native_completion_is_published(self):
+        callbacks = SimpleNamespace(tool_call_ids={}, tool_call_meta={})
+        result = {"disposition": "applied", "interaction": {"id": "question", "companyId": "company",
+            "issueId": "issue", "sourceRunId": "run", "kind": "ask_user_questions",
+            "status": "pending", "continuationPolicy": "wake_assignee"}}
+        name = "mcp__paperclip__request_human_input"
+        updates = []
+        for carrier in [result, {"result": result}, {"result": json.dumps(result)},
+                        {"result": "Question saved", "structuredContent": result}]:
+            with self.subTest(carrier=carrier):
+                self.state.cancel_event.clear()
+                self.bridge._committed_wait_updates.clear()
+                callbacks = SimpleNamespace(tool_call_ids={}, tool_call_meta={})
+                with patch("bridge.HermesACPAgent._wire_turn_callbacks", return_value=callbacks), \
+                        patch("bridge._send_update", side_effect=lambda c, s, l, event: updates.append(event)), \
+                        patch("bridge.request_hard_interrupt", return_value=True) as stop:
+                    self.bridge._wire_turn_callbacks(self.state, "session", Mock(), asyncio.get_running_loop())
+                    self.state.agent.tool_start_callback("wait", name, {})
+                    self.state.agent.tool_complete_callback("wait", name, {}, json.dumps(carrier))
+                self.assertTrue(self.state.cancel_event.is_set())
+                stop.assert_called_once_with(self.state.agent, tool_reason="user_interrupt")
+                self.assertNotEqual(updates[-1].status, "completed")
+                self.assertEqual(len(self.bridge._committed_wait_updates), 1)
+                self.assertEqual(json.loads(self.bridge._committed_wait_updates[0].raw_output), carrier)
+
+    async def test_committed_question_completion_follows_final_native_usage(self):
+        self.state.agent = SimpleNamespace(**{"session_" + key: 0 for key in USAGE_COUNTERS},
+            _paperclip_usage_receipts=[True], _paperclip_cost_receipts=[True])
+        self.bridge._usage_before = dict.fromkeys(USAGE_COUNTERS, 0)
+        self.bridge._billing = TurnBilling()
+        self.bridge._billing.begin().json(b'{"usage":{"prompt_tokens":20,"completion_tokens":5,"cost":0.0042}}')
+        update = object()
+        self.bridge._committed_wait_updates.append(update)
+        order = []
+        conn = SimpleNamespace(ext_notification=AsyncMock(side_effect=lambda *args: order.append("usage")),
+                               session_update=AsyncMock(side_effect=lambda *args: order.append("question")))
+        with patch("bridge.HermesACPAgent._finish_turn", new=AsyncMock(return_value=SimpleNamespace(usage=None))):
+            response = await self.bridge._finish_turn(self.state, "session", conn, {}, None, True)
+        self.assertEqual(order, ["usage", "question"])
+        self.assertEqual(response.usage.total_tokens, 25)
+        conn.session_update.assert_awaited_once_with("session", update)
+        self.assertEqual(self.bridge._committed_wait_updates, [])
+
+    async def test_other_or_uncommitted_tool_results_cannot_stop_the_native_turn(self):
+        original = {"disposition": "applied", "interaction": {"id": "question", "companyId": "company",
+            "issueId": "issue", "sourceRunId": "run", "kind": "ask_user_questions",
+            "status": "pending", "continuationPolicy": "wake_assignee"}}
+        cases = [("mcp__paperclip__read_file", original), ("terminal", original),
+                 ("mcp__paperclip__request_human_input", {"error": "denied"}),
+                 ("mcp__paperclip__request_human_input", {"result": "Saved a pending question"}),
+                 ("mcp__paperclip__request_human_input", {"result": original, "error": "denied"}),
+                 ("mcp__paperclip__request_human_input", {**original, "disposition": "rejected"})]
+        for key, value in [("status", "resolved"), ("kind", "request_confirmation"),
+                           ("continuationPolicy", "none"), ("sourceRunId", None), ("id", "")]:
+            cases.append(("mcp__paperclip__request_human_input",
+                          {**original, "interaction": {**original["interaction"], key: value}}))
+        with patch("bridge.request_hard_interrupt", return_value=True) as stop:
+            for index, (name, result) in enumerate(cases):
+                with self.subTest(name=name, result=result):
+                    callbacks = SimpleNamespace(tool_call_ids={}, tool_call_meta={})
+                    with patch("bridge.HermesACPAgent._wire_turn_callbacks", return_value=callbacks), patch("bridge._send_update"):
+                        self.bridge._wire_turn_callbacks(self.state, "session", Mock(), asyncio.get_running_loop())
+                        self.state.agent.tool_start_callback(str(index), name, {})
+                        self.state.agent.tool_complete_callback(str(index), name, {}, result)
+                    self.assertFalse(self.state.cancel_event.is_set())
+            stop.assert_not_called()
+
     async def test_pre_dispatch_denials_keep_native_ids_and_complete_exactly_once(self):
         from hermes_cli import middleware
         callbacks = SimpleNamespace(tool_call_ids={}, tool_call_meta={})

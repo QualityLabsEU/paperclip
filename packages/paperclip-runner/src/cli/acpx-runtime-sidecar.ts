@@ -15,7 +15,7 @@ import type {
   AcpPermissionDecision,
 } from "acpx/runtime";
 
-import { acpxProfileClientCapabilities, bindAcpxExtensionTurn, validateAcpxRichEvent, createAcpxProfileExtensionAdapter, type AcpxExtensionInput } from "../drivers/acpx/profile-extensions.js";
+import { acpxProfileClientCapabilities, bindAcpxExtensionTurn, validateAcpxRichEvent, createAcpxProfileExtensionAdapter, isHermesCommittedQuestionCompletion, type AcpxExtensionInput } from "../drivers/acpx/profile-extensions.js";
 import type { PaperclipQuestionSet } from "../contracts/question-set.js";
 import { readProviderUsageBilling, type ProviderUsageBilling } from "../contracts/usage-billing.js";
 import { createAcpxToolEventNormalizer, createGrokMessageNormalizer } from "../provider-events.js";
@@ -630,13 +630,19 @@ async function pumpTurn(
     const normalizeToolEvent = createAcpxToolEventNormalizer<AcpRuntimeEvent>();
     const normalizeMessage = initializedAgent === "grok"
       ? createGrokMessageNormalizer<AcpRuntimeEvent>() : (event: AcpRuntimeEvent) => event;
+    const committedQuestions: AcpRuntimeEvent[] = [];
     for await (const event of runtimeTurn.events) {
       toolEvidence?.tool(event);
+      const normalized = normalizeMessage(normalizeToolEvent(boundRuntimeEventForNormalization(event)));
+      if (openParams?.agent === "hermes" && event.type === "tool_call"
+        && isHermesCommittedQuestionCompletion({ ...normalized, rawOutput: event.rawOutput }, runId ?? "")) {
+        if (committedQuestions.length >= MAX_PENDING_INPUTS) throw new Error("Hermes committed question limit exceeded");
+        committedQuestions.push(normalized);
+        continue;
+      }
       emit(
         "runtime.event",
-        sanitizeRuntimeEvent(
-          normalizeMessage(normalizeToolEvent(boundRuntimeEventForNormalization(event))),
-        ),
+        sanitizeRuntimeEvent(normalized),
         currentTurnId,
       );
     }
@@ -671,6 +677,9 @@ async function pumpTurn(
       // not replace the provider's authoritative completed/cancelled result.
       diagnostic("acpx_terminal_usage_unavailable", safeMessage(error));
     }
+    // The native bridge has already stopped work. Reading its prompt receipt
+    // precedes the tool result that lets the controller cancel this transport.
+    for (const event of committedQuestions) emit("runtime.event", sanitizeRuntimeEvent(event), currentTurnId);
     terminal = boundedSidecarValue(result);
   } catch (error) {
     terminal = {

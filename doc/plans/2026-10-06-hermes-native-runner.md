@@ -997,3 +997,48 @@ forbidden/tracked-import guards still report existing violations in unchanged
 files; their failed logs are retained. These are not passing guard results.
 The total reserved amount remains `$23` against the `$25` cap; unknown spend
 retains its reservation. Hermes remains pending qualification.
+
+### 2026-10-08 committed-question native stop boundary
+
+The clean `8c6c82a213` Mac question campaign failed after 644.667 seconds.
+Its original infrastructure classification and `not_started` cleanup verdict
+remain unchanged. Independent public records show that the yielded first run
+had pending unpriced accounting. The company paused, so submitting Cobalt
+could not launch the continuation. Independent cleanup checks found no owned
+process group, server listener or temporary instance directory. These checks
+do not replace the original cleanup verdict or establish billing completeness.
+
+A credential-free native reproduction showed two races. Hermes could start
+another model request after saving the question. Even after stopping that
+request, immediate Runner shutdown could overtake the terminal prompt receipt.
+The failed diagnostic logs remain retained.
+
+The bridge now recognizes the authenticated assigned question result and uses
+Hermes's native hard interrupt before returning from the completion callback.
+It publishes that completion after native finalization and usage provenance.
+Both Runner event pumps retain the completed question event until ACPX's final
+prompt receipt has been read. Ordinary tools still stream. The deferred result
+must be applied, pending, wake the assignee and match the current run. The
+controller still validates durable wait and cost authority independently.
+
+Both predecessor manifests were authenticated before the bridge-only update.
+The task-owned Mac runtime passed complete file verification before and after
+the transformation. Its new closure is
+`f443a6867c914f49d7308c7421dbce9ba4a0d024b0c718a41a78845c784a7bd0`.
+The derived Linux closure is
+`c9879c3b69357d17d375d8fd4897f18496cebb21256c1e8bb9220d779d995921`.
+Dependencies and Rust inputs remain unchanged. Fresh cloud materialization,
+native regression, clean-head live billing and review proof remain required.
+No new paid retry has started. Docker stays stopped, and the full unknown-spend
+reservation remains held.
+
+The correction passes 38 pinned Python tests, 108 focused Runner tests and
+seven distribution fixtures. Runner TypeScript and generated contracts pass.
+All four native fixtures pass in 106.153 seconds. The new Rust-sidecar test
+immediately cancels and closes after the question result, observes exactly one
+model request and retains the reported 10 input and five output tokens with a
+complete turn delta. A provider that has already ended may reject interruption
+as `already_terminal`; the test still requires verified owned close and the
+receipt. This is deterministic transport proof, not live billing or Daytona
+proof. The first focused sidecar run timed out under restricted local IPC;
+its failure log is retained separately from the passing authorized IPC retry.

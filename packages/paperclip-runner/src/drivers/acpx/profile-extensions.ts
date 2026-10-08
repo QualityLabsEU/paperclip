@@ -2,7 +2,7 @@ import { createCursorProfileExtensionAdapter, CURSOR_CLIENT_CAPABILITIES } from 
 import { createHash } from "node:crypto";
 import type { HarnessRuntimeRequestResolution } from "../../contracts/harness-driver.js";
 import { parsePaperclipQuestionSet, parsePaperclipQuestionResponse, type PaperclipQuestionSet } from "../../contracts/question-set.js";
-import { isCanonicalProviderEventType, type CanonicalProviderEvent } from "../../provider-events.js";
+import { isCanonicalProviderEventType, type AcpRuntimeEventShape, type CanonicalProviderEvent } from "../../provider-events.js";
 import { validatePrpEvent } from "../../protocol/replay-contract.js";
 import type { QualifiedAcpxAgent } from "./qualified-profiles.js";
 import { parseProviderUsageBilling, type ProviderUsageBilling } from "../../contracts/usage-billing.js";
@@ -110,6 +110,32 @@ export function createAcpxProfileExtensionAdapter(
 export function acpxProfileClientCapabilities(agent: QualifiedAcpxAgent): Record<string, unknown> {
   if (agent === "cursor") return structuredClone(CURSOR_CLIENT_CAPABILITIES);
   return agent === "hermes" ? { _meta: { paperclipHermes: { version: 1, billingReceipts: 1 } } } : {};
+}
+
+/** Delay this tool's display completion until its native prompt receipt is read.
+ * This grants no wait or accounting authority; the controller validates both.
+ */
+export function isHermesCommittedQuestionCompletion(event: AcpRuntimeEventShape, runId: string): boolean {
+  if (event.type !== "tool_call" || event.tag !== "tool_call_update" || event.status !== "completed"
+    || event.title !== "mcp__paperclip__request_human_input") return false;
+  const object = (value: unknown): Record<string, unknown> | null => {
+    if (typeof value === "string") {
+      if (value.length > 65_536) return null;
+      try { value = JSON.parse(value); } catch { return null; }
+    }
+    return value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
+  };
+  let result = object(event.rawOutput);
+  if (!result || "error" in result) return false;
+  if (!("disposition" in result)) {
+    if (Object.keys(result).some(key => !["result", "structuredContent", "_meta"].includes(key))) return false;
+    result = object(result.structuredContent ?? result.result);
+  }
+  if (!result || "error" in result || result.disposition !== "applied") return false;
+  const interaction = object(result.interaction);
+  return interaction !== null && interaction.kind === "ask_user_questions" && interaction.status === "pending"
+    && interaction.continuationPolicy === "wake_assignee" && interaction.sourceRunId === runId
+    && ["id", "companyId", "issueId"].every(key => typeof interaction[key] === "string" && Boolean(interaction[key]));
 }
 
 /** Reject an oversized approval document; never silently approve a truncated revision. */

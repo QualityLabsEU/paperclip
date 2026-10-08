@@ -23,7 +23,9 @@ const completion = {
   evidence: [], verification: [{ commandOrCheck: 'native transport fixture', status: 'passed' }], attentionRequests: [], artifacts: [],
 };
 
-test('pinned Hermes streams images and semantic completion through Rust PRP and the production sidecar', {
+for (const question of [false, true]) test(question
+  ? 'pinned Hermes retains prompt usage before a committed question triggers immediate Rust-sidecar shutdown'
+  : 'pinned Hermes streams images and semantic completion through Rust PRP and the production sidecar', {
   skip: process.env.PAPERCLIP_HERMES_QUALIFY !== '1', timeout: 180_000,
 }, async t => {
   const root = await mkdtemp(join(tmpdir(), 'paperclip-hermes-runnerd-'));
@@ -50,9 +52,10 @@ test('pinned Hermes streams images and semantic completion through Rust PRP and 
     if (!body.messages.some(message => message.role === 'tool')) {
       send({ role: 'assistant', reasoning_content: 'Checking the native runner path.' });
       await new Promise(resolve => setTimeout(resolve, 80));
-      const finish = body.tools.find(tool => tool.function.name.endsWith('paperclip_finish'));
+      const finish = body.tools.find(tool => tool.function.name.endsWith(question ? 'request_human_input' : 'paperclip_finish'));
       assert.ok(finish, 'Paperclip completion authority was not exposed to the native model');
-      send({ tool_calls: [{ index: 0, id: 'native-prp-finish', type: 'function', function: { name: finish.function.name, arguments: JSON.stringify(completion) } }] });
+      send({ tool_calls: [{ index: 0, id: 'native-prp-finish', type: 'function', function: { name: finish.function.name,
+        arguments: JSON.stringify(question ? { marker: 'governed-question' } : completion) } }] });
       send({}, 'tool_calls');
     } else {
       send({ role: 'assistant', content: 'Native Rust ' });
@@ -105,13 +108,42 @@ test('pinned Hermes streams images and semantic completion through Rust PRP and 
     },
     prpIdentity: { runnerInstanceId: 'hermes-prp-runner', environmentLeaseId: 'hermes-prp-lease', runId: identity.runId, normalizedSessionId: identity.sessionId, turnId: 'hermes-prp-turn', itemId: 'hermes-prp-item' },
   });
-  const backend = createRunnerdNativeSessionBackend(input, { runnerInstanceId: 'hermes-prp-runner', transportFactory: () => bundle.transport });
+  const backend = createRunnerdNativeSessionBackend(input, { runnerInstanceId: 'hermes-prp-runner', transportFactory: () => bundle.transport,
+    ...(question ? {
+      dynamicTools: [{ name: 'request_human_input', description: 'Simulated authenticated question operation',
+        inputSchema: { type: 'object', properties: { marker: { type: 'string' } }, required: ['marker'] } }],
+      dynamicToolHandler: async () => ({ disposition: 'applied', interaction: {
+        id: 'fixture-question', companyId: identity.companyId, issueId: identity.issueId, sourceRunId: identity.runId,
+        kind: 'ask_user_questions', status: 'pending', continuationPolicy: 'wake_assignee',
+      } }),
+    } : {}),
+  });
   session = await backend.openSession({ identity, workingDirectory: workspace });
   await session.startTurn({ message: { role: 'user', text: input.task.prompt, attachments: input.attachments } });
   const events = [];
+  let cancellationOutcome;
   for await (const event of session.events()) {
     events.push(event);
+    if (question && event.eventType === 'tool.execution.completed') {
+      cancellationOutcome = session.cancel({ reason: 'committed question wait', signal: new AbortController().signal }).cleanup
+        .then(() => ({ stopped: true }), error => ({ error }));
+      break;
+    }
     if (['run.terminal', 'turn.completed', 'turn.failed', 'turn.cancelled', 'turn.interrupted'].includes(event.eventType)) break;
+  }
+  if (question) {
+    assert.ok(cancellationOutcome, 'The committed question completion did not reach the native boundary');
+    await session.close({ reason: 'immediate question shutdown' });
+    const stop = await cancellationOutcome;
+    if (stop.error) assert.equal(stop.error.code, 'already_terminal', 'Provider cancellation failed before terminal settlement');
+    const usage = await session.accountingUsageEvent?.();
+    assert.deepEqual(usage?.payload.usage.runDelta && {
+      input: usage.payload.usage.runDelta.inputTokens, output: usage.payload.usage.runDelta.outputTokens,
+      complete: usage.payload.usage.runDeltaComplete,
+    }, { input: 10, output: 5, complete: true }, 'Immediate shutdown lost the native prompt receipt');
+    assert.ok(events.some(event => event.payload.kind === 'usage'), 'The question completion reached PRP before its usage receipt');
+    assert.equal(requests.length, 1, 'Hermes started another model request after the committed question');
+    return;
   }
   assert.ok(events.some(event => event.eventType === 'turn.completed'), JSON.stringify(events));
   assert.ok(events.some(event => JSON.stringify(event.payload).includes('Checking the native runner path.')), 'Reasoning did not cross PRP');
