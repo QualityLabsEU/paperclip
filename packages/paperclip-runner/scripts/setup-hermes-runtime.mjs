@@ -2,7 +2,7 @@
 import { lstat, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { HERMES_CLOSURES } from "../src/drivers/acpx/hermes-distributions.ts";
-import { verifyNativeAcpxInstallation } from "../src/drivers/acpx/installation-integrity.ts";
+import { verifyHermesRuntimeFiles } from "../src/drivers/acpx/hermes-setup-integrity.ts";
 import { hermesProvisionerDestination, hermesProvisionerLayout } from "./hermes-provisioner-layout.mjs";
 import { materializePinnedHermesDistribution } from "./provision-hermes.mjs";
 
@@ -14,14 +14,12 @@ export async function provisionHermesRuntime() {
   const closureSha256 = HERMES_CLOSURES[platform];
   if (!closureSha256) throw new Error(`Hermes has no reviewed distribution for ${platform}`);
   const destination = hermesProvisionerDestination(import.meta.url, closureSha256, process.platform, process.arch);
-  const verify = (distributionRoot, expectedClosureSha256) => verifyNativeAcpxInstallation({ distributionRoot, expectedClosureSha256,
-    manifestPath: join(distributionRoot, "manifest.json"), executable: "python/bin/python3.12", pythonEntrypoint: "entry.py", fixedArguments: [] });
   const installed = await lstat(destination).catch(error => { if (error.code !== "ENOENT") throw error; return null; });
   if (installed) {
     if (!installed.isDirectory() || installed.isSymbolicLink()) throw new Error("Hermes runtime assets must be a real directory");
-    await verify(destination, closureSha256);
+    await verifyHermesRuntimeFiles(destination, closureSha256);
   } else {
-    await materializePinnedHermesDistribution({ destination, provider: layout.provider, materializer: layout.materializer, verify });
+    await materializePinnedHermesDistribution({ destination, provider: layout.provider, materializer: layout.materializer, verify: verifyHermesRuntimeFiles });
   }
   const version = JSON.parse(await readFile(join(layout.provider, "version.json"), "utf8"));
   console.log(`Verified Hermes ${version.release} (${platform}), Python ${version.python}`);

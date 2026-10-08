@@ -4,6 +4,7 @@ import { access, lstat, mkdir, mkdtemp, readFile, realpath, rename, rm, writeFil
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { HERMES_CLOSURES } from "../src/drivers/acpx/hermes-distributions.ts";
+import { hermesProvisioningConfig } from "./hermes-provisioning-config.mjs";
 
 const digest = bytes => createHash("sha256").update(bytes).digest("hex");
 
@@ -21,7 +22,7 @@ export async function materializePinnedHermesDistribution({ destination, provide
   const source = join(temporary, "source");
   const prepared = join(temporary, "distribution");
   const env = { PATH: process.env.PATH ?? "/usr/bin:/bin", LANG: "C.UTF-8", HOME: join(temporary, "home"),
-    UV_CACHE_DIR: join(temporary, "uv-cache"), UV_PYTHON_INSTALL_DIR: join(temporary, "uv-python"), UV_NO_CONFIG: "1" };
+    UV_CACHE_DIR: join(temporary, "uv-cache"), UV_PYTHON_INSTALL_DIR: join(temporary, "uv-python") };
   try {
     await mkdir(source, { mode: 0o700 });
     await mkdir(env.HOME, { mode: 0o700 });
@@ -37,8 +38,11 @@ export async function materializePinnedHermesDistribution({ destination, provide
     await writeFile(archive, bytes, { mode: 0o600, flag: "wx" });
     execFileSync("tar", ["-xzf", archive, "--strip-components=1", "-C", source], { env, timeout: 30000 });
     if (digest(await readFile(join(source, "uv.lock"))) !== version.lockSha256) throw new Error("Hermes dependency lock digest mismatch");
-    execFileSync("uv", ["sync", "--locked", "--no-dev", "--no-install-project", "--python", version.python,
+    const configFile = join(temporary, "uv.toml");
+    await writeFile(configFile, hermesProvisioningConfig(await readFile(join(source, "pyproject.toml"), "utf8")), { mode: 0o600, flag: "wx" });
+    execFileSync("uv", ["sync", "--locked", "--config-file", configFile, "--no-dev", "--no-install-project", "--python", version.python,
       "--extra", "acp", "--extra", "mcp", "--extra", "anthropic", "--extra", "bedrock", "--extra", "google"], { cwd: source, env, stdio: "inherit", timeout: 300000 });
+    if (digest(await readFile(join(source, "uv.lock"))) !== version.lockSha256) throw new Error("Hermes dependency lock changed during installation");
     execFileSync(join(source, ".venv/bin/python"), [materializer, source, prepared, provider], { env, stdio: "inherit", timeout: 120000 });
     const manifest = JSON.parse(await readFile(join(prepared, "manifest.json"), "utf8"));
     if (digest(JSON.stringify(manifest.entries)) !== expectedClosureSha256) throw new Error("Hermes provisioned closure does not match its reviewed pin");

@@ -770,7 +770,7 @@ share the pinned download/materialization operation. Python/ACP/ACPX pins and th
 native bridge bytes are unchanged. Provisioning scratch and uv downloads remain
 owned temporary files and are removed after settlement.
 
-The new setup/layout/cache/CLI checks passed 20 tests. Runner and CLI TypeScript
+The focused setup/layout/cache/CLI checks passed 20 tests. Runner and CLI TypeScript
 checks, the runner TypeScript build, generated protocol/profile checks and diff
 checks passed. An additional package/model selection invocation passed 25 tests
 and failed the standalone-boundary check with five violations. An independent
@@ -788,3 +788,27 @@ ledger retains $23 reserved against the $25 cap, not $23 measured spending.
 Actual Daytona remains blocked on the previously reported token scopes.
 Successful managed subscriptions, actual Daytona and the full original live
 interaction/state/routine/distribution criteria remain required before promotion.
+
+The clean read-only npm-packed Runner artifact at `b9603a3a` contained both
+compiled setup entrypoints and the Python materializer. Fresh Mac setup failed
+before publishing any runtime: disabling all uv configuration also removed
+Hermes's archive-authenticated resolver settings. Credential-free Linux CI
+reported the same failure. The source archive and dependency lock passed their
+digest checks; neither the lock nor runtime pins were changed. A separate offline
+uv check with an explicit configuration derived only from the authenticated
+upstream `[tool.uv]` section passed and left the lock unchanged. Provisioning now
+uses that explicit configuration instead of discovering operator/system settings,
+retains `--locked`, and checks the lock digest again after dependency installation.
+
+Fresh review of `b9603a3a` also correctly identified that setup validated the
+inventory but did not read the installed runtime files. Setup now opens and closes
+the same verified native snapshot used at admission before accepting existing
+assets or publishing new ones. It never starts Hermes for this check. Regression
+tests cover changed bridge bytes, a missing interpreter, and a substituted
+entrypoint symlink while keeping the original manifest intact. All 14 focused
+Runner Vitest tests and seven provisioner/build Node tests pass; Runner TypeScript
+and the pinned-toolchain TypeScript build pass. The earlier failed packed setup
+and Linux CI remain failures. Corrected
+fresh installation, public server/CLI consumer execution and new-head CI/review
+are still required; no release qualification or successful clean-consumer run is
+claimed by these corrections.
