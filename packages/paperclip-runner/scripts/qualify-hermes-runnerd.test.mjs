@@ -93,6 +93,7 @@ test('pinned Hermes streams images and semantic completion through Rust PRP and 
     attachments: [{ schema: 'paperclip.user_attachment.v1', kind: 'image', name: 'pixel.png', mediaType: 'image/png', data: imageData }],
   });
   bundle = createRunnerdCodexTransport({
+    runnerBinary: process.env.PAPERCLIP_RUNNER_BINARY,
     provider: 'acpx', acpxAgent: 'hermes', acpxCandidateProfile: 'hermes', acpxPermissionMode: 'approve-all',
     stateDirectory: join(root, 'runner'), acpxRuntimeDirectory: join(root, 'runtime'), runtimeContext,
     lifecyclePolicy: { mode: 'per_turn', idleTimeoutMs: null }, turnStartTimeoutMs: 90_000,

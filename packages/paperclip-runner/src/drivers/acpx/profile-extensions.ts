@@ -5,6 +5,7 @@ import { parsePaperclipQuestionSet, parsePaperclipQuestionResponse, type Papercl
 import { isCanonicalProviderEventType, type CanonicalProviderEvent } from "../../provider-events.js";
 import { validatePrpEvent } from "../../protocol/replay-contract.js";
 import type { QualifiedAcpxAgent } from "./qualified-profiles.js";
+import { parseProviderUsageBilling, type ProviderUsageBilling } from "../../contracts/usage-billing.js";
 
 export const ACPX_CANONICAL_INPUT_METHODS = [
   "elicitation/create", "cursor/ask_question", "cursor/create_plan", "_hermes/ask_questions",
@@ -31,6 +32,7 @@ export interface AcpxProfileExtensionContext {
   workspacePath: string;
   sessionId: string;
   turnId: string;
+  onBilling?(receipt: ProviderUsageBilling): void;
 }
 
 /** Provider branches install their closed, pinned adapters here after qualification research. */
@@ -81,13 +83,21 @@ export function createAcpxProfileExtensionAdapter(
           throw new Error("Invalid Hermes usage provenance");
         }
         const estimated = params.cost === "estimated";
+        const billing = params.billing === undefined ? null : parseProviderUsageBilling(params.billing);
+        if (billing) {
+          if (!context.onBilling) throw new Error("Hermes billing receipts were not negotiated");
+          context.onBilling(billing);
+        }
         const itemId = `${context.turnId}:hermes-usage`;
         return [{ eventType: "provider.notice.recorded", itemId, payload: {
           schema: "paperclip.provider.notice.v1", noticeId: itemId, severity: "info", category: "hermes_usage_provenance", scope: "turn",
           recoverable: true, userActionable: false,
-          summary: estimated ? `Hermes estimates this turn at $${(params.estimatedUsd as number).toFixed(6)}. Billing cost is unverified.`
+          summary: billing ? `OpenRouter reports $${billing.amountUsd.toFixed(6)}${billing.complete ? " for this turn." : "; remaining billing is unavailable."}`
+            : estimated ? `Hermes estimates this turn at $${(params.estimatedUsd as number).toFixed(6)}. Billing cost is unverified.`
             : "Hermes billing cost is unavailable.",
-          details: [{ name: "Token usage", value: String(params.tokens) }, { name: "Cost source", value: estimated ? "Hermes model pricing estimate" : "Unavailable" },
+          details: [{ name: "Token usage", value: String(params.tokens) }, { name: "Cost source", value: billing ? "OpenRouter response usage.cost" : estimated ? "Hermes model pricing estimate" : "Unavailable" },
+            ...(billing ? [{ name: "Reported USD", value: billing.amountUsdExact }, { name: "Billing complete", value: String(billing.complete) },
+              { name: "Reported requests", value: `${billing.reportedRequestCount}/${billing.requestCount}` }] : []),
             ...(estimated ? [{ name: "Estimated USD", value: String(params.estimatedUsd) }] : [])],
         } }];
       }
@@ -99,7 +109,7 @@ export function createAcpxProfileExtensionAdapter(
 }
 export function acpxProfileClientCapabilities(agent: QualifiedAcpxAgent): Record<string, unknown> {
   if (agent === "cursor") return structuredClone(CURSOR_CLIENT_CAPABILITIES);
-  return agent === "hermes" ? { _meta: { paperclipHermes: { version: 1 } } } : {};
+  return agent === "hermes" ? { _meta: { paperclipHermes: { version: 1, billingReceipts: 1 } } } : {};
 }
 
 /** Reject an oversized approval document; never silently approve a truncated revision. */

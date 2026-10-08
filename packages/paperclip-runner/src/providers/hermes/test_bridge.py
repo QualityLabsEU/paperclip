@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, Mock, patch
 from acp.schema import ClientCapabilities
 from bridge import ManagedHermesACPAgent, ManagedSessionManager, ChannelClient, native_answers, question_set, install_no_auth_transport, turn_usage, USAGE_COUNTERS
 from policy import authorize_tool
+from billing import TurnBilling
 
 
 class Accounting(unittest.TestCase):
@@ -162,6 +163,39 @@ class Controls(unittest.IsolatedAsyncioTestCase):
         self.bridge = ManagedHermesACPAgent(self.manager)
         self.bridge._negotiated = True
         self.bridge._active = ("session", "turn")
+
+    async def test_reported_wire_usage_includes_calls_missing_from_native_accepted_response_counters(self):
+        self.state.agent = SimpleNamespace(**{"session_" + key: 0 for key in USAGE_COUNTERS},
+            _paperclip_usage_receipts=[True], _paperclip_cost_receipts=[True])
+        # Native session counters can reset during compaction. Complete wire
+        # receipts remain scoped to this turn instead of subtracting sessions.
+        self.bridge._usage_before = dict.fromkeys(USAGE_COUNTERS, 100)
+        self.bridge._billing = TurnBilling()
+        for _ in range(2):
+            self.bridge._billing.begin().json(b'{"usage":{"prompt_tokens":20,"completion_tokens":5,"cost":0.0042}}')
+        conn = SimpleNamespace(ext_notification=AsyncMock())
+        with patch("bridge.HermesACPAgent._finish_turn", new=AsyncMock(return_value=SimpleNamespace(usage=None))):
+            response = await self.bridge._finish_turn(self.state, "session", conn, {}, None, True)
+        self.assertEqual(response.usage.input_tokens, 40)
+        self.assertEqual(response.usage.output_tokens, 10)
+        params = conn.ext_notification.call_args.args[1]
+        self.assertEqual(params["turnToken"], "turn")
+        self.assertEqual(params["billing"]["amountUsdExact"], "0.008400000")
+        self.assertEqual(params["billing"]["reportedRequestCount"], 2)
+        self.assertEqual(params["cost"], "unavailable")  # no smaller model-price estimate
+
+    async def test_missing_wire_usage_cannot_fall_back_to_the_smaller_native_receipt(self):
+        self.state.agent = SimpleNamespace(**{"session_" + key: 0 for key in USAGE_COUNTERS},
+            _paperclip_usage_receipts=[True], _paperclip_cost_receipts=[True])
+        self.bridge._usage_before = dict.fromkeys(USAGE_COUNTERS, 0)
+        self.bridge._billing = TurnBilling()
+        self.bridge._billing.begin().json(b'{"usage":{"prompt_tokens":20,"completion_tokens":5,"cost":0.0042}}')
+        self.bridge._billing.begin()  # interrupted request never returned usage
+        conn = SimpleNamespace(ext_notification=AsyncMock())
+        with patch("bridge.HermesACPAgent._finish_turn", new=AsyncMock(return_value=SimpleNamespace(usage=None))):
+            response = await self.bridge._finish_turn(self.state, "session", conn, {}, None, True)
+        self.assertIsNone(response.usage)
+        self.assertFalse(conn.ext_notification.call_args.args[1]["billing"]["complete"])
 
     async def test_steering_is_bound_to_live_session_and_turn(self):
         for session, token in [("other", "turn"), ("session", "old")]:

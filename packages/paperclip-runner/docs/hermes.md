@@ -106,8 +106,22 @@ extend the task's execution deadline.
 - Restored history is recorded without becoming new assistant text or live tools.
 - Restoration requires nonempty native history and follows the native
   compaction chain. Missing history and failed persistence are errors.
-- Usage is a per-prompt delta. Native price calculations are labeled estimates;
-  missing receipts and unverified billed cost are unavailable, not zero.
+- Usage is a per-prompt delta. Clients negotiate `billingReceipts: 1` inside
+  `_meta.paperclipHermes`; the optional closed `paperclip.usage.billing/v1`
+  receipt remains replay-compatible with older events.
+- For the managed OpenRouter Chat Completions route, the bridge observes the
+  pinned SDK's wire responses and sums provider-reported `usage.cost`, including
+  retries and auxiliary synchronous calls. The receipt carries request counts,
+  completeness and an exact nine-decimal USD amount. Paperclip binds it to the
+  selected OpenRouter billing identity and the current native turn before
+  using it for accounting. Cumulative session cost and native model-price
+  estimates cannot supply this receipt.
+- Failed, interrupted, unsupported asynchronous and background delegated work
+  leave settlement incomplete. Known positive reported subtotals survive, but
+  missing charges remain unpriced. Explicit reported zero is accepted only for
+  a complete receipt. Other provider/protocol routes retain their existing
+  unavailable billed-cost behavior. Complete live billing, including delegated
+  work, remains a qualification gate; these checks do not qualify a provider.
 
 The managed execution middleware applies planning/read-only, protected-path and
 permission policy to inline, concurrent and delegated native tools. Assigned

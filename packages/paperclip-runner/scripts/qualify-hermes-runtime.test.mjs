@@ -2,16 +2,42 @@
 // This is transport proof, not live model or product qualification.
 // PAPERCLIP_HERMES_QUALIFY=1 node --test scripts/qualify-hermes-runtime.test.mjs
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
 import { once } from "node:events";
 import { mkdir, mkdtemp, rm, readFile, readdir } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 import test from "node:test";
 import { AcpxRuntimeHost } from "../dist/drivers/acpx/runtime-host.js";
 import { openCodexAcpxRuntime } from "../dist/drivers/acpx/codex-runtime-adapter.js";
 import { acpxProfileClientCapabilities } from "../dist/drivers/acpx/profile-extensions.js";
 import { acpxProviderSessionIdentity } from "../dist/drivers/acpx/recovery-identity.js";
+import { HERMES_CLOSURES } from "../dist/drivers/acpx/hermes-distributions.js";
+import { verifyHermesRuntimeFiles } from "../dist/drivers/acpx/hermes-setup-integrity.js";
+
+test("pinned Python qualifies Hermes bridge and wire billing without credentials", {
+  skip: process.env.PAPERCLIP_HERMES_QUALIFY !== "1", timeout: 60_000,
+}, async t => {
+  const packageRoot = fileURLToPath(new URL("../", import.meta.url));
+  const platform = `${process.platform}-${process.arch}`;
+  const runtime = join(packageRoot, "provider-assets/hermes", platform);
+  assert.ok(HERMES_CLOSURES[platform], "Unqualified Hermes execution platform");
+  await verifyHermesRuntimeFiles(runtime, HERMES_CLOSURES[platform]);
+  const home = await mkdtemp(join(tmpdir(), "paperclip-hermes-unit-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const code = `import sys, unittest\nsys.path[:0] = ${JSON.stringify([join(packageRoot, "src/providers/hermes"), join(runtime, "app")])}\n` +
+    "suite = unittest.defaultTestLoader.loadTestsFromNames(['test_bridge', 'test_billing'])\n" +
+    "sys.exit(0 if unittest.TextTestRunner().run(suite).wasSuccessful() else 1)\n";
+  const output = await promisify(execFile)(join(runtime, "python/bin/python3.12"), ["-I", "-B", "-c", code], {
+    timeout: 30_000, maxBuffer: 64 * 1024,
+    env: { PATH: process.env.PATH, HOME: home, HERMES_HOME: join(home, "hermes") },
+  });
+  assert.match(output.stderr, /Ran \d+ tests[\s\S]*\bOK\b/);
+  t.diagnostic(output.stderr.trim());
+});
 
 test("pinned Hermes streams through the production ACPX host using a no-auth local connection", {
   skip: process.env.PAPERCLIP_HERMES_QUALIFY !== "1", timeout: 180_000,

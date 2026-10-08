@@ -22,6 +22,7 @@ from acp_adapter.events import _send_update, make_step_cb
 from acp_adapter.tools import build_tool_start, build_tool_complete
 from policy import authorize_tool, REPORTING_TOOLS
 from tool_process import tool_policy, install_tool_process_policy
+from billing import close_turn, fence_background_dispatch, install_billing_capture, start_turn
 
 EXTENSION_VERSION = 1
 ANSWER_MAX_LENGTH = 65536
@@ -219,6 +220,8 @@ class ManagedHermesACPAgent(HermesACPAgent):
         self._negotiated = False
         self._dispatch_original = None
         self._usage_before = None
+        self._billing = None
+        self._billing_negotiated = False
 
     def _build_model_state(self, state):
         from acp.schema import ModelInfo, SessionModelState
@@ -242,10 +245,12 @@ class ManagedHermesACPAgent(HermesACPAgent):
         capabilities = kwargs.get("client_capabilities")
         meta = getattr(capabilities, "field_meta", None) or {}
         self._negotiated = meta.get("paperclipHermes", {}).get("version") == EXTENSION_VERSION
+        self._billing_negotiated = self._negotiated and meta.get("paperclipHermes", {}).get("billingReceipts") == 1
         response = await super().initialize(*args, **kwargs)
         response.agent_capabilities.field_meta = {"paperclipHermes": {
             "version": EXTENSION_VERSION, "steering": True, "questions": True,
             "queuedFollowUp": False, "strictRestore": True,
+            **({"billingReceipts": 1} if self._billing_negotiated else {}),
         }}
         return response
 
@@ -305,6 +310,7 @@ class ManagedHermesACPAgent(HermesACPAgent):
             if state is None:
                 raise ValueError("Hermes session is unavailable")
             self._usage_before = usage_snapshot(state.agent)
+            self._billing = start_turn(state.agent) if self._billing_negotiated else None
             state.agent._paperclip_usage_receipts = []
             state.agent._paperclip_cost_receipts = []
             await self._conn.ext_notification("hermes/turn_started", {
@@ -312,6 +318,8 @@ class ManagedHermesACPAgent(HermesACPAgent):
             })
             return await super().prompt(prompt, session_id, **kwargs)
         finally:
+            close_turn(self._billing)
+            self._billing = None
             self._active = None
             self._usage_before = None
             for future in tuple(self._pending_questions):
@@ -331,14 +339,25 @@ class ManagedHermesACPAgent(HermesACPAgent):
             raise ValueError("Hermes turn accounting is unavailable")
         after = usage_snapshot(state.agent)
         receipts = state.agent._paperclip_usage_receipts
-        response.usage = turn_usage(before, after, receipts)
+        billing = None
+        if self._billing is not None:
+            billing, tokens = self._billing.finish()
+            # This includes auxiliary and rejected/truncated responses that
+            # native accepted-response counters do not cover. Missing wire
+            # receipts cannot fall back to a smaller accepted-response total.
+            response.usage = None if tokens is None else acp.schema.Usage(
+                input_tokens=tokens[0], output_tokens=tokens[1], cached_read_tokens=tokens[2],
+                cached_write_tokens=tokens[3], thought_tokens=0, total_tokens=sum(tokens))
+        else:
+            response.usage = turn_usage(before, after, receipts)
         costs = state.agent._paperclip_cost_receipts
-        estimated = bool(costs) and all(costs) and response.usage is not None
+        estimated = billing is None and bool(costs) and all(costs) and response.usage is not None
         await conn.ext_notification("hermes/usage", {
             "version": EXTENSION_VERSION, "sessionId": session_id, "turnToken": self._active[1],
             "tokens": "reported" if response.usage is not None else "unavailable",
             "cost": "estimated" if estimated else "unavailable",
             **({"estimatedUsd": after["estimated_cost_usd"] - before["estimated_cost_usd"]} if estimated else {}),
+            **({"billing": billing} if billing is not None else {}),
         })
         return response
 
@@ -412,10 +431,14 @@ class ManagedHermesACPAgent(HermesACPAgent):
             # native content (including diffs) and the original result together.
             _send_update(conn, session_id, loop, update.model_copy(update={"raw_output": result_text}))
 
+        billing = self._billing
+
         def progress(event, name=None, preview=None, args=None, **details):
             child = details.get("child_session_id") or details.get("subagent_id")
             if event not in {"subagent.start", "subagent.progress", "subagent.tool", "subagent.complete"} or not isinstance(child, str):
                 return
+            if billing is not None and event in {"subagent.start", "subagent.complete"}:
+                billing.child(child, event == "subagent.start")
             future = asyncio.run_coroutine_threadsafe(conn.ext_notification("hermes/delegation", {
                 "version": EXTENSION_VERSION, "sessionId": session_id, "turnToken": token,
                 "event": event, "childId": child[:160],
@@ -513,6 +536,9 @@ def main():
 
 def configure_managed_runtime():
     install_tool_process_policy()
+    install_billing_capture()
+    from tools import delegate_tool_dispatch
+    delegate_tool_dispatch._dispatch_background = fence_background_dispatch(delegate_tool_dispatch._dispatch_background)
     from agent import turn_response_check
     original_usage = turn_response_check.record_response_usage
 

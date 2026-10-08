@@ -303,6 +303,10 @@ definition includes the account/runner harness source digest. Its API-only scope
 does not substitute for subscription or lifecycle qualification.
 The task permits one attempt. Both public 200-cent budgets must match the fixture
 scope before task creation; unlimited or foreign budget records fail admission.
+OpenRouter also requires a settled provider-reported price with an exact USD
+amount and healthy company/agent budget state before fixture teardown. The
+oracle reads scoped public run, company and agent records; it never derives
+billing or health from the model's answer or the cleanup pause.
 
 ## Persistent agent files
 

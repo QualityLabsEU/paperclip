@@ -864,3 +864,46 @@ that digest and reports the actual dirty state instead of calling the working
 tree clean. Other edits, staged replacements, missing/mismatched approval,
 deletions and symlinks remain rejected. All eighteen source-admission tests and
 Product E2E TypeScript pass. The root lockfile itself remains unchanged.
+
+### 2026-10-07 reported-cost qualification work
+
+The source/approved-lock correction at `805d787b` has 54 passing checks, two
+intentional skips, a fresh Greptile 5/5 and no open review threads. The live Mac
+budget pause above remains historical evidence, not a successful billing result.
+
+The managed bridge now negotiates optional v1 wire billing for the selected
+OpenRouter Chat Completions account. It observes the pinned synchronous SDK
+without changing its requests or loop. Every inference attempt enters a
+turn-owned ledger, including SDK retries and synchronous auxiliary calls.
+Completed response `usage.cost` amounts become an exact nine-decimal USD
+subtotal. Missing/failed/interrupted attempts, unsupported asynchronous calls
+and background delegation keep settlement incomplete. Positive known spend
+survives; absent charges never become free work. Other provider/protocol paths
+retain unavailable billed cost. Credential/header values do not enter receipts.
+
+The optional closed receipt crosses the ACP extension, both runner drivers,
+Rust PRP normalization, replay and controller accounting. The controller binds
+it to the selected biller and current turn, keeps cumulative estimates separate,
+and rebuilds totals without duplicate charging on replay. Compaction resets of
+native counters cannot replace wire totals. No budget safeguard was relaxed.
+The public OpenRouter completion oracle now independently requires reported
+settled cost and healthy company/agent budget state before cleanup.
+
+Credential-free proof passed: 34 pinned Python tests, 63 focused Runner Vitest
+tests, 16 Rust event tests, all 608 native executor tests, 28 Node protocol/build
+checks and 87 source/API/Bedrock oracle tests. Runner, server and Product E2E
+TypeScript and Rust formatting passed. Both Mac production transport fixtures
+passed with the freshly built runner: Rust/image/semantic completion in 33.043
+seconds and native streaming/restore/tools/questions/planning/memory/steering/
+stop in 82.158 seconds. These use a deterministic loopback model and no
+credentials; they are not paid billing or full-stack browser proof.
+
+The reviewed closure changes only the bridge and added billing module. Both
+previous platform manifests were authenticated against their committed pins;
+the task-owned Mac asset was verified file by file before and after the update.
+The new Mac closure is `9f1af058a963305ccd5c4f1555f2828458f72677ceacea2de456ac503f7212de`;
+the derived Linux closure is `dd918ec15f5bd8025f3d01c4f2849eac4de8d59e237a520607f9c5f988a94645`.
+Fresh Linux materialization, current-head CI/review, live reported-cost browser
+proof and broader original release gates remain required. Existing cloud images
+and prior results keep their old runtime/source identities. No local Docker,
+paid inference or additional reservation was used for these offline checks.

@@ -1,5 +1,5 @@
 import { runPlanTaskFlow } from "./plan-task-flow.js";
-import { captureHermesApiAccountOwner, captureHermesApiBudgets, gradeHermesApiConnection, isHermesConnectionSuite } from "./hermes-api-connections.js";
+import { captureHermesApiAccountOwner, captureHermesApiBudgets, captureHermesOpenRouterSettlement, gradeHermesApiConnection, isHermesConnectionSuite } from "./hermes-api-connections.js";
 import { assertNativeCompletionSelection, NATIVE_COMPLETION_PREFLIGHT_ENV, verifyNativeCompletionPreflight } from "./native-completion-admission.js";
 import { assertNativeInstructionSelection, verifyNativeInstructionPreflight, NATIVE_INSTRUCTION_PREFLIGHT_ENV, NATIVE_INSTRUCTION_SUITE, NATIVE_INSTRUCTION_DEFAULT_SHA256 } from "./native-instruction-consolidation.js";
 import { captureNativeDefault, gradeNativeDefault, nativeCompletionWorkspaceDigest } from "./native-completion-defaults.js";
@@ -2894,6 +2894,23 @@ for (const execution of executions) {
           checks.push(...after.checks.map(check => ({ ...check, id: `after-task-${check.id}` })),
             { id: "account-owner-preserved", passed: after.expectedResponsibleUserId === hermesApiAccountOwner.expectedResponsibleUserId });
           await writeSanitizedJson(snapshotsDir, "hermes-api-owner-after-execution.json", after, secrets);
+        }
+        if (fixtures.aiConnection.binding.provider === "openrouter") {
+          const settlementScope = { companyId: fixtures.company.id, agentId: fixtures.agent.id, issueId: issue.id,
+            runId: selectedRuns[0]?.id ?? "missing" };
+          let receipt: Awaited<ReturnType<typeof captureHermesOpenRouterSettlement>> | undefined;
+          try {
+            await expect.poll(async () => {
+              receipt = await captureHermesOpenRouterSettlement({ api, ...settlementScope });
+              return receipt.checks.every(check => check.passed);
+            }, { timeout: 30_000, message: "OpenRouter billing must settle without pausing the agent before cleanup" }).toBe(true);
+          } finally {
+            if (receipt) {
+              await writeSanitizedJson(snapshotsDir, "hermes-openrouter-settlement.json", receipt, secrets);
+              matcherResults.push(...receipt.checks.map(check => ({ matcher: { kind: "json_path" as const, path: `hermesBilling.${check.id}`, expected: true },
+                passed: check.passed, detail: "Public reported cost and company/agent budget health must pass before teardown." })));
+            }
+          }
         }
         matcherResults.push(...checks.map(check => ({ matcher: { kind: "json_path" as const, path: `hermesConnection.${check.id}`, expected: true }, passed: check.passed, detail: "Public native run metadata must match the selected managed API account and exact model." })));
         await writeSanitizedJson(snapshotsDir, "hermes-api-connection.json", { checks }, secrets);

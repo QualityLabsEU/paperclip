@@ -617,6 +617,14 @@ fingerprint; secrets travel through the ephemeral credential channel. Implemente
 projections remain subject to per-method live qualification. See the
 [Hermes runner contract](../../packages/paperclip-runner/docs/hermes.md).
 
+The Hermes runner's optional per-turn billing receipt currently recognizes
+provider-reported OpenRouter `usage.cost` only on its selected managed Chat
+Completions route. Account attribution still comes from the authoritative
+connection projection. Token totals, displayed native price estimates, and
+cumulative session costs do not prove billed spending. Incomplete wire attempts
+retain known positive subtotals and leave missing charges unpriced; other Hermes
+providers and protocols remain pending billing qualification.
+
 OpenRouter connections without an explicit model list automatically load its public
 [model catalog](https://openrouter.ai/docs/api/api-reference/models/list-all-models-and-their-properties),
 ordered with `sort=most-popular`. New-agent setup and agent settings share this

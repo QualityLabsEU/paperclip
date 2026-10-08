@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { runnerMatrix, runnerSuites, suiteDefinitionHash } from "./catalog.js";
 import { buildMatrixJobs, parseRunnerSelectors, selectRunnerExecutions } from "./selectors.js";
 import { buildRunnerE2EProcessEnvironment } from "./harness-env.js";
-import { captureHermesApiAccountOwner, captureHermesApiBudgets, gradeHermesApiConnection } from "./hermes-api-connections.js";
+import { captureHermesApiAccountOwner, captureHermesApiBudgets, captureHermesOpenRouterSettlement, gradeHermesApiConnection } from "./hermes-api-connections.js";
 
 describe("Hermes managed API connection qualification", () => {
   const suite = runnerSuites.find(s => s.id === "hermes-api-connections")!;
@@ -40,6 +40,39 @@ describe("Hermes managed API connection qualification", () => {
   };
   it("accepts independently observed account/model metadata", () => {
     expect(gradeHermesApiConnection(valid).every(check => check.passed)).toBe(true);
+  });
+  it.each(["valid", "reported-zero", "company-scope", "agent-scope", "run-scope", "task-scope", "paused-agent", "paused-company", "pause-reason", "budget-changed",
+    "pending", "missing-settlement", "missing-price", "estimated", "partial", "wrong-biller", "wrong-provenance", "mismatched-exact", "unknown-tokens"])("calibrates public OpenRouter settlement: %s", async fault => {
+    const company: Record<string, unknown> = { id: "company", status: "active", pauseReason: null, budgetMonthlyCents: 200 };
+    const agent: Record<string, unknown> = { id: "agent", companyId: "company", status: "idle", pauseReason: null, budgetMonthlyCents: 200 };
+    const usage: Record<string, unknown> = { biller: "openrouter", billingType: "metered_api", costStatus: "reported", costUsd: 0.0042, costUsdExact: "0.004200000",
+      inputTokens: 40, outputTokens: 10, accountingReceiptReady: true, pricingProvenance: { source: "provider_reported", version: "hermes-openrouter-wire/v1" } };
+    const run: Record<string, unknown> = { id: "run", companyId: "company", agentId: "agent", issueId: "task", status: "succeeded", usageJson: usage,
+      costAccountingPending: false, costAccountedAt: "2026-10-08T03:00:00Z" };
+    if (fault === "reported-zero") { usage.costUsd = 0; usage.costUsdExact = "0.000000000"; }
+    if (fault === "company-scope") company.id = "foreign";
+    if (fault === "agent-scope") agent.companyId = "foreign";
+    if (fault === "run-scope") run.agentId = "foreign";
+    if (fault === "task-scope") run.issueId = "foreign";
+    if (fault === "paused-agent") agent.status = "paused";
+    if (fault === "paused-company") company.status = "paused";
+    if (fault === "pause-reason") agent.pauseReason = "budget_unpriced";
+    if (fault === "budget-changed") agent.budgetMonthlyCents = 0;
+    if (fault === "pending") run.costAccountingPending = true;
+    if (fault === "missing-settlement") delete run.costAccountedAt;
+    if (fault === "missing-price") { usage.costUsd = null; usage.costUsdExact = null; }
+    if (fault === "estimated") usage.costStatus = "estimated";
+    if (fault === "partial") usage.costStatus = "unpriced";
+    if (fault === "wrong-biller") usage.biller = "openai";
+    if (fault === "wrong-provenance") usage.pricingProvenance = { source: "model_prices" };
+    if (fault === "mismatched-exact") usage.costUsdExact = "0.040000000";
+    if (fault === "unknown-tokens") delete usage.inputTokens;
+    const paths: string[] = [];
+    const receipt = await captureHermesOpenRouterSettlement({ companyId: "company", agentId: "agent", issueId: "task", runId: "run", api: {
+      async get<T>(url: string) { paths.push(url); return (url === "/api/companies/company" ? company : url === "/api/agents/agent" ? agent : run) as T; },
+    } });
+    expect(new Set(paths)).toEqual(new Set(["/api/companies/company", "/api/agents/agent", "/api/heartbeat-runs/run"]));
+    expect(receipt.checks.every(check => check.passed)).toBe(["valid", "reported-zero"].includes(fault));
   });
   it.each(["valid", "missing", "duplicate", "company", "provider", "method", "ownership", "status", "owner", "caller"])("establishes the expected user from public account readback: %s", async fault => {
     const account = { id: "account", companyId: "company", provider: "xai", method: "api_key", ownership: "personal", ownerUserId: "user", status: "connected" };

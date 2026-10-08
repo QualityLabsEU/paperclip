@@ -1834,6 +1834,7 @@ export function rehydrateRunnerdUsageNotification(
       // authority beside the counters so ACPX/managed driver projections and
       // durable replay cannot certify an incomplete delta as a free receipt.
       runDeltaComplete: rawParams.runDeltaAvailable === true,
+      ...(rawParams.billing === undefined ? {} : { billing: rawParams.billing }),
     },
   };
 }

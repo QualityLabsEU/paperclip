@@ -53,6 +53,37 @@ export async function captureHermesApiBudgets(input: {
   ] };
 }
 
+/** Observe settled billing and budget health before fixture cleanup pauses the agent. */
+export async function captureHermesOpenRouterSettlement(input: {
+  api: { get<T>(path: string): Promise<T> }; companyId: string; agentId: string; issueId: string; runId: string;
+}) {
+  const [company, agent, run] = await Promise.all([
+    input.api.get<Record<string, unknown>>(`/api/companies/${input.companyId}`),
+    input.api.get<Record<string, unknown>>(`/api/agents/${input.agentId}`),
+    input.api.get<Record<string, unknown>>(`/api/heartbeat-runs/${input.runId}`),
+  ]);
+  const usage = record(run.usageJson), provenance = record(usage.pricingProvenance);
+  const cost = usage.costUsd, exact = usage.costUsdExact;
+  return { observation: {
+    company: { id: company.id, status: company.status, pauseReason: company.pauseReason, budgetMonthlyCents: company.budgetMonthlyCents },
+    agent: { id: agent.id, companyId: agent.companyId, status: agent.status, pauseReason: agent.pauseReason, budgetMonthlyCents: agent.budgetMonthlyCents },
+    run: { id: run.id, companyId: run.companyId, agentId: run.agentId, issueId: run.issueId, status: run.status,
+      costAccountingPending: run.costAccountingPending, costAccountedAt: run.costAccountedAt,
+      usage: Object.fromEntries(["provider", "biller", "billingType", "costStatus", "costUsd", "costUsdExact", "inputTokens", "outputTokens", "accountingReceiptReady", "pricingProvenance"].map(key => [key, usage[key]])) },
+  }, checks: [
+    { id: "billing-observation-scope", passed: company.id === input.companyId && agent.id === input.agentId && agent.companyId === input.companyId
+      && run.id === input.runId && run.companyId === input.companyId && run.agentId === input.agentId && run.issueId === input.issueId },
+    { id: "settled-openrouter-reported-cost", passed: run.status === "succeeded" && run.costAccountingPending === false && present(run.costAccountedAt)
+      && usage.accountingReceiptReady === true && usage.biller === "openrouter" && usage.billingType === "metered_api" && usage.costStatus === "reported"
+      && provenance.source === "provider_reported" && provenance.version === "hermes-openrouter-wire/v1"
+      && typeof cost === "number" && Number.isFinite(cost) && cost >= 0 && typeof exact === "string" && /^(0|[1-9][0-9]{0,6})\.[0-9]{9}$/.test(exact) && Number(exact) === cost
+      && typeof usage.inputTokens === "number" && Number.isSafeInteger(usage.inputTokens) && usage.inputTokens >= 0
+      && typeof usage.outputTokens === "number" && Number.isSafeInteger(usage.outputTokens) && usage.outputTokens >= 0 && usage.inputTokens + usage.outputTokens > 0 },
+    { id: "budget-health-after-settlement", passed: company.status === "active" && company.pauseReason === null && agent.status === "idle" && agent.pauseReason === null
+      && company.budgetMonthlyCents === HERMES_API_CONNECTION_BUDGET_CENTS && agent.budgetMonthlyCents === HERMES_API_CONNECTION_BUDGET_CENTS },
+  ] };
+}
+
 /** Grade public run/account/model metadata; a model's completion claim cannot supply it. */
 export function gradeHermesApiConnection(input: {
   companyId: string; agentId: string; issueId: string; connectionId: string; provider: string; model: string; expectedResponsibleUserId: string;

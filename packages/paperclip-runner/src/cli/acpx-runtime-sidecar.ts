@@ -17,6 +17,7 @@ import type {
 
 import { acpxProfileClientCapabilities, bindAcpxExtensionTurn, validateAcpxRichEvent, createAcpxProfileExtensionAdapter, type AcpxExtensionInput } from "../drivers/acpx/profile-extensions.js";
 import type { PaperclipQuestionSet } from "../contracts/question-set.js";
+import { readProviderUsageBilling, type ProviderUsageBilling } from "../contracts/usage-billing.js";
 import { createAcpxToolEventNormalizer, createGrokMessageNormalizer } from "../provider-events.js";
 import { parseNativeUserAttachments, validateNativeUserMessageSize } from "../contracts/user-attachments.js";
 import { parseNativeRuntimeContext } from "../contracts/runtime-context.js";
@@ -366,9 +367,14 @@ async function dispatch(
     turnId = currentTurnId;
     turnControls.begin(currentTurnId);
     let runtimeTurn: AcpxRuntimeTurn;
+    let billing: ProviderUsageBilling | undefined;
     const extensions = bindAcpxExtensionTurn({
       adapter: createAcpxProfileExtensionAdapter(openParams!.agent, {
         workspacePath: openParams!.workingDirectory, sessionId: activeHost.identity().backendSessionId, turnId: currentTurnId,
+        onBilling: receipt => {
+          if (billing) throw new Error("Hermes supplied more than one terminal billing receipt");
+          billing = receipt;
+        },
       }),
       active: () => turnId === currentTurnId && host === activeHost,
       sessionId: activeHost.identity().backendSessionId,
@@ -401,7 +407,7 @@ async function dispatch(
       turnId = null;
       throw error;
     }
-    void pumpTurn(currentTurnId, runtimeTurn, activeHost, usageBefore, extensions.drain, activity, toolEvidence);
+    void pumpTurn(currentTurnId, runtimeTurn, activeHost, usageBefore, extensions.drain, activity, toolEvidence, () => billing);
     // Warm sessions may defer initialize until their first prompt. Publish only
     // the capabilities of that live initialized connection, never old disk state.
     await runtimeTurn.promptStarted;
@@ -614,6 +620,7 @@ async function pumpTurn(
   drainExtensions: () => Promise<void>,
   activity: AcpxActivityAdapter,
   toolEvidence?: AcpxToolEvidence,
+  readBilling?: () => ProviderUsageBilling | undefined,
 ): Promise<void> {
   let terminal: Record<string, unknown>;
   try {
@@ -648,6 +655,7 @@ async function pumpTurn(
         usageAfter,
         runtimeTurn.requestId,
         openParams?.agent,
+        readBilling?.(),
       );
       if (usage) {
         const estimate = acpxUsageEstimateNotice(usage, `${currentTurnId}:usage-estimate`);
@@ -996,6 +1004,7 @@ function sanitizeRuntimeEvent(event: AcpRuntimeEvent): Record<string, unknown> {
     };
   }
   if (event.type === "status") {
+    const billing = readProviderUsageBilling(record(event).billing);
     return boundedSidecarValue({
       type: "status",
       text: boundedOptionalText(event.text, "", 4_000),
@@ -1003,6 +1012,7 @@ function sanitizeRuntimeEvent(event: AcpRuntimeEvent): Record<string, unknown> {
       used: safeNonNegativeNumber(event.used),
       size: safeNonNegativeNumber(event.size),
       ...safeUsage(event.cost, event.breakdown),
+      ...(billing ? { billing } : {}),
     });
   }
   if (event.type === "tool_call") {

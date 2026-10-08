@@ -41,4 +41,17 @@ describe("Hermes native extensions", () => {
     expect(events[0]?.payload.category).toBe("hermes_usage_provenance");
     expect(JSON.stringify(events)).toContain("unverified");
   });
+  it("passes structured billing to the owned accounting callback separately from display events", async () => {
+    const receipts: unknown[] = [];
+    const owned = createAcpxProfileExtensionAdapter("hermes", { sessionId: "session", turnId: "turn", workspacePath: "/workspace",
+      onBilling: receipt => { receipts.push(receipt); } })!;
+    const billing = { schema: "paperclip.usage.billing/v1", source: "provider_reported", biller: "openrouter", currency: "USD",
+      complete: true, requestCount: 2, reportedRequestCount: 2, amountUsd: 0.0042, amountUsdExact: "0.004200000" };
+    const events = await owned.notification("_hermes/usage", { version: 1, sessionId: "session", tokens: "reported", cost: "unavailable", billing });
+    events.forEach(validateAcpxRichEvent);
+    expect(receipts).toEqual([billing]);
+    expect(events[0]?.payload.summary).toContain("OpenRouter reports");
+    await expect(owned.notification("_hermes/usage", { version: 1, sessionId: "other", tokens: "reported", cost: "unavailable", billing })).rejects.toThrow();
+    await expect(adapter().notification("_hermes/usage", { version: 1, sessionId: "session", tokens: "reported", cost: "unavailable", billing })).rejects.toThrow("not negotiated");
+  });
 });

@@ -1542,6 +1542,11 @@ the ordinary completion, screenshot, token/cost and cleanup evidence.
 Each cell admits one attempt and configures 200-cent company and agent budgets.
 Public budget readback must pass before task creation. Unpriced model usage
 remains unknown; this configured limit is not an exact billing receipt.
+The OpenRouter cell additionally waits for its public run's reported wire cost
+to settle and checks that the company remains active and the agent idle with
+no pause reason before cleanup. Its separate settlement snapshot rejects missing
+price evidence, estimates and an unpriced budget pause even when the answer is
+correct. Other providers retain completion-only coverage.
 Before creating the task, public account readback must identify the selected
 connected personal account, its company and owner, and the authenticated caller.
 Both run attribution fields must match that independently recorded owner.

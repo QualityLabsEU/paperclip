@@ -56,7 +56,7 @@ for item in (source / ".venv/lib/python3.12/site-packages").iterdir():
     elif item.suffix not in (".pyc", ".pyo"):
         shutil.copy2(item, site / item.name)
 copy_tree(source, destination / "app", (".venv", ".git", ".github", "tests", "website", "docs", ".pytest_cache"))
-for name in ("bridge.py", "policy.py", "tool_process.py", "entry.py", "version.json"):
+for name in ("bridge.py", "billing.py", "policy.py", "tool_process.py", "entry.py", "version.json"):
     shutil.copy2(provider / name, destination / name)
 # Installed RECORD and direct_url metadata can contain mutable build locations.
 for item in destination.rglob("*.dist-info/direct_url.json"):
