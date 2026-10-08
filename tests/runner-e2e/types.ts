@@ -35,6 +35,7 @@ export type RunnerTaskFlow =
   | "plan_revision_acceptance"
   | "question_resume_completion"
   | "native_question_completion"
+  | "native_question_stop"
   | "plan_approval_completion"
   | "warm_three_turn"
   | "instruction_persistence"

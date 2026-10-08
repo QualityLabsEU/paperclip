@@ -341,3 +341,13 @@ bodies are withheld. Source admission precedes credential handoff, both public
 budgets are 200 cents, OpenRouter cost must settle, and automatic retries remain
 disabled. Registered local/Daytona cells are pending qualification, not permission
 to launch a paid campaign or a claim of remote coverage.
+
+The local native question Stop cell reads the OS process table only to observe
+the isolated run's public PID/group/start identity and descendants. It records
+PID/start-time evidence; command lines stay in memory. The fixture never signals
+those PIDs. Cancellation goes through the normal browser Stop control and public
+board API. No question answer is delivered; the only response attempt is a late
+fixture answer that must be rejected. Retained evidence uses the existing
+sanitizer and screenshot publication gates. The cell reuses the selected key
+allocation and 200-cent budgets, with zero automatic retries. It neither creates
+remote resources nor grants permission to use another secret.

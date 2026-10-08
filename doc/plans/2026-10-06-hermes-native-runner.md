@@ -1310,3 +1310,30 @@ prohibitions and the current completion claim shape. An admission test calls the
 actual production file/document guard. Product E2E typecheck, all 1,954 Vitest
 tests with one existing skip, and exact discovery pass for this correction.
 The production guard is unchanged. A fresh live attempt remains required.
+
+### 2026-10-08 — native question browser acceptance and Stop gate
+
+At source `6f08ecceda0afcf3e3d3ae0ba5043d82add96ac7`, corrected campaign
+`hermes-macos-native-question-corrected-6f08ecceda-20261008-attempt1` passes all
+25 checks and cleanup in 64.270 seconds. One original native run retains a
+three-question callback across browser reload, receives the exact single,
+multiple, custom and undisclosed text answers once, rejects a late duplicate
+with HTTP 409 and completes with the returned text. Public provider-reported
+cost is `$0.002484928`. Inspected screenshots and the canonical packaged
+evidence have no missing entries or leaks. This is local native question proof.
+The earlier failed attempt retains its original grade and unknown per-run cost;
+aggregate provider-key usage is not a substitute settlement receipt.
+
+Both current-source cloud native jobs pass nine fixtures and 38 pinned Python
+checks without credentials. The cloud merge tree equals the recorded PR head;
+55 checks pass with two skips, fresh Greptile 5/5 and no open review threads.
+These checks do not qualify subscriptions, Bedrock or actual Daytona.
+
+The next explicit local cell leaves the native question unanswered and clicks
+the real browser Stop control. It must retain and bind the pending callback,
+require one cancelled request and turn with an audited same-scope Stop receipt,
+observe expiration and stale-answer refusal, preserve the unfinished task,
+settle cancelled-run reported usage, and prove the public per-turn owner and
+observed descendants retire before and through cleanup. This cell is pending
+live qualification. Remote Stop still needs its own remote retirement observer.
+No local Docker or Rust build is used.

@@ -5,7 +5,7 @@ import { nativeCompletionProfile, NATIVE_COMPLETION_BUDGET_CENTS } from "./nativ
 import { chatConfirmationTasks } from "./chat-cases.js";
 import { buildConnectionSuite } from "./connection-cases.js";
 import { hiringTemplateTasks, hiringTemplateProfile, hiringTemplateDefinitionDigest } from "./hiring-template-cases.js";
-import { HERMES_API_CONNECTION_BUDGET_CENTS, HERMES_NATIVE_INTERACTION_SUITE, hermesApiConnectionChoices, hermesApiConnectionDefinitionDigest, hermesBedrockConnectionChoice, hermesNativeQuestionTask } from "./hermes-api-connections.js";
+import { HERMES_API_CONNECTION_BUDGET_CENTS, HERMES_NATIVE_INTERACTION_SUITE, hermesApiConnectionChoices, hermesApiConnectionDefinitionDigest, hermesBedrockConnectionChoice, hermesNativeQuestionTask, hermesNativeQuestionStopTask } from "./hermes-api-connections.js";
 import { nativeActiveStopTasks } from "./native-active-stop-tasks.js";
 import { cursorNativeTasks } from "./cursor-native-cases.js";
 import { instructionPersistenceTask } from "./instruction-persistence.js";
@@ -1215,15 +1215,18 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
   },
   {
     id: HERMES_NATIVE_INTERACTION_SUITE, label: "Hermes native interactions", manualOnly: true,
-    description: "A native Hermes question batch retains its callback through browser reconnect and receives the exact reviewer's answers within one active turn.",
+    description: "A native Hermes question batch receives exact answers through reconnect; browser Stop cancels an unanswered local callback and retires its owned process tree.",
     groups: ["native"], profiles: [extendedHarnessProfiles.find(profile => profile.qualificationCandidate === "hermes")!],
-    environments: runnerEnvironments, tasks: [hermesNativeQuestionTask], expectedMatrixSize: 2,
+    environments: runnerEnvironments, tasks: [hermesNativeQuestionTask, hermesNativeQuestionStopTask],
+    excludedExecutionIds: [`${HERMES_NATIVE_INTERACTION_SUITE}.runner-acpx-hermes.daytona.native-question-batch-stop`], expectedMatrixSize: 3,
     definitionMetadata: {
-      version: 2, qualification: "pending", scheduling: "explicit-only", accountMethod: "api_key", accountMode: "responsible_user",
+      version: 3, qualification: "pending", scheduling: "explicit-only", accountMethod: "api_key", accountMode: "responsible_user",
       providerTurns: 1, lifecycle: "per-turn", nativeMethod: "_hermes/ask_questions", maximumAttemptsPerCell: 1,
       objectiveAdmission: "production-delivery-guard-question-only",
       budgetMonthlyCents: HERMES_API_CONNECTION_BUDGET_CENTS, billing: "reported-cost-and-budget-health",
-      coverage: "native-question-batch-browser-reconnect-exact-delivery", sourceDigest: hermesApiConnectionDefinitionDigest,
+      coverage: "native-question-batch-browser-reconnect-exact-delivery-and-local-stop",
+      stopBoundary: "retained-unanswered-native-question-before-browser-click", stopProcessEvidence: "local-public-per-turn-owner-and-descendants-through-cleanup",
+      remoteStopQualification: "pending-separate-remote-retirement-observer", sourceDigest: hermesApiConnectionDefinitionDigest,
     },
   },
   {

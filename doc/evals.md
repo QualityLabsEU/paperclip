@@ -447,3 +447,13 @@ See the [suite contract](../tests/runner-e2e/README.md#conversational-confirmati
 Hiring notification accounting now also requires exact completed action attribution. Missing native/provider ID mapping is uncomparable evidence; it must not be reported as a model task regression or waived through name/order matching. The fixture waits for both known completion callbacks and settled bracketed observations, including the gap before pending outbox work becomes a wake. Strict action replay and original machine verdicts are retained separately.
 
 The explicit-only [planning guidance utility comparison](../tests/runner-e2e/PLAN-TASK-GUIDANCE.md) measures task decomposition and handoffs with current, short, and disabled skills.
+
+The native interaction suite also declares one local `native-question-batch-stop`
+cell. It leaves a complete native callback unanswered, retains the pending
+request, clicks the browser Stop control, and independently requires the exact
+cancelled callback/turn and audited public Stop acknowledgement. The task must
+remain In Progress, a late answer must receive HTTP 409, and the public per-turn
+process owner and observed descendants must retire before cleanup and remain
+retired through cleanup. Cancelled-run account attribution and complete reported
+OpenRouter billing are required. This is a separate pending release gate; remote
+Stop still requires its own retirement observer and actual Daytona proof.

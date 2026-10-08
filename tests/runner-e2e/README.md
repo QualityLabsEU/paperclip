@@ -1590,8 +1590,8 @@ pnpm test:e2e:runner -- --list --suite hermes-bedrock-connections
 pnpm test:e2e:runner -- --id hermes-bedrock-connections.runner-acpx-hermes-bedrock.local.hello-complete --max-automatic-retries 0
 ```
 
-The explicit-only `hermes-native-interactions` suite declares two pending cells
-for `native-question-batch-reconnect`, on local and Daytona. One native Hermes
+The explicit-only `hermes-native-interactions` suite declares question/reconnect
+cells on local and Daytona, plus a separate local native Stop cell. One native Hermes
 `clarify` call asks an ordered batch of single choice, multiple choice with a
 custom answer, and free text. The browser reloads while the original run remains
 active, checks the same durable request and complete form, then submits all
@@ -1850,3 +1850,20 @@ Private traces and database files must not be published. Unconfirmed cleanup
 always preserves recovery state regardless of this optional diagnostic flag.
 
 The `file-edit-validate` fixture independently downloads the exact active artifact work product from the tested run. It requires the matching run-attributed attachment, filename, MIME type, recorded byte count and SHA-256, then compares the downloaded content to the expected bytes. A workspace file alone cannot satisfy this gate. Explicit failed-case diagnostic retention follows the final result after integrity, isolation and evidence checks, including incomplete publication.
+
+The suite now declares three explicit cells: question/reconnect on local and
+Daytona, plus local `native-question-batch-stop`. The Stop cell uses the real
+browser composer control while the complete native question remains unanswered.
+It binds the cancellation response to the retained request and exact native turn,
+requires an audited run-only cancellation and an expired unanswerable card, and
+rejects a late answer with HTTP 409. One cancelled run must leave the task In
+Progress. A read-only PID/start-time journal captures the public per-turn owner
+and descendants before Stop and verifies retirement before and through cleanup.
+Its selected account/model and reported wire usage must settle with healthy
+200-cent company and agent budgets. One attempt, zero retries, one provider turn.
+Remote Stop is deliberately excluded until its remote retirement observer exists;
+the release requirement remains pending.
+
+```sh
+pnpm test:e2e:runner -- --id hermes-native-interactions.runner-acpx-hermes.local.native-question-batch-stop --max-automatic-retries 0
+```

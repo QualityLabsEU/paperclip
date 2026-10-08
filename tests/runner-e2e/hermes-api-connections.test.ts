@@ -3,7 +3,7 @@ import { runnerMatrix, runnerSuites, suiteDefinitionHash } from "./catalog.js";
 import { buildMatrixJobs, parseRunnerSelectors, selectRunnerExecutions } from "./selectors.js";
 import { buildRunnerE2EProcessEnvironment } from "./harness-env.js";
 import { explicitlyRequestsFileOutput, explicitlyRequestsTaskDocumentOutput } from "../../server/src/services/native-runtime/native-deliverable-feedback.js";
-import { captureHermesApiAccountOwner, captureHermesApiBudgets, captureHermesOpenRouterSettlement, gradeHermesApiConnection, isHermesOpenRouterWorkflow, isHermesConnectionSuite, HERMES_NATIVE_INTERACTION_SUITE, hasExactHermesNativeQuestionResponse, hasHermesNativeQuestionBatch, hermesNativeAnswerText } from "./hermes-api-connections.js";
+import { captureHermesApiAccountOwner, captureHermesApiBudgets, captureHermesOpenRouterSettlement, gradeHermesApiConnection, isHermesOpenRouterWorkflow, isHermesConnectionSuite, HERMES_NATIVE_INTERACTION_SUITE, hasExactHermesNativeQuestionResponse, hasHermesNativeQuestionBatch, hermesNativeAnswerText, hasHermesNativeQuestionStop } from "./hermes-api-connections.js";
 
 describe("Hermes native browser questions", () => {
   const suite = runnerSuites.find(s => s.id === HERMES_NATIVE_INTERACTION_SUITE)!;
@@ -21,6 +21,7 @@ describe("Hermes native browser questions", () => {
   const event = (eventType: string, sourceSeq: number, payload: unknown) => ({
     runId: "run", protocolSchemaVersion: 1, payload: { prpEvent: {
       schema: "paperclip.prp.event.v1", schemaVersion: 1, runId: "run", turnId: "turn", eventType, sourceSeq, payload,
+      sourceKind: "runner", sourceInstanceId: "instance", normalizedSessionId: "session",
     } },
   });
   const native = (adapter = "acpx-runtime-sidecar") => [
@@ -29,11 +30,12 @@ describe("Hermes native browser questions", () => {
     event("runtime_request.resolved", 3, { requestId: "request", turnId: "turn", action: "submit", response }),
   ];
   const grade = (events: unknown[]) => hasExactHermesNativeQuestionResponse({ events, runId: "run", turnId: "turn", requestId: "request", questionSet, response });
-  it("declares only two explicit bounded single-attempt managed-account cells", () => {
-    expect(cells).toHaveLength(2);
+  it("declares three explicit bounded single-attempt cells with local-only Stop ownership proof", () => {
+    expect(cells).toHaveLength(3);
     expect(suite.manualOnly).toBe(true);
+    expect(cells.filter(cell => cell.task.flow === "native_question_stop").map(cell => cell.environment.id)).toEqual(["local"]);
     expect(new Set(cells.map(cell => cell.environment.id))).toEqual(new Set(["local", "daytona"]));
-    expect(cells.every(cell => cell.profile.qualificationCandidate === "hermes" && cell.task.flow === "native_question_completion"
+    expect(cells.every(cell => cell.profile.qualificationCandidate === "hermes" && ["native_question_completion", "native_question_stop"].includes(cell.task.flow)
       && cell.task.expectedRunCount === 1 && cell.task.automaticRetryPolicy === "single_attempt")).toBe(true);
     expect(suite.definitionMetadata).toMatchObject({ qualification: "pending", providerTurns: 1, maximumAttemptsPerCell: 1, budgetMonthlyCents: 200,
       lifecycle: "per-turn", nativeMethod: "_hermes/ask_questions", billing: "reported-cost-and-budget-health" });
@@ -55,6 +57,76 @@ describe("Hermes native browser questions", () => {
     expect(explicitlyRequestsTaskDocumentOutput(prompt)).toBe(false);
     expect(explicitlyRequestsFileOutput("Write a JSON file with the returned answers.")).toBe(true);
     expect(explicitlyRequestsTaskDocumentOutput("Write a document on this task with the returned answers.")).toBe(true);
+  });
+  const stopped = () => {
+    const events = [native()[0]!,
+      event("runtime_request.cancelled", 3, { requestId: "request", turnId: "turn", itemId: "clarify-tool", requestKind: "runtime", action: "cancel", reason: "provider request aborted" }),
+      event("turn.cancelled", 4, { status: "cancelled", error: null }),
+    ];
+    Object.assign((events[0]!.payload.prpEvent.payload as Record<string, any>).request, { itemId: "clarify-tool", requestKind: "runtime" });
+    const run = { id: "run", companyId: "company", issueId: "task", runtimeMode: "native", status: "cancelled", resultJson: {
+      cancelledByActorType: "user", cancelledByUserId: "caller", nativeCancellation: {
+        schema: "paperclip.native-cancellation.v1", companyId: "company", runId: "run", issueId: "task", scope: "run",
+        dispatched: true, dispatchState: "acknowledged", reasonCode: "cancellation_run_only", effects: ["release_run_resources"],
+        intentId: "intent", intentAuditId: "audit-intent", acknowledgementAuditId: "audit-ack",
+      },
+    } };
+    return { events, run, pendingEvent: structuredClone(events[0]!.payload.prpEvent), issue: { id: "task", companyId: "company", status: "in_progress" },
+      runId: "run", turnId: "turn", requestId: "request", questionSet, companyId: "company", callerUserId: "caller", browserResponse: structuredClone(run) };
+  };
+  it("requires the native callback cancellation and exact browser-owned Stop acknowledgement", () => {
+    expect(hasHermesNativeQuestionStop(stopped())).toBe(true);
+  });
+  it.each(["missing-created", "missing-closure", "missing-terminal", "duplicate-created", "duplicate-closure", "duplicate-terminal", "second-request",
+    "completed", "failed", "interrupted", "resolved", "expired", "answer", "replay", "wrong-action", "wrong-order", "wrong-schema", "wrong-version", "wrong-protocol",
+    "foreign-row", "foreign-event", "foreign-turn", "foreign-session", "foreign-source", "not-runner", "changed-pending", "changed-input", "wrong-provider", "semantic-tool",
+    "post-stop-tool", "post-stop-question", "task-completed", "foreign-company", "foreign-task", "foreign-caller", "wrong-actor", "run-succeeded",
+    "missing-ack", "wrong-scope", "wrong-effects", "no-audit", "same-audit", "wrong-browser-intent", "wrong-browser-run"])("rejects native Stop fault: %s", fault => {
+    const value = stopped() as Record<string, any>;
+    const created = value.events[0].payload.prpEvent, closed = value.events[1].payload.prpEvent, terminal = value.events[2].payload.prpEvent;
+    const request = created.payload.request, stop = value.run.resultJson.nativeCancellation;
+    if (fault === "missing-created") value.events.splice(0,1);
+    if (fault === "missing-closure") value.events.splice(1,1);
+    if (fault === "missing-terminal") value.events.splice(2,1);
+    if (fault === "duplicate-created") value.events.push(structuredClone(value.events[0]));
+    if (fault === "duplicate-closure") value.events.push(structuredClone(value.events[1]));
+    if (fault === "duplicate-terminal") value.events.push(structuredClone(value.events[2]));
+    if (fault === "second-request") { const extra = structuredClone(value.events[0]); extra.payload.prpEvent.payload.request.requestId="other"; value.events.push(extra); }
+    if (["completed","failed","interrupted"].includes(fault)) terminal.eventType=`turn.${fault}`;
+    if (["resolved","expired"].includes(fault)) closed.eventType=`runtime_request.${fault}`;
+    if (fault === "answer") closed.payload.response=response;
+    if (fault === "replay") closed.payload.replayAllowed=true;
+    if (fault === "wrong-action") closed.payload.action="submit";
+    if (fault === "wrong-order") terminal.sourceSeq=2;
+    if (fault === "wrong-schema") closed.schema="made-up";
+    if (fault === "wrong-version") closed.schemaVersion=2;
+    if (fault === "wrong-protocol") value.events[1].protocolSchemaVersion=2;
+    if (fault === "foreign-row") value.events[1].runId="foreign";
+    if (fault === "foreign-event") closed.runId="foreign";
+    if (fault === "foreign-turn") closed.turnId="foreign";
+    if (fault === "foreign-session") closed.normalizedSessionId="foreign";
+    if (fault === "foreign-source") closed.sourceInstanceId="foreign";
+    if (fault === "not-runner") closed.sourceKind="control_plane";
+    if (fault === "changed-pending") value.pendingEvent.sourceSeq=1;
+    if (fault === "changed-input") request.input={};
+    if (fault === "wrong-provider") request.origin.provider="cursor";
+    if (fault === "semantic-tool") request.origin.method="request_human_input";
+    if (fault === "post-stop-tool") value.events.push(event("tool.execution.started",5,{}));
+    if (fault === "post-stop-question") value.events.push(event("runtime_request.created",5,{request:{}}));
+    if (fault === "task-completed") value.issue.status="done";
+    if (fault === "foreign-company") value.run.companyId="foreign";
+    if (fault === "foreign-task") value.run.issueId="foreign";
+    if (fault === "foreign-caller") value.run.resultJson.cancelledByUserId="foreign";
+    if (fault === "wrong-actor") value.run.resultJson.cancelledByActorType="agent";
+    if (fault === "run-succeeded") value.run.status="succeeded";
+    if (fault === "missing-ack") stop.dispatchState="pending";
+    if (fault === "wrong-scope") stop.scope="agent";
+    if (fault === "wrong-effects") stop.effects=["cancel_task"];
+    if (fault === "no-audit") delete stop.acknowledgementAuditId;
+    if (fault === "same-audit") stop.acknowledgementAuditId=stop.intentAuditId;
+    if (fault === "wrong-browser-intent") value.browserResponse.resultJson.nativeCancellation.intentId="foreign";
+    if (fault === "wrong-browser-run") value.browserResponse.id="foreign";
+    expect(hasHermesNativeQuestionStop(value as Parameters<typeof hasHermesNativeQuestionStop>[0])).toBe(false);
   });
   it.each(["acpx-runtime", "acpx-runtime-sidecar"])("accepts a complete native delivery from %s", adapter => {
     expect(hasHermesNativeQuestionBatch(questionSet)).toBe(true);
@@ -161,7 +233,13 @@ describe("Hermes managed API connection qualification", () => {
   it("accepts independently observed account/model metadata", () => {
     expect(gradeHermesApiConnection(valid).every(check => check.passed)).toBe(true);
   });
-  it.each(["valid", "reported-zero", "company-scope", "agent-scope", "run-scope", "task-scope", "paused-agent", "paused-company", "pause-reason", "budget-changed",
+  it("grades cancelled account metadata only when cancellation is explicitly expected", () => {
+    const value = { ...valid, runs: [{ ...valid.runs[0]!, status: "cancelled" }] };
+    expect(gradeHermesApiConnection(value).every(check => check.passed)).toBe(false);
+    expect(gradeHermesApiConnection({ ...value, expectedRunStatus: "cancelled" }).every(check => check.passed)).toBe(true);
+  });
+
+  it.each(["valid", "reported-zero", "cancelled", "unexpected-cancelled", "cancelled-pending", "failed-cancellation", "company-scope", "agent-scope", "run-scope", "task-scope", "paused-agent", "paused-company", "pause-reason", "budget-changed",
     "pending", "missing-settlement", "missing-price", "estimated", "partial", "wrong-biller", "wrong-provenance", "mismatched-exact", "unknown-tokens"])("calibrates public OpenRouter settlement: %s", async fault => {
     const company: Record<string, unknown> = { id: "company", status: "active", budgetMonthlyCents: 200 };
     const agent: Record<string, unknown> = { id: "agent", companyId: "company", status: "idle", pauseReason: null, budgetMonthlyCents: 200 };
@@ -170,6 +248,9 @@ describe("Hermes managed API connection qualification", () => {
     const run: Record<string, unknown> = { id: "run", companyId: "company", agentId: "agent", issueId: "task", status: "succeeded", usageJson: usage,
       costAccountingPending: false, costAccountedAt: "2026-10-08T03:00:00Z" };
     if (fault === "reported-zero") { usage.costUsd = 0; usage.costUsdExact = "0.000000000"; }
+    if (["cancelled", "unexpected-cancelled", "cancelled-pending"].includes(fault)) run.status="cancelled";
+    if (fault === "cancelled-pending") run.costAccountingPending=true;
+    if (fault === "failed-cancellation") run.status="failed";
     if (fault === "company-scope") company.id = "foreign";
     if (fault === "agent-scope") agent.companyId = "foreign";
     if (fault === "run-scope") run.agentId = "foreign";
@@ -188,11 +269,12 @@ describe("Hermes managed API connection qualification", () => {
     if (fault === "mismatched-exact") usage.costUsdExact = "0.040000000";
     if (fault === "unknown-tokens") delete usage.inputTokens;
     const paths: string[] = [];
-    const receipt = await captureHermesOpenRouterSettlement({ companyId: "company", agentId: "agent", issueId: "task", runId: "run", api: {
+    const receipt = await captureHermesOpenRouterSettlement({ companyId: "company", agentId: "agent", issueId: "task", runId: "run",
+      ...(["cancelled", "cancelled-pending", "failed-cancellation"].includes(fault) ? { expectedRunStatus: "cancelled" as const } : {}), api: {
       async get<T>(url: string) { paths.push(url); return (url === "/api/companies/company" ? company : url === "/api/agents/agent" ? agent : run) as T; },
     } });
     expect(new Set(paths)).toEqual(new Set(["/api/companies/company", "/api/agents/agent", "/api/heartbeat-runs/run"]));
-    expect(receipt.checks.every(check => check.passed)).toBe(["valid", "reported-zero"].includes(fault));
+    expect(receipt.checks.every(check => check.passed)).toBe(["valid", "reported-zero", "cancelled"].includes(fault));
   });
   it.each(["valid", "missing", "duplicate", "company", "provider", "method", "ownership", "status", "owner", "caller"])("establishes the expected user from public account readback: %s", async fault => {
     const account = { id: "account", companyId: "company", provider: "xai", method: "api_key", ownership: "personal", ownerUserId: "user", status: "connected" };

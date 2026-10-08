@@ -385,3 +385,13 @@ as completed and end the native turn; Paperclip must retain a failed run with
 missing semantic finalization and an unfinished task. That is a denial outcome,
 not task success or operator cancellation. Stop during an unresolved permission
 remains a separate `native-active-stop/pending-permission-stop` gate.
+
+`native-question-batch-stop` adds a separate local native Stop case. It retains
+one pending Hermes callback before the browser click, never submits its answers,
+and grades exact callback cancellation, turn cancellation and same-scope audited
+Stop acknowledgement. It requires the original card to expire, the task to stay
+In Progress, a stale answer to receive HTTP 409, and no follow-up run. The public
+run PID/group/start identity supplies ownership for a read-only descendant
+journal; observed owners must retire before cleanup and stay retired through it.
+Cancelled-run cost settlement remains required. Remote Stop is a separate pending
+gate and cannot pass from this local observation.
