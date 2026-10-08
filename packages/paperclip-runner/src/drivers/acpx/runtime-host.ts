@@ -510,7 +510,16 @@ export class AcpxRuntimeHost {
           lifetimeFenceCandidates: providerLifetime.lifetimeFenceCandidates,
           lifetimeFenceFds: providerLifetime.lifetimeFenceFds,
           activateLifetimeOwner: pid => providerLifetime.activateLifetimeOwner(pid),
-          async close() { await providerLifetime.close(); await skills.close(); },
+          async close() {
+            // The host verifies provider exit before releasing this lease.
+            // A failed state save must not strand the disposable skill copy.
+            const errors: unknown[] = [];
+            for (const release of [() => providerLifetime.close(), () => skills.close()]) {
+              try { await release(); } catch (error) { errors.push(error); }
+            }
+            if (errors.length === 1) throw errors[0];
+            if (errors.length > 1) throw new AggregateError(errors, "Hermes credential and assigned skill cleanup failed");
+          },
         };
         launchEnvironment = Object.freeze({ ...sandbox.launchEnvironment,
           PAPERCLIP_HERMES_ASSIGNED_SKILLS: JSON.stringify(skills.readRoots),
