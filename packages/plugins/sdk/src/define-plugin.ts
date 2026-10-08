@@ -372,7 +372,7 @@ export interface PluginDefinition {
     params: PluginEnvironmentValidateConfigParams,
   ): Promise<PluginEnvironmentValidationResult>;
 
-  /** Admit, inspect, connect to, or finish a task on provider-managed execution resources. */
+  /** Provide Runner execution: prepare resources, start Runner, connect via PRP, and manage task lifecycle. */
   onEnvironmentTask?(params: PluginEnvironmentTaskParams): Promise<PluginEnvironmentTaskResult>;
 
   /** Called to test reachability or readiness of a plugin-hosted environment. */

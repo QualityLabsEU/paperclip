@@ -1,9 +1,9 @@
-# Environment task admission
+# Plugin-provided Runner execution
 
-An environment driver admits tasks on provider-managed execution resources.
-Admission prepares the task's project and repository storage, starts Runner, and
-provides its Paperclip Runner Protocol (PRP) connection. The plugin owns resource
-preparation and task lifecycle. Declare `supportsTasks: true` on the driver and
+Plugins provide Runner execution through environment drivers. The plugin prepares
+the task's project and repository storage, starts Runner, and provides its Paperclip
+Runner Protocol (PRP) connection. The plugin owns resource preparation and task
+lifecycle. Declare `supportsTasks: true` on the driver and
 implement `onEnvironmentTask`. The worker advertises `environmentTask` during
 initialization. Both declarations must be present. The existing
 `environment.drivers.register` capability applies.
@@ -19,8 +19,8 @@ already authorize access to the company.
 Submit includes `projectIds`, the projects whose storage the task needs. The host
 checks that every ID belongs to the task's company and passes the validated list
 to the plugin. The plugin resolves those projects into provider-specific storage
-and mount inputs. Project and repository volume preparation belongs to task
-admission; PRP carries the subsequent Runner session.
+and mount inputs. The plugin prepares project and repository volumes before
+starting Runner; PRP carries the subsequent Runner session.
 
 This contract supplies execution capabilities. It does not select a provider for
 heartbeat runs, stage runtime assets, or replace native Runner startup. Consumers
@@ -61,7 +61,7 @@ result echoes the task ID and is checked by both the worker SDK and the host.
 
 ## Retry and credentials
 
-A timeout may follow successful admission. Retain the same task ID and launch
+A timeout may follow successful submission. Retain the same task ID and launch
 configuration, inspect status, and retry the exact request when needed. Never
 allocate a second attempt merely because the response was lost. Providers must
 reject conflicting reuse and deduplicate identical submissions, including after a

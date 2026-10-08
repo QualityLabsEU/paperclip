@@ -3891,9 +3891,9 @@ export function environmentRuntimeService(
       return resolveSandboxDuplexBridgeInput(experimental);
     },
 
-    /** Admit and manage provider tasks, including resource preparation and Runner connections. */
+    /** Dispatch plugin-provided Runner execution, including resource preparation and task lifecycle. */
     async task(input: { companyId: string; leaseId: string; operation: PluginEnvironmentTaskOperation }) {
-      if (!options.pluginWorkerManager) throw new Error("Environment task worker manager unavailable");
+      if (!options.pluginWorkerManager) throw new Error("Plugin-provided Runner execution worker manager unavailable");
       return executeEnvironmentTask(db, options.pluginWorkerManager, input);
     },
 

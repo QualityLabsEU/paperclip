@@ -11,7 +11,7 @@ const secureUrl = z.string().url().refine(value => {
   return url.protocol === "wss:" && !url.username && !url.password && !url.search && !url.hash;
 }, "Expected a credential-free WSS URL");
 
-/** One provider-managed execution attempt with a Runner PRP connection. Secrets are transient RPC input. */
+/** One plugin-provided Runner execution attempt with a PRP connection. Secrets are transient RPC input. */
 export const environmentTaskOperationSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("submit"),
@@ -75,6 +75,6 @@ export interface PluginEnvironmentTaskParams extends Omit<PluginEnvironmentDrive
 export function parseEnvironmentTaskResult(operation: PluginEnvironmentTaskOperation, taskId: string, value: unknown): PluginEnvironmentTaskResult {
   const result = environmentTaskResultSchema.parse(value);
   const expected = operation.kind === "status" || operation.kind === "connection" ? operation.kind : "accepted";
-  if (result.taskId !== taskId || result.kind !== expected) throw new Error("Invalid environment task response");
+  if (result.taskId !== taskId || result.kind !== expected) throw new Error("Invalid plugin-provided Runner execution response");
   return result;
 }

@@ -95,7 +95,7 @@ describe("plugin environment driver seam", () => {
     });
   });
 
-  it("negotiates and validates environment task RPCs", async () => {
+  it("negotiates and validates plugin-provided Runner execution RPCs", async () => {
     const calls: unknown[] = [];
     const plugin = definePlugin({
       async setup() {},
