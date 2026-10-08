@@ -339,6 +339,13 @@ is explicit-only. No private control-plane hooks or direct database writes are u
 
 ## Pi native boundaries
 
+Definition 23 and Pi controls definition 10 confirm `/proc/<pid>` absence
+separately when a proc read fails during Linux process exit. An existing
+unreadable process, an unreadable absence check, identity drift, and incomplete
+terminal evidence still fail. The observer retains closed causes for process
+reads, stat shape, runtime binding and terminal sealing; it never retains raw
+process arguments. Historical failed receipts remain failed.
+
 The explicit-only `pi-native` suite has five local and four Daytona candidate
 cells, with no automatic retries. The remote suite excludes automatic deny-all
 because its initial native file read is itself denied. `native-questions` answers the real runner-owned Pi select, confirm, input

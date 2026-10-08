@@ -7,6 +7,32 @@ widgets, images, Cursor or Copilot qualification. The existing draft stack must 
 
 ## Current delivery scope — 2026-10-08
 
+Cloud build/public-install job `37802923302` passes for shipping source
+`10dc43c9ec65d88c2f782d62afb296d09494f215`. Its exact immutable image is
+`ghcr.io/paperclipai/paperclip-daytona-runner@sha256:5b3a775b383591bda1b0c1889e509acc70ce7f37c53f09733c81d59037f02280`;
+all 20 normal retained archives pass hash verification. Current PR head
+`8005b87c8812d27bf43b2d057a5d754299f3f9e2` differs only in the native Rust
+test fixture digest. All 54 applicable CI checks pass, with two expected skips,
+and current-head review is clear. A fresh cloud consumer passes normal install,
+profile-19 setup, full graph/managed asset checks, companion import, the actual
+production pack reader and installed CLI health/UI startup.
+
+Question campaign `pi-core19-0-1791475984` reaches all four browser questions,
+preserves their identities across reload, records all four answers, and reaches
+Done with one succeeded native run. Its canonical grade remains failed:
+`cleanup_failure`, preceded by incomplete independent terminal evidence with
+`process_sample_failed`. No question behavior or provider timeout fails. All
+60 canonical files (116,725,310 bytes) are retained with archive SHA256
+`a44d87624b57e995d19617886f27ad742f8afb29aff7578774f6a84d6048cc8f`.
+The original observer lacks the narrower failure cause; process-exit read races
+are an inferred cause. Native definition 23 and controls definition 10 confirm
+proc-entry absence separately after a read failure and preserve failures for
+existing unreadable processes and all incomplete evidence. Closed cause enums
+distinguish read, shape, binding and sealing failures. All 345 focused cloud
+unit controls pass. Shipping packages/image remain unchanged; fresh behavioral
+qualification uses the corrected committed harness. No original result is
+regraded or counted as a complete qualification pass.
+
 The user narrowed this delivery to normal task completion and interactive
 controls. Accounting and the broad release matrix are deferred. The finish line
 is one real file edit, successful command validation, registered public download,

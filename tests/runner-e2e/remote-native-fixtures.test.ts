@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Script } from "node:vm";
 import { describe, expect, it, vi } from "vitest";
-import { REMOTE_FIXTURE_MIN_SETUP_BUDGET_MS, bindRemoteNativeFixture, validatePiProviderDeathReceipt, createRemoteTargetWatch, isRemoteRunRoot, parseRemoteProcStat, remoteNativeFixtureDiagnostics, remoteNativeIncompleteTerminalEvidence, type RemoteNativeFixtureOptions, type RemoteNativeSnapshot } from "./remote-native-fixtures.js";
+import { REMOTE_FIXTURE_MIN_SETUP_BUDGET_MS, bindRemoteNativeFixture, validatePiProviderDeathReceipt, createRemoteTargetWatch, isRemoteRunRoot, parseRemoteProcStat, remoteProcEntryDisappeared, remoteNativeFixtureDiagnostics, remoteNativeIncompleteTerminalEvidence, type RemoteNativeFixtureOptions, type RemoteNativeSnapshot } from "./remote-native-fixtures.js";
 
 import { PI_DISTRIBUTION_CLOSURE_SHA256 } from "../../packages/paperclip-runner/src/drivers/acpx/pi-closure-pins.js";
 import { createRemoteNativeBootstrap } from "./remote-native-bootstrap.js";
@@ -52,6 +52,19 @@ function harness() {
   return { options, current, labels, calls, executeCommand, apiGet, get, resolveTerminal, rejectTerminal,
     setLease(value: Record<string, unknown>) { lease = value; }, lease: () => lease, override(fn: typeof override) { override = fn; } };
 }
+
+describe("remote process exit during proc reads", () => {
+  it.each(["ENOENT", "ESRCH"])("accepts confirmed %s process absence", code => {
+    const confirm = vi.fn();
+    expect(remoteProcEntryDisappeared({ code }, confirm)).toBe(true);
+    expect(confirm).not.toHaveBeenCalled();
+    expect(remoteProcEntryDisappeared({ code: "EIO" }, () => { throw { code }; })).toBe(true);
+  });
+  it.each(["EIO", "EACCES", undefined])("rejects an unreadable existing process (%s)", code => {
+    expect(remoteProcEntryDisappeared({ code }, () => ({ isDirectory: () => true }))).toBe(false);
+    expect(remoteProcEntryDisappeared({ code }, () => { throw { code: "EACCES" }; })).toBe(false);
+  });
+});
 
 describe("remote native lease admission", () => {
   it.each(["companyId", "environmentId", "heartbeatRunId", "providerLeaseId", "provider", "status"])("rejects wrong %s before executing any remote command", async key => {
