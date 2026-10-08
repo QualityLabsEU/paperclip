@@ -3404,9 +3404,16 @@ export function agentRoutes(
         catch { throw unprocessable("Invalid AI connection binding"); }
       }
       if (binding.provider !== "github") throw unprocessable("Select a GitHub Copilot AI connection");
+      const modelAgentId = asNonEmptyString(req.query.agentId);
+      if (modelAgentId) {
+        const modelAgent = await svc.getById(modelAgentId);
+        if (!modelAgent || modelAgent.companyId !== companyId) throw notFound("Agent not found");
+        await assertCanUpdateAgent(req, modelAgent);
+      } else await assertCanCreateAgentsForCompany(req, companyId);
+      const allowUninstalledShared = !modelAgentId && await canInstallSharedAiConnectionForNewAgent(db, req, companyId, binding);
       const service = aiConnectionService(db);
-      const selection = await service.select({ companyId, userId, agentId: asNonEmptyString(req.query.agentId) ?? "00000000-0000-0000-0000-000000000000",
-        adapterType: type, runnerProvider: "acpx", acpxAgent: "copilot", binding, allowUninstalledPersonal: true, allowUninstalledShared: req.actor.type === "board" });
+      const selection = await service.select({ companyId, userId, agentId: modelAgentId ?? "00000000-0000-0000-0000-000000000000",
+        adapterType: type, runnerProvider: "acpx", acpxAgent: "copilot", binding, allowUninstalledPersonal: true, allowUninstalledShared });
       const metadata = await probeCopilotConnection(db, companyId, await service.credential(selection), environmentId, undefined, { pluginWorkerManager: options.pluginWorkerManager });
       res.setHeader("Cache-Control", "no-store");
       res.json(metadata.models);
