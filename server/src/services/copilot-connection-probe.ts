@@ -19,7 +19,7 @@ export async function probeCopilotConnection(db: Db, companyId: string, token: s
     const kubernetes = await environments.findKubernetesEnvironment(companyId);
     if (!kubernetes) throw unprocessable("The Kubernetes execution environment is unavailable.", { code: "copilot_environment_unavailable" });
     environmentId = kubernetes.id;
-  } else if (experimental.enableManagedSandboxOnly) {
+  } else if (experimental.enableManagedSandboxOnly && (!environmentId || (await environments.getById(environmentId))?.driver === "local")) {
     const managed = await environments.findManagedSandboxEnvironment(companyId);
     if (!managed) throw unprocessable("The managed environment is unavailable.", { code: "copilot_environment_unavailable" });
     environmentId = managed.id;

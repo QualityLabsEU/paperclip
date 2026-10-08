@@ -23,6 +23,33 @@ beforeEach(() => {
   mocks.command.mockResolvedValue({ timedOut: false, stdout: JSON.stringify(verified), exitCode: 0 }); mocks.metadata.mockResolvedValue(verified);
 });
 describe("Copilot connection verification", () => {
+  it.each(["ssh", "sandbox", "plugin"])("keeps an explicitly selected %s environment under managed-only execution", async driver => {
+    mocks.experimental.mockResolvedValue({ enableManagedSandboxOnly: true });
+    mocks.environment.mockResolvedValue({ id: "selected", driver, status: "active", config: { provider: "daytona" } });
+    expect(await probeCopilotConnection({} as Db, "company", "private-token", "selected")).toEqual(verified);
+    expect(mocks.managed).not.toHaveBeenCalled();
+    expect(mocks.resolve).toHaveBeenCalledWith(expect.objectContaining({ environment: expect.objectContaining({ id: "selected", driver }) }));
+    expect(mocks.metadata).not.toHaveBeenCalled();
+    expect(mocks.command).toHaveBeenCalledOnce();
+  });
+  it.each([null, "local"])("redirects only a local selection (%s) onto the managed environment", async selection => {
+    mocks.experimental.mockResolvedValue({ enableManagedSandboxOnly: true });
+    mocks.managed.mockResolvedValue({ id: "managed" });
+    mocks.environment.mockImplementation(async id => ({ id, driver: id === "local" ? "local" : "sandbox", status: "active", config: { provider: "daytona" } }));
+    expect(await probeCopilotConnection({} as Db, "company", "private-token", selection)).toEqual(verified);
+    expect(mocks.resolve).toHaveBeenCalledWith(expect.objectContaining({ environment: expect.objectContaining({ id: "managed" }) }));
+    expect(mocks.metadata).not.toHaveBeenCalled();
+  });
+  it("gives forced Kubernetes precedence over an explicitly selected remote and managed-only policy", async () => {
+    mocks.general.mockResolvedValue({ executionMode: "kubernetes" });
+    mocks.experimental.mockResolvedValue({ enableManagedSandboxOnly: true });
+    mocks.kubernetes.mockResolvedValue({ id: "kubernetes" });
+    mocks.environment.mockImplementation(async id => ({ id, driver: "sandbox", status: "active", config: { provider: "kubernetes" } }));
+    expect(await probeCopilotConnection({} as Db, "company", "private-token", "selected")).toEqual(verified);
+    expect(mocks.resolve).toHaveBeenCalledWith(expect.objectContaining({ environment: expect.objectContaining({ id: "kubernetes" }) }));
+    expect(mocks.managed).not.toHaveBeenCalled();
+    expect(mocks.metadata).not.toHaveBeenCalled();
+  });
   it("probes the selected environment and releases its owned lease", async () => {
     const db = {} as Db;
     const pluginWorkerManager = {} as PluginWorkerManager;

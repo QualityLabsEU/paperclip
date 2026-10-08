@@ -1225,7 +1225,14 @@ export function agentRoutes(
   // A null agent override inherits the instance default, just like dispatch.
   // Resolve this before secrets or probes so a default remote environment can
   // never accidentally validate the account on the control-plane host.
-  async function resolveAdapterTestEnvironmentId(companyId: string, environmentId: string | null | undefined) {
+  async function resolveAdapterTestEnvironmentId(companyId: string, environmentId: string | null | undefined, copilot = false) {
+    // Copilot admission must verify the same forced environment as dispatch,
+    // even when the agent explicitly selects the controller or another host.
+    if (copilot && (await instanceSettings.getGeneral()).executionMode === "kubernetes") {
+      const kubernetes = await environmentsSvc.findKubernetesEnvironment(companyId);
+      if (!kubernetes) throw unprocessable("The Kubernetes execution environment is unavailable.", { code: "copilot_environment_unavailable" });
+      return kubernetes.id;
+    }
     if (environmentId) return environmentId;
     const settings = await instanceSettings.get();
     if (settings.defaultEnvironmentId) return settings.defaultEnvironmentId;
@@ -3603,7 +3610,7 @@ export function agentRoutes(
     // packaged runtime before creation/adoption even when a token is saved.
     // This metadata-only path sends no model prompt.
     if (test || binding.provider === "github") {
-      const testEnvironmentId = await resolveAdapterTestEnvironmentId(companyId, environmentId);
+      const testEnvironmentId = await resolveAdapterTestEnvironmentId(companyId, environmentId, binding.provider === "github");
       if (testEnvironmentId) await assertAdapterTestEnvironmentForCompany(companyId, testEnvironmentId);
       const target = await resolveAdapterTestExecutionContext({ companyId, adapterType, environmentId: testEnvironmentId });
       try {
@@ -3661,6 +3668,7 @@ export function agentRoutes(
         req.body.environmentId === undefined
           ? savedAgent?.defaultEnvironmentId
           : asNonEmptyString(req.body.environmentId),
+        aiBinding?.provider === "github",
       );
       // Fail closed on a foreign environment before any secret resolution, env
       // merge, target resolution, sandbox lease, or adapter test runs.
