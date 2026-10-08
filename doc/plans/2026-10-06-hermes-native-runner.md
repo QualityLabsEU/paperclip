@@ -1151,3 +1151,24 @@ prerequisite for current-source local browser qualification, not a substitute
 for the live provider, published installation, or actual Daytona release gates.
 Local workflow lint and all 44 focused source/security tests pass. Cloud execution
 of the new Mac job remains required; this configuration is not a passing result.
+
+The first `f129601d4` cloud Mac job compiles and stages the release daemon, then
+fails cold Python provisioning before credentials or fixtures. Its candidate
+closure is `253eaee233bd6fa1f5c5209084213e25a2da81b6cff5163f09eedcb15b1a93e2`
+with 19,249 files and 445,500,822 bytes, differing from the reviewed Mac pin.
+The original failure remains retained. General CI has 54 successful checks and
+two skips; the sole failing check is this new Mac qualification job. Fresh review
+is 5/5 with no open threads.
+
+The downloaded daemon passes GitHub archive-digest, binary-checksum, architecture,
+source-tree and signature admission. Its hash is
+`fef7167af720db91537bbc066e3b8129a15d59bb6425dd95efa2b8a1a00b4980`.
+On macOS 26.5.2 it passes all six native fixtures in 131.116 seconds, including
+38 pinned Python checks against the fully verified existing Mac closure. This
+is current-source transport proof with the cloud-built daemon and no local Rust
+compilation. It does not make the failed cold installation or live matrix pass.
+
+Cloud diagnostics now retain the candidate file manifest before rejected setup
+removes its temporary distribution. The original materializer and closure pin
+checks remain unchanged. Exact differing files must be identified and explained
+before changing any reviewed runtime pin.

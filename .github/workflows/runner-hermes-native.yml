@@ -117,8 +117,27 @@ jobs:
             trap 'rm -rf "$hermes_build_root"' EXIT
             python3 -m venv "$hermes_build_root"
             "$hermes_build_root/bin/pip" install --disable-pip-version-check --no-input uv==0.12.17
-            PATH="$hermes_build_root/bin:$PATH" node packages/paperclip-runner/scripts/provision-hermes.mjs \
-              "$GITHUB_WORKSPACE/packages/paperclip-runner/provider-assets/hermes/darwin-arm64"
+            PATH="$hermes_build_root/bin:$PATH" node --input-type=module <<'NODE'
+          import { mkdir, writeFile } from 'node:fs/promises';
+          import { join, resolve } from 'node:path';
+          import { materializePinnedHermesDistribution } from './packages/paperclip-runner/scripts/provision-hermes.mjs';
+          const root = resolve('packages/paperclip-runner');
+          const evidence = join(process.env.RUNNER_TEMP, 'hermes-native-evidence');
+          await mkdir(evidence, { recursive: true, mode: 0o700 });
+          const diagnosticMaterializer = join(process.env.RUNNER_TEMP, 'hermes-materializer-with-manifest.py');
+          // Retain only the file manifest before rejected setup removes its
+          // temporary distribution. The original materializer and pin admission
+          // still run unchanged; this does not publish an unverified runtime.
+          await writeFile(diagnosticMaterializer,
+            'import runpy, shutil, sys\nfrom pathlib import Path\n' +
+            'runpy.run_path(' + JSON.stringify(join(root, 'scripts/materialize-hermes.py')) + ", run_name='__main__')\n" +
+            "shutil.copyfile(Path(sys.argv[2]) / 'manifest.json', " + JSON.stringify(join(evidence, 'candidate-manifest.json')) + ')\n',
+            { flag: 'wx', mode: 0o600 });
+          console.log(JSON.stringify(await materializePinnedHermesDistribution({
+            destination: join(root, 'provider-assets/hermes/darwin-arm64'),
+            provider: join(root, 'src/providers/hermes'), materializer: diagnosticMaterializer,
+          })));
+          NODE
           fi
 
       - name: Run native fixtures against a deterministic loopback model

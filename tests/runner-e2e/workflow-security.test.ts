@@ -70,6 +70,12 @@ describe("public repository paid workflow security", () => {
     expect(provision).toContain('test "$(uname -m)" = arm64');
     expect(provision).toContain("uv==0.12.17");
     expect(provision).toContain("provider-assets/hermes/darwin-arm64");
+    expect(provision).toContain("materializePinnedHermesDistribution");
+    expect(provision).toContain("runpy.run_path(");
+    expect(provision).toContain("scripts/materialize-hermes.py");
+    expect(provision).toContain("shutil.copyfile(Path(sys.argv[2]) / 'manifest.json'");
+    expect(provision).toContain("candidate-manifest.json");
+    expect(provision).not.toContain("HERMES_CLOSURES[");
     const fixtures = workflow.slice(workflow.indexOf("      - name: Run native fixtures"), workflow.indexOf("      - name: Record source"));
     expect(fixtures).toContain('PAPERCLIP_RUNNER_BINARY="$PWD/dist/bin/paperclip-runnerd"');
     expect(fixtures).toContain('TMPDIR="$RUNNER_TEMP"');
