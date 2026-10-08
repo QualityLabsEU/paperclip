@@ -261,7 +261,7 @@ describe("executeNativeSession recovery", () => {
       const prepared = preparedInput();
       const { qualificationStatus: _status, permissionPolicy: _policy, ...profile } = QUALIFIED_ACPX_PROFILES.hermes;
       const outcome = await executeNativeSession({
-        input: scenario === "legacy_provider" ? input : { ...prepared, schema: "paperclip.native-execution-input.v6",
+        input: scenario === "legacy_provider" ? input : { ...prepared, schema: "paperclip.native-execution-input.v7",
           session: { ...prepared.session, driverKind: "acpx_runtime" },
           provider: { kind: "acpx", agent: "hermes", model: "fixture-model", permissionMode: "approve-all", profile, connectionFingerprint: "1".repeat(64) } },
         requireSessionCloseBeforeReturn: true, keepSessionOpen: scenario === "warm",
