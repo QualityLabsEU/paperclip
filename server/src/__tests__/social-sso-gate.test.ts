@@ -124,7 +124,40 @@ function stubGoogleTokenEndpoint(claims: Record<string, unknown>) {
  * Build the same Better Auth pieces `createBetterAuthInstance` composes from a
  * resolved env, against the in-memory adapter.
  */
-function createSocialSsoAuth(env: NodeJS.ProcessEnv, store: MemoryStore) {
+function createSocialSsoAuth(
+  env: NodeJS.ProcessEnv,
+  store: MemoryStore,
+  opts: { disableSignUp?: boolean } = {},
+) {
+  const sso = resolveSocialSsoConfig(env);
+  const providers = buildSocialSsoProviderOptions(sso, { disableSignUp: opts.disableSignUp });
+  const auth = betterAuth({
+    secret: "better-auth-secret-for-social-sso-gate-tests",
+    baseURL: ORIGIN,
+    trustedOrigins: [ORIGIN],
+    database: memoryAdapter(store),
+    emailAndPassword: {
+      enabled: true,
+      requireEmailVerification: false,
+    },
+    advanced: { useSecureCookies: false },
+    ...(providers ? { socialProviders: providers } : {}),
+    ...(isSocialSsoConfigured(sso) ? { user: { validateUserInfo: buildSocialSsoUserGate(sso) } } : {}),
+  });
+  const app = express();
+  app.all("/api/auth/*splat", (req, res, next) => {
+    void Promise.resolve(toNodeHandler(auth)(req, res)).catch(next);
+  });
+  return { app, store };
+}
+
+/**
+ * Same as createSocialSsoAuth but with Better Auth's origin checks explicitly
+ * enabled. Better Auth auto-skips origin checks (which also covers callbackURL
+ * validation) whenever NODE_ENV=test, so a vitest suite must opt back in to
+ * pin the production behavior of the `/sign-in/social` callbackURL contract.
+ */
+function createSocialSsoAuthWithOriginChecks(env: NodeJS.ProcessEnv, store: MemoryStore) {
   const sso = resolveSocialSsoConfig(env);
   const providers = buildSocialSsoProviderOptions(sso);
   const auth = betterAuth({
@@ -136,7 +169,7 @@ function createSocialSsoAuth(env: NodeJS.ProcessEnv, store: MemoryStore) {
       enabled: true,
       requireEmailVerification: false,
     },
-    advanced: { useSecureCookies: false },
+    advanced: { useSecureCookies: false, disableOriginCheck: false },
     ...(providers ? { socialProviders: providers } : {}),
     ...(isSocialSsoConfigured(sso) ? { user: { validateUserInfo: buildSocialSsoUserGate(sso) } } : {}),
   });
@@ -407,6 +440,176 @@ describe("social sign-up gate through the real Better Auth pipeline", () => {
   });
 });
 
+describe("registration lock governs the social path", () => {
+  it("refuses to provision a new GitHub user while registration is locked", async () => {
+    vi.stubGlobal(
+      "fetch",
+      stubGithubApis({
+        githubLogin: "locked-out-member",
+        email: "newuser@acme-org.dev",
+        memberships: [{ state: "active", org: "acme-org" }],
+      }) as unknown as typeof fetch,
+    );
+    const { app, store } = createSocialSsoAuth(
+      GITHUB_ENV,
+      { user: [], session: [], account: [], verification: [] },
+      { disableSignUp: true },
+    );
+
+    const handshake = await startSocialSignIn(app, "github");
+    const callback = await completeSocialSignIn(app, "github", handshake);
+
+    // Even an org member cannot register: PAPERCLIP_AUTH_DISABLE_SIGN_UP locks
+    // the social path with the same contract the password path has.
+    expect(callback.headers.location).toContain("error=signup_disabled");
+    expect(storeCounts(store)).toEqual({ users: 0, accounts: 0, sessions: 0 });
+  });
+
+  it("still signs in an already-linked GitHub user while registration is locked", async () => {
+    vi.stubGlobal(
+      "fetch",
+      stubGithubApis({
+        githubLogin: "linked-member",
+        email: "linked@acme-org.dev",
+        memberships: [{ state: "active", org: "acme-org" }],
+      }) as unknown as typeof fetch,
+    );
+    const { app, store } = createSocialSsoAuth(
+      GITHUB_ENV,
+      {
+        user: [
+          {
+            id: "u-linked",
+            name: "Linked Member",
+            email: "linked@acme-org.dev",
+            emailVerified: true,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ],
+        account: [
+          {
+            id: "a-linked",
+            userId: "u-linked",
+            providerId: "github",
+            issuer: "local:oauth:github",
+            accountId: "421997",
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ],
+        session: [],
+        verification: [],
+      },
+      { disableSignUp: true },
+    );
+
+    const handshake = await startSocialSignIn(app, "github");
+    const callback = await completeSocialSignIn(app, "github", handshake);
+
+    // A registration lock must not lock existing users out: the linked
+    // account signs in (the stub /user id 421997 matches the seeded account).
+    expect(callback.status).toBe(302);
+    expect(callback.headers.location).not.toMatch(/error=/);
+    expect(storeCounts(store)).toEqual({ users: 1, accounts: 1, sessions: 1 });
+  });
+});
+
+describe("social account linking passes the same gate", () => {
+  function seededVerifiedUserStore(email: string): MemoryStore {
+    return {
+      user: [
+        {
+          id: "u-local",
+          name: "Local Founder",
+          email,
+          emailVerified: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ],
+      account: [],
+      session: [],
+      verification: [],
+    };
+  }
+
+  it("rejects a GitHub link onto a pre-existing verified account that fails the org gate", async () => {
+    vi.stubGlobal(
+      "fetch",
+      stubGithubApis({
+        githubLogin: "outsider",
+        email: "founder@example.com",
+        memberships: [{ state: "active", org: "some-other-org" }],
+      }) as unknown as typeof fetch,
+    );
+    const { app, store } = createSocialSsoAuth(GITHUB_ENV, seededVerifiedUserStore("founder@example.com"));
+
+    const handshake = await startSocialSignIn(app, "github");
+    const callback = await completeSocialSignIn(app, "github", handshake);
+
+    // Implicit email-match linking used to bypass the gate (the hook exempted
+    // link-account); it must now fail closed with the org-gate error.
+    expect(callback.headers.location).toContain("error=sso_github_org_membership_required");
+    expect(storeCounts(store)).toEqual({ users: 1, accounts: 0, sessions: 0 });
+  });
+
+  it("links an org member onto a pre-existing verified account", async () => {
+    vi.stubGlobal(
+      "fetch",
+      stubGithubApis({
+        githubLogin: "acme-member",
+        email: "founder@example.com",
+        memberships: [{ state: "active", org: "acme-org" }],
+      }) as unknown as typeof fetch,
+    );
+    const { app, store } = createSocialSsoAuth(GITHUB_ENV, seededVerifiedUserStore("founder@example.com"));
+
+    const handshake = await startSocialSignIn(app, "github");
+    const callback = await completeSocialSignIn(app, "github", handshake);
+
+    expect(callback.status).toBe(302);
+    expect(callback.headers.location).not.toMatch(/error=/);
+    expect(storeCounts(store)).toEqual({ users: 1, accounts: 1, sessions: 1 });
+    expect(store.account?.[0]).toMatchObject({ providerId: "github", userId: "u-local" });
+  });
+});
+
+describe("the callbackURL sent to /sign-in/social is constrained by the server", () => {
+  // Better Auth's global origin-check middleware validates callbackURL
+  // against trustedOrigins with relative paths allowed — this is what keeps a
+  // hostile ?next (flowing through the OAuth round trip as the redirect
+  // target) from becoming an open redirect. The pin runs with origin checks
+  // explicitly enabled because NODE_ENV=test would otherwise skip them.
+  it("rejects absolute and protocol-relative callbackURLs", async () => {
+    const { app } = createSocialSsoAuthWithOriginChecks(GITHUB_ENV, {
+      user: [], session: [], account: [], verification: [],
+    });
+
+    for (const hostile of ["https://evil.example/phish", "//evil.example/phish", "/\\evil.example"]) {
+      const response = await request(app)
+        .post("/api/auth/sign-in/social")
+        .set("origin", ORIGIN)
+        .send({ provider: "github", callbackURL: hostile });
+      expect(response.status).toBe(403);
+      expect(response.body?.code).toBe("INVALID_CALLBACK_URL");
+    }
+  });
+
+  it("accepts a root-relative callbackURL", async () => {
+    const { app } = createSocialSsoAuthWithOriginChecks(GITHUB_ENV, {
+      user: [], session: [], account: [], verification: [],
+    });
+
+    const response = await request(app)
+      .post("/api/auth/sign-in/social")
+      .set("origin", ORIGIN)
+      .send({ provider: "github", callbackURL: "/workspaces/ws_123" });
+    expect(response.status).toBe(200);
+    expect(response.body?.url).toEqual(expect.any(String));
+  });
+});
+
 describe("createBetterAuthInstance registers providers from config", () => {
   const originalEnv = {
     secret: process.env.BETTER_AUTH_SECRET,
@@ -500,8 +703,15 @@ describe("createBetterAuthInstance registers providers from config", () => {
     const githubBody = (await github.json()) as { url?: string };
     expect(githubBody.url).toContain("https://github.com/login/oauth/authorize");
     expect(githubBody.url).toContain("client_id=gh-client-id");
-    // The org-membership gate needs read:org on the user token.
-    expect(decodeURIComponent(githubBody.url!)).toContain("read:org");
+    // The org-membership gate needs read:org on the user token, APPENDED to
+    // the stock GitHub scopes (read:user, user:email) — replacing them would
+    // break profile/email mapping. Lock the whole scope set.
+    const authorizeUrl = new URL(githubBody.url!);
+    const scopes = (authorizeUrl.searchParams.get("scope") ?? "").split(/[\s+]+/).filter(Boolean);
+    expect(scopes).toEqual(
+      expect.arrayContaining(["read:org", "read:user", "user:email"]),
+    );
+    expect(scopes.filter((scope) => scope === "read:org")).toHaveLength(1);
 
     // Google stays unregistered when only GitHub is configured.
     const google = await auth.handler(

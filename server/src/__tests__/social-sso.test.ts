@@ -1,9 +1,10 @@
 /**
  * Unit coverage for the optional social sign-in configuration: env → config
  * resolution (provider registered only when its client pair is set), gate-list
- * parsing, the Google hosted-domain matcher, the GitHub org-membership lookup
- * (pagination + failure semantics), and the `user.validateUserInfo` gate
- * decisions — including the fail-closed rules.
+ * parsing, availability reporting, the Google hosted-domain matcher, the
+ * GitHub org-membership lookup (pagination, timeouts, off-origin Link headers,
+ * and failure semantics), and the `user.validateUserInfo` gate decisions for
+ * both sign-up and account linking — including the fail-closed rules.
  */
 
 import { describe, expect, it, vi } from "vitest";
@@ -88,12 +89,26 @@ describe("resolveSocialSsoConfig", () => {
     expect(config.github).toBeNull();
   });
 
-  it("reports provider availability as booleans only", () => {
-    const config = resolveSocialSsoConfig({
+  it("reports a provider as available only when its gate list is also set", () => {
+    // Client pair set but gate list empty is a guaranteed-reject state: every
+    // sign-up fails closed, so health must not advertise the provider.
+    const lockedOut = resolveSocialSsoConfig({
       PAPERCLIP_SSO_GITHUB_CLIENT_ID: "id",
       PAPERCLIP_SSO_GITHUB_CLIENT_SECRET: "secret",
+      PAPERCLIP_SSO_GOOGLE_CLIENT_ID: "goog-id",
+      PAPERCLIP_SSO_GOOGLE_CLIENT_SECRET: "goog-secret",
     });
-    expect(resolveSocialSsoProviderAvailability(config)).toEqual({ github: true, google: false });
+    expect(resolveSocialSsoProviderAvailability(lockedOut)).toEqual({ github: false, google: false });
+
+    const configured = resolveSocialSsoConfig({
+      PAPERCLIP_SSO_GITHUB_CLIENT_ID: "id",
+      PAPERCLIP_SSO_GITHUB_CLIENT_SECRET: "secret",
+      PAPERCLIP_SSO_GITHUB_ORGS: "acme-org",
+      PAPERCLIP_SSO_GOOGLE_CLIENT_ID: "goog-id",
+      PAPERCLIP_SSO_GOOGLE_CLIENT_SECRET: "goog-secret",
+      PAPERCLIP_SSO_GOOGLE_DOMAINS: "example.com",
+    });
+    expect(resolveSocialSsoProviderAvailability(configured)).toEqual({ github: true, google: true });
   });
 });
 
@@ -119,6 +134,28 @@ describe("buildSocialSsoProviderOptions", () => {
     // The Google gate runs in validateUserInfo against the id_token claims;
     // the provider entry itself stays stock.
     expect(providers.google).toEqual({ clientId: "goog-id", clientSecret: "goog-secret" });
+  });
+
+  it("omits disableSignUp by default and mirrors it onto both providers when asked", () => {
+    const config = resolveSocialSsoConfig({
+      PAPERCLIP_SSO_GITHUB_CLIENT_ID: "gh-id",
+      PAPERCLIP_SSO_GITHUB_CLIENT_SECRET: "gh-secret",
+      PAPERCLIP_SSO_GITHUB_ORGS: "acme-org",
+      PAPERCLIP_SSO_GOOGLE_CLIENT_ID: "goog-id",
+      PAPERCLIP_SSO_GOOGLE_CLIENT_SECRET: "goog-secret",
+      PAPERCLIP_SSO_GOOGLE_DOMAINS: "example.com",
+    });
+
+    const open = buildSocialSsoProviderOptions(config)!;
+    expect(open.github?.disableSignUp).toBeUndefined();
+    expect(open.google?.disableSignUp).toBeUndefined();
+
+    // PAPERCLIP_AUTH_DISABLE_SIGN_UP must govern the social path too: Better
+    // Auth refuses to provision new users through a provider whose options
+    // carry disableSignUp, while existing users keep signing in.
+    const locked = buildSocialSsoProviderOptions(config, { disableSignUp: true })!;
+    expect(locked.github?.disableSignUp).toBe(true);
+    expect(locked.google?.disableSignUp).toBe(true);
   });
 });
 
@@ -193,6 +230,85 @@ describe("fetchActiveGitHubOrgMemberships", () => {
     expect(
       await fetchActiveGitHubOrgMemberships("t", { fetchImpl: badPayload as unknown as typeof fetch, apiBaseUrl: "https://api.github.test" }),
     ).toEqual({ ok: false, orgs: [] });
+  });
+
+  it("fails closed with a truncated marker when pagination exceeds the page budget", async () => {
+    // Every page points at a next page, so the page budget is the only stop.
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse([{ state: "active", organization: { login: "org-one" } }], {
+        headers: { link: '<https://api.github.test/user/memberships/orgs?state=active&per_page=100&page=999>; rel="next"' },
+      }),
+    );
+    const result = await fetchActiveGitHubOrgMemberships("t", {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      apiBaseUrl: "https://api.github.test",
+      maxPages: 3,
+    });
+    // A partial org list must never claim verification — the allowed-org
+    // check could otherwise wrongly reject (or appear authoritative).
+    expect(result).toEqual({ ok: false, orgs: [], truncated: true });
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+  });
+
+  it("reports ok once pagination finishes within the page budget", async () => {
+    const pages = [
+      jsonResponse([{ state: "active", organization: { login: "org-one" } }], {
+        headers: { link: '<https://api.github.test/user/memberships/orgs?state=active&per_page=100&page=2>; rel="next"' },
+      }),
+      jsonResponse([{ state: "active", organization: { login: "org-two" } }], {
+        // A next link that is NOT rel="next" ends pagination.
+        headers: { link: '<https://api.github.test/user/memberships/orgs?state=active&per_page=100&page=1>; rel="first"' },
+      }),
+    ];
+    const fetchImpl = vi.fn(async () => pages.shift()!);
+    const result = await fetchActiveGitHubOrgMemberships("t", {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      apiBaseUrl: "https://api.github.test",
+    });
+    expect(result).toEqual({ ok: true, orgs: ["org-one", "org-two"] });
+  });
+
+  it("aborts a stalled membership request and fails closed", async () => {
+    const fetchImpl = vi.fn(
+      (_input: RequestInfo | URL, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => {
+            const error = new Error("This operation was aborted");
+            error.name = "AbortError";
+            reject(error);
+          });
+        }),
+    );
+    const result = await fetchActiveGitHubOrgMemberships("t", {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      apiBaseUrl: "https://api.github.test",
+      timeoutMs: 25,
+    });
+    expect(result).toEqual({ ok: false, orgs: [] });
+  });
+
+  it("does not send the bearer token off-origin when the Link header is rewritten", async () => {
+    const requestedUrls: string[] = [];
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      requestedUrls.push(url);
+      expect(new Headers(init?.headers).get("authorization")).toBe("Bearer t");
+      if (url.includes("evil.example")) {
+        throw new Error("the user token must never leave the GitHub API origin");
+      }
+      return jsonResponse([{ state: "active", organization: { login: "acme-org" } }], {
+        headers: { link: '<https://evil.example/user/memberships/orgs?page=2>; rel="next"' },
+      });
+    });
+    const result = await fetchActiveGitHubOrgMemberships("t", {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      apiBaseUrl: "https://api.github.test",
+    });
+    // Pagination steered off-origin is treated as tampered data: fail closed
+    // rather than follow the link or trust the pages already read.
+    expect(result).toEqual({ ok: false, orgs: [], truncated: true });
+    expect(requestedUrls).toEqual(["https://api.github.test/user/memberships/orgs?state=active&per_page=100"]);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -365,13 +481,74 @@ describe("buildSocialSsoUserGate", () => {
         },
       }),
     ).resolves.toBeUndefined();
+  });
+
+  it("gates social link-account with the same rules as create-user", async () => {
+    const gate = buildSocialSsoUserGate(resolveSocialSsoConfig(configuredEnv));
+
+    // Allowed: an org member linking a GitHub identity to an existing account.
+    await expect(
+      gate({
+        user: { email: "member@acme.dev" },
+        source: {
+          action: "link-account",
+          method: "oauth",
+          oauth: {
+            providerId: "github",
+            profile: { login: "member", paperclipSsoOrgGate: { verified: true, allowed: true } },
+          },
+        },
+      }),
+    ).resolves.toBeUndefined();
+
+    // A non-member must not reach a pre-existing account by linking either —
+    // this is the path implicit email-match linking takes.
+    await expect(
+      gate({
+        user: { email: "stranger@example.com" },
+        source: {
+          action: "link-account",
+          method: "oauth",
+          oauth: {
+            providerId: "github",
+            profile: { login: "stranger", paperclipSsoOrgGate: { verified: true, allowed: false } },
+          },
+        },
+      }),
+    ).resolves.toMatchObject({ error: "sso_github_org_membership_required" });
+
+    // Unverifiable verdicts and missing verdicts fail closed on link too.
+    await expect(
+      gate({
+        user: { email: "member@acme.dev" },
+        source: {
+          action: "link-account",
+          method: "oauth",
+          oauth: { providerId: "github", profile: { login: "member" } },
+        },
+      }),
+    ).resolves.toMatchObject({ error: "sso_github_org_membership_unverified" });
+
+    // The hosted-domain gate applies to Google links as well: a personal
+    // Google account (no hd claim) cannot attach itself to a local user.
     await expect(
       gate({
         user: { email: "member@example.com" },
         source: {
           action: "link-account",
           method: "oauth",
-          oauth: { providerId: "github", profile: {} },
+          oauth: { providerId: "google", profile: { email: "member@gmail.com" } },
+        },
+      }),
+    ).resolves.toMatchObject({ error: "sso_google_hosted_domain_required" });
+
+    await expect(
+      gate({
+        user: { email: "member@example.com" },
+        source: {
+          action: "link-account",
+          method: "oauth",
+          oauth: { providerId: "google", profile: { hd: "example.com", email: "member@example.com" } },
         },
       }),
     ).resolves.toBeUndefined();

@@ -112,6 +112,23 @@ describe("GET /health", () => {
     expect(res.text).not.toContain("acme-org");
   });
 
+  it("reports a provider unavailable when its client pair is set but its gate list is empty", async () => {
+    // A configured client pair without a gate list is a guaranteed-reject
+    // configuration (every social sign-up fails closed), so the provider must
+    // not be advertised as available.
+    const app = createApp(undefined, testServerInfo, undefined, {
+      PAPERCLIP_SSO_GITHUB_CLIENT_ID: "gh-client-id",
+      PAPERCLIP_SSO_GITHUB_CLIENT_SECRET: "gh-client-secret",
+      PAPERCLIP_SSO_GOOGLE_CLIENT_ID: "goog-client-id",
+      PAPERCLIP_SSO_GOOGLE_CLIENT_SECRET: "goog-client-secret",
+    });
+
+    const res = await request(app).get("/health");
+
+    expect(res.status).toBe(200);
+    expect(res.body.authProviders).toEqual({ github: false, google: false });
+  });
+
   it("exposes public stack metadata on cloud-simulated health", async () => {
     const app = createApp(undefined, testServerInfo, undefined, {
       PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN: "tenant-token",

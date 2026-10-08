@@ -270,7 +270,13 @@ export function createBetterAuthInstance(db: Db, config: Config, trustedOrigins:
   // added and the instance is configured exactly as before SSO existed.
   // Configs built before the field existed (tests) read as "no SSO".
   const socialSso: SocialSsoConfig = config.authSocialSso ?? { github: null, google: null };
-  const socialSsoProviders = buildSocialSsoProviderOptions(socialSso);
+  const socialSsoProviders = buildSocialSsoProviderOptions(socialSso, {
+    // Registration lock applies to the social path too: Better Auth refuses to
+    // provision new users through a provider with disableSignUp, while
+    // existing users keep signing in — the same contract the email/password
+    // path gets from emailAndPassword.disableSignUp below.
+    disableSignUp: config.authDisableSignUp,
+  });
   if (socialSso.github && socialSso.github.orgs.length === 0) {
     logger.warn(
       "Social SSO: GitHub sign-in is configured but PAPERCLIP_SSO_GITHUB_ORGS is unset or empty; GitHub sign-ups will be rejected (fail closed)",
@@ -300,6 +306,24 @@ export function createBetterAuthInstance(db: Db, config: Config, trustedOrigins:
       requireEmailVerification: false,
       disableSignUp: config.authDisableSignUp,
     },
+    // When social SSO is on, social linking is governed explicitly rather than
+    // by library defaults: implicit email-match links require the local
+    // account's email to be verified and the provider email to match, and
+    // every social link still passes the `user.validateUserInfo` gate armed
+    // above (which applies the org/hosted-domain rules to link-account, not
+    // just create-user). The values pin Better Auth's own defaults so a
+    // default drift cannot silently reopen implicit linking.
+    ...(isSocialSsoConfigured(socialSso)
+      ? {
+          account: {
+            accountLinking: {
+              enabled: true,
+              requireLocalEmailVerified: true,
+              allowDifferentEmails: false,
+            },
+          },
+        }
+      : {}),
     rateLimit: buildBetterAuthRateLimitOptions({
       deploymentMode: config.deploymentMode,
       deploymentExposure: config.deploymentExposure,

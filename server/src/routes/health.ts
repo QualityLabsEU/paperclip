@@ -246,7 +246,9 @@ export function healthRoutes(
       startupRecovery.phase === "ready" ? "ok" : "starting";
     const cloud = getCloudHealthStatus(runtimeEnv);
     // Enabled/disabled flags for the optional social sign-in providers, so the
-    // login screen can offer only what this server actually registers.
+    // login screen can offer only what this server can actually sign in. A
+    // provider whose gate list is empty is a guaranteed-reject configuration,
+    // so it reports as unavailable even though its client pair is set.
     // Booleans only — client ids, secrets, and gate lists never leave the
     // server — and omitted entirely when no provider is configured, so
     // deployments without the env vars keep today's byte-identical responses.

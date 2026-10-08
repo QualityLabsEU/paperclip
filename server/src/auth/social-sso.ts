@@ -3,9 +3,12 @@
  *
  * Providers are registered on the Better Auth instance only when their OAuth
  * client pair is configured, and each provider carries a membership gate that
- * runs on social *sign-up* through Better Auth's `user.validateUserInfo` hook
- * (better-auth@1.7.2). The hook fires before the user row is written, so a
- * rejected sign-up leaves no user, account, or session rows behind.
+ * runs on social *sign-up* and social *account linking* through Better Auth's
+ * `user.validateUserInfo` hook (better-auth@1.7.2). The hook fires before the
+ * user or account row is written, so a rejected attempt leaves no user,
+ * account, or session rows behind. `PAPERCLIP_AUTH_DISABLE_SIGN_UP` is mirrored
+ * onto each provider's `disableSignUp` option, locking social registration
+ * exactly like email/password registration.
  *
  * - GitHub: the user's OAuth token must show an active membership in one of
  *   `PAPERCLIP_SSO_GITHUB_ORGS` (GET /user/memberships/orgs?state=active).
@@ -15,7 +18,8 @@
  *
  * If a provider is configured but its gate list is not, social sign-ups for
  * that provider fail closed: they are rejected with a clear error and the
- * reason is logged. Email/password sign-up is untouched — it remains governed
+ * reason is logged, and the health surface reports the provider as
+ * unavailable. Email/password sign-up is untouched — it remains governed
  * by `PAPERCLIP_AUTH_DISABLE_SIGN_UP` exactly as before.
  */
 
@@ -47,13 +51,15 @@ export type SocialSsoConfig = {
 
 export type SocialSsoProviderOptions = {
   github?: GithubOptions;
-  google?: { clientId: string; clientSecret: string };
+  google?: { clientId: string; clientSecret: string; disableSignUp?: boolean };
 };
 
 const GITHUB_API_BASE_URL = "https://api.github.com";
 const GITHUB_MEMBERSHIPS_PAGE_SIZE = 100;
 /** Users with more orgs than this across pages fail closed instead of hanging. */
 const GITHUB_MEMBERSHIPS_MAX_PAGES = 10;
+/** Per-request budget for each membership page; a stalled API fails closed. */
+const GITHUB_MEMBERSHIPS_TIMEOUT_MS = 10_000;
 
 /**
  * Key on the GitHub profile record that carries the org-gate verdict from the
@@ -119,13 +125,19 @@ export function resolveSocialSsoConfig(env: NodeJS.ProcessEnv): SocialSsoConfig 
 /**
  * Which providers are available, for the public health surface. Booleans only —
  * never client ids, secrets, or gate lists.
+ *
+ * A provider counts as available only when its client pair is set AND its gate
+ * list is non-empty: an empty gate list is a guaranteed-reject configuration
+ * (every sign-up fails closed), so advertising the provider would render a
+ * button that can never succeed. The provider stays registered on the auth
+ * instance either way — the fail-closed gate error remains the backstop.
  */
 export function resolveSocialSsoProviderAvailability(
   config: SocialSsoConfig,
 ): { github: boolean; google: boolean } {
   return {
-    github: config.github !== null,
-    google: config.google !== null,
+    github: config.github !== null && config.github.orgs.length > 0,
+    google: config.google !== null && config.google.domains.length > 0,
   };
 }
 
@@ -142,9 +154,20 @@ export function isGoogleHostedDomainAllowed(domains: string[], hostedDomain: unk
 
 type LinkHeaderValue = string | null;
 
-function nextGitHubMembershipsPageUrl(response: Response): URL | null {
+/**
+ * The `rel="next"` URL from a Link header, when present and when it stays on
+ * the origin of the API base the lookup started from. The bearer token rides
+ * every page request, so pagination must never be steered off-origin: a
+ * rewritten Link header must not be able to send the user's GitHub token to an
+ * arbitrary host. Returns `hostile: true` when a next URL exists but points
+ * elsewhere so the caller can fail closed instead of silently stopping early.
+ */
+function nextGitHubMembershipsPageUrl(
+  response: Response,
+  allowedOrigin: string,
+): { url: URL | null; hostile: boolean } {
   const link = response.headers.get("link") as LinkHeaderValue;
-  if (!link) return null;
+  if (!link) return { url: null, hostile: false };
   // GitHub paginates via a Link header: `<https://api.github.com/...&page=2>; rel="next", <...>; rel="first"`.
   for (const part of link.split(",")) {
     const [rawUrl, ...params] = part.split(";");
@@ -153,29 +176,45 @@ function nextGitHubMembershipsPageUrl(response: Response): URL | null {
       .find((param) => param.startsWith('rel="'));
     if (!rel || rel !== 'rel="next"') continue;
     const url = rawUrl?.trim().replace(/^<|>$/g, "");
-    if (!url) return null;
+    if (!url) return { url: null, hostile: false };
     try {
-      return new URL(url);
+      const nextUrl = new URL(url);
+      if (nextUrl.origin !== allowedOrigin) {
+        logger.warn(
+          { nextUrl: url, allowedOrigin },
+          "Social SSO GitHub org membership Link header pointed off-origin; failing closed",
+        );
+        return { url: null, hostile: true };
+      }
+      return { url: nextUrl, hostile: false };
     } catch {
-      return null;
+      return { url: null, hostile: false };
     }
   }
-  return null;
+  return { url: null, hostile: false };
 }
 
 export type GitHubOrgMembershipResult = {
   /** The lookup succeeded; `orgs` is authoritative. False ⇒ fail closed. */
   ok: boolean;
-  /** Lowercased logins of orgs the token's user is an active member of. */
+  /** Lowercased logins of orgs the user is an active member of. */
   orgs: string[];
+  /**
+   * The org list is known to be incomplete (pagination exceeded the page
+   * budget or was steered off-origin). Always accompanies `ok: false` — a
+   * partial list is never presented as authoritative.
+   */
+  truncated?: boolean;
 };
 
 /**
  * Ask GitHub which orgs the user's OAuth token holds an *active* membership in.
  * `read:org` is not requested by default, so this uses the same user-scoped
  * endpoint the GitHub UI itself uses; orgs that only invited (pending) the user
- * are excluded by `state=active`. Any transport or HTTP failure reports
- * `ok: false` so callers can fail closed.
+ * are excluded by `state=active`. Any transport or HTTP failure — including a
+ * page that stalls past the per-request timeout, pagination that exceeds the
+ * page budget, or a Link header that tries to steer pagination off-origin —
+ * reports `ok: false` so callers can fail closed.
  */
 export async function fetchActiveGitHubOrgMemberships(
   accessToken: string,
@@ -183,11 +222,14 @@ export async function fetchActiveGitHubOrgMemberships(
     fetchImpl?: typeof globalThis.fetch;
     apiBaseUrl?: string;
     maxPages?: number;
+    timeoutMs?: number;
   } = {},
 ): Promise<GitHubOrgMembershipResult> {
   const fetchImpl = opts.fetchImpl ?? globalThis.fetch;
   const baseUrl = opts.apiBaseUrl ?? GITHUB_API_BASE_URL;
+  const apiOrigin = new URL(baseUrl).origin;
   const maxPages = opts.maxPages ?? GITHUB_MEMBERSHIPS_MAX_PAGES;
+  const timeoutMs = opts.timeoutMs ?? GITHUB_MEMBERSHIPS_TIMEOUT_MS;
   const orgs = new Set<string>();
 
   let url: URL | null = new URL(
@@ -197,6 +239,8 @@ export async function fetchActiveGitHubOrgMemberships(
   let pages = 0;
   while (url && pages < maxPages) {
     pages += 1;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     let response: Response;
     try {
       response = await fetchImpl(url.toString(), {
@@ -205,10 +249,13 @@ export async function fetchActiveGitHubOrgMemberships(
           accept: "application/vnd.github+json",
           "user-agent": "paperclip",
         },
+        signal: controller.signal,
       });
     } catch (error) {
       logger.warn({ err: error }, "Social SSO GitHub org membership lookup failed");
       return { ok: false, orgs: [] };
+    } finally {
+      clearTimeout(timeout);
     }
     if (!response.ok) {
       logger.warn(
@@ -238,7 +285,21 @@ export async function fetchActiveGitHubOrgMemberships(
       const normalized = login.trim().toLowerCase();
       if (normalized) orgs.add(normalized);
     }
-    url = nextGitHubMembershipsPageUrl(response);
+    const next = nextGitHubMembershipsPageUrl(response, apiOrigin);
+    if (next.hostile) {
+      return { ok: false, orgs: [], truncated: true };
+    }
+    url = next.url;
+  }
+
+  if (url) {
+    // The loop stopped on the page budget while a next page still exists: the
+    // collected list is partial, so the verdict must not claim verification.
+    logger.warn(
+      { pages, maxPages },
+      "Social SSO GitHub org membership pagination exceeded the page budget; failing closed on a truncated org list",
+    );
+    return { ok: false, orgs: [], truncated: true };
   }
 
   return { ok: true, orgs: [...orgs] };
@@ -258,6 +319,11 @@ function githubOrgGateVerdictFromProfile(profile: unknown): GitHubOrgGateVerdict
  * providers. Returns null when none are configured so the caller adds no
  * `socialProviders` key at all.
  *
+ * `disableSignUp` mirrors `PAPERCLIP_AUTH_DISABLE_SIGN_UP` onto every
+ * configured provider: Better Auth then refuses to provision *new* users over
+ * the social path (the same contract the email/password path already has),
+ * while existing users keep signing in.
+ *
  * GitHub's entry wraps the stock provider's `getUserInfo` purely to record the
  * org-membership verdict on the profile: that override is the only supported
  * surface that sees the user's OAuth access token, and the profile is what
@@ -267,6 +333,7 @@ function githubOrgGateVerdictFromProfile(profile: unknown): GitHubOrgGateVerdict
 export function buildSocialSsoProviderOptions(
   config: SocialSsoConfig,
   opts: {
+    disableSignUp?: boolean;
     fetchImpl?: typeof globalThis.fetch;
     apiBaseUrl?: string;
   } = {},
@@ -289,6 +356,7 @@ export function buildSocialSsoProviderOptions(
       // sign-up closed. This appends to the stock scopes, it does not replace
       // them.
       scope: ["read:org"],
+      ...(opts.disableSignUp ? { disableSignUp: true } : {}),
       getUserInfo: async (token) => {
         const result = await stockGetUserInfo(token);
         if (!result?.user) return result;
@@ -326,6 +394,7 @@ export function buildSocialSsoProviderOptions(
     providers.google = {
       clientId: config.google.clientId,
       clientSecret: config.google.clientSecret,
+      ...(opts.disableSignUp ? { disableSignUp: true } : {}),
     };
   }
 
@@ -351,9 +420,12 @@ export type SocialSsoUserGateResult = {
  * sign-up. Runs before the user row is created; returning `{ error }` rejects
  * the sign-up with a 403 (browser flows redirect to the auth error URL).
  *
- * Scope: `create-user` only, and only for the two providers this feature
- * registers. Sign-ins of existing accounts and email/password sign-up are not
- * re-validated here.
+ * Scope: `create-user` AND `link-account`, and only for the two providers this
+ * feature registers. Better Auth invokes the hook for the implicit email-match
+ * link that runs during a social sign-in, so exempting link-account would let
+ * a pre-existing local account attach an SSO identity without passing the org
+ * or hosted-domain gate. Sign-ins of already-linked accounts and email/password
+ * sign-up are not re-validated here.
  */
 export function buildSocialSsoUserGate(config: SocialSsoConfig): (
   data: SocialSsoUserGateInput,
@@ -361,7 +433,7 @@ export function buildSocialSsoUserGate(config: SocialSsoConfig): (
   return async (data) => {
     const source = data.source;
     if (source.method !== "oauth") return;
-    if (source.action !== "create-user") return;
+    if (source.action !== "create-user" && source.action !== "link-account") return;
     const providerId = source.oauth?.providerId;
     const profile = source.oauth?.profile;
 

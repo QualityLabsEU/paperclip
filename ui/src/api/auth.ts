@@ -155,7 +155,6 @@ export type SocialSignInProvider = "github" | "google";
 export type SocialSignInStartResult = {
   /** The provider's authorization URL to navigate the browser to. */
   url: string;
-  redirect: boolean;
 };
 
 export const authApi = {
@@ -197,14 +196,14 @@ export const authApi = {
     const payload = (await authPost("/sign-in/social", {
       provider: input.provider,
       callbackURL: input.callbackURL ?? "/",
-    })) as { url?: unknown; redirect?: unknown } | null;
+    })) as { url?: unknown } | null;
     if (!payload || typeof payload.url !== "string") {
       throw new Error("The server did not return a sign-in URL for this provider.");
     }
-    return {
-      url: payload.url,
-      redirect: payload.redirect !== false,
-    };
+    // The caller always navigates the browser itself (the server is called
+    // without disableRedirect), so the response's `redirect` flag carries no
+    // information this client can act on and is intentionally not surfaced.
+    return { url: payload.url };
   },
 
   getProfile: async (): Promise<CurrentUserProfile> => {

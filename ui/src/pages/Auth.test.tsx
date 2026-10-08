@@ -306,7 +306,6 @@ describe("AuthPage", () => {
     });
     signInSocialMock.mockResolvedValue({
       url: "https://github.com/login/oauth/authorize?client_id=gh-test",
-      redirect: true,
     });
     const assignMock = vi.fn();
     // jsdom cannot navigate; stand in for the assignment the page performs.
