@@ -1217,6 +1217,15 @@ stored event payloads, redacts and shortens log chunks, and caps stdout/stderr
 excerpts. `heartbeat.ts` keeps event writes, current-user redaction, and live
 event delivery. Existing public helpers remain available from `heartbeat.ts`.
 
+Workspace preparation is in `server/src/services/heartbeat/workspaces.ts`. It
+owns managed checkout materialization, workspace validation and reuse, referenced
+project resolution, and session/workspace configuration freshness. Its
+`createHeartbeatWorkspaceResolver(db)` factory binds the run workspace resolvers
+to a service's database. The checkout single-flight map stays at module scope so
+all service instances share in-flight materialization. Existing public helpers
+and the workspace validation error class remain available from `heartbeat.ts`.
+Keep workspace policy changes separate from scheduling and run execution changes.
+
 ## Wake Context Delivery
 
 Built-in adapters deliver wake context through the run prompt, including structured
