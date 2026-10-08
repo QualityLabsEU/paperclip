@@ -10,6 +10,7 @@ import {
   parseLocalProcessNetworkAllowlist,
   parseLocalProcessNetworkScope,
   parseLocalProcessSandboxExtraPaths,
+  startNetworkAllowlistProxy,
 } from "./local-process-sandbox.js";
 import { runChildProcess } from "./server-utils.js";
 
@@ -390,6 +391,146 @@ describe("local process sandbox", () => {
       }
     },
   );
+
+  it("keeps serving after a CONNECT client drops an established tunnel mid-stream", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-proxy-tunnel-drop-"));
+    cleanup.push(root);
+    const upstream = net.createServer((socket) => {
+      const interval = setInterval(() => socket.write("upstream-stream-chunk\r\n"), 10);
+      socket.on("close", () => clearInterval(interval));
+      socket.on("error", () => {});
+    });
+    await new Promise<void>((resolve) => upstream.listen(0, "127.0.0.1", resolve));
+    const address = upstream.address();
+    if (!address || typeof address === "string") throw new Error("Expected TCP test server address.");
+    const socketPath = path.join(root, "proxy.sock");
+    const proxy = await startNetworkAllowlistProxy([`127.0.0.1:${address.port}`], [], socketPath);
+
+    const openTunnel = () => new Promise<net.Socket>((resolve, reject) => {
+      const socket = net.createConnection(socketPath, () => {
+        socket.write(`CONNECT 127.0.0.1:${address.port} HTTP/1.1\r\nHost: 127.0.0.1:${address.port}\r\n\r\n`);
+      });
+      socket.on("error", () => {});
+      let header = "";
+      const onData = (chunk: Buffer) => {
+        header += chunk.toString("utf8");
+        if (!header.includes("\r\n\r\n")) return;
+        socket.off("data", onData);
+        if (!header.startsWith("HTTP/1.1 200 Connection Established")) {
+          socket.destroy();
+          reject(new Error(`Expected the proxy to establish the tunnel, received: ${header}`));
+          return;
+        }
+        resolve(socket);
+      };
+      socket.on("data", onData);
+    });
+
+    try {
+      const tunnel = await openTunnel();
+      await new Promise<void>((resolve, reject) => {
+        tunnel.once("data", () => resolve());
+        setTimeout(() => reject(new Error("Expected upstream stream data through the tunnel.")), 2_000).unref();
+      });
+      tunnel.destroy();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      const replacement = await openTunnel();
+      replacement.destroy();
+    } finally {
+      await proxy.close();
+      await new Promise<void>((resolve) => upstream.close(() => resolve()));
+    }
+  });
+
+  it("keeps serving after a denied CONNECT client drops the connection before reading the rejection", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-proxy-deny-drop-"));
+    cleanup.push(root);
+    const upstream = net.createServer((socket) => socket.pipe(socket));
+    await new Promise<void>((resolve) => upstream.listen(0, "127.0.0.1", resolve));
+    const address = upstream.address();
+    if (!address || typeof address === "string") throw new Error("Expected TCP test server address.");
+    const socketPath = path.join(root, "proxy.sock");
+    const proxy = await startNetworkAllowlistProxy([`127.0.0.1:${address.port}`], [], socketPath);
+
+    const openTunnel = () => new Promise<net.Socket>((resolve, reject) => {
+      const socket = net.createConnection(socketPath, () => {
+        socket.write(`CONNECT 127.0.0.1:${address.port} HTTP/1.1\r\nHost: 127.0.0.1:${address.port}\r\n\r\n`);
+      });
+      socket.on("error", () => {});
+      let header = "";
+      const onData = (chunk: Buffer) => {
+        header += chunk.toString("utf8");
+        if (!header.includes("\r\n\r\n")) return;
+        socket.off("data", onData);
+        if (!header.startsWith("HTTP/1.1 200 Connection Established")) {
+          socket.destroy();
+          reject(new Error(`Expected the proxy to establish the tunnel, received: ${header}`));
+          return;
+        }
+        resolve(socket);
+      };
+      socket.on("data", onData);
+    });
+
+    try {
+      const client = net.createConnection(socketPath, () => {
+        client.write("CONNECT example.com:443 HTTP/1.1\r\nHost: example.com:443\r\n\r\n");
+        client.destroy();
+      });
+      client.on("error", () => {});
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      const tunnel = await openTunnel();
+      tunnel.destroy();
+    } finally {
+      await proxy.close();
+      await new Promise<void>((resolve) => upstream.close(() => resolve()));
+    }
+  });
+
+  it("closes the upstream connection when a plain-HTTP upload aborts mid-body", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-proxy-upload-abort-"));
+    cleanup.push(root);
+    const upstreamSockets = new Set<net.Socket>();
+    const upstream = http.createServer(() => {
+      // Hold the upload open; this test asserts socket lifetime, not the response.
+    });
+    upstream.on("connection", (socket) => {
+      upstreamSockets.add(socket);
+      socket.on("close", () => upstreamSockets.delete(socket));
+    });
+    await new Promise<void>((resolve) => upstream.listen(0, "127.0.0.1", resolve));
+    const address = upstream.address();
+    if (!address || typeof address === "string") throw new Error("Expected TCP test server address.");
+    const socketPath = path.join(root, "proxy.sock");
+    const proxy = await startNetworkAllowlistProxy([`127.0.0.1:${address.port}`], [], socketPath);
+    let client: net.Socket | undefined;
+    try {
+      client = net.createConnection(socketPath, () => {
+        client?.write(
+          `POST http://127.0.0.1:${address.port}/upload HTTP/1.1\r\n` +
+            `Host: 127.0.0.1:${address.port}\r\n` +
+            "Content-Length: 1048576\r\n\r\n" +
+            "partial-upload",
+        );
+      });
+      client.on("error", () => {});
+      const deadline = Date.now() + 2_000;
+      while (upstreamSockets.size === 0 && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      expect(upstreamSockets.size, "Expected the proxy to open an upstream connection").toBe(1);
+      client.destroy();
+      while (upstreamSockets.size > 0 && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      expect(upstreamSockets.size, "Expected the aborted upload's upstream connection to close").toBe(0);
+    } finally {
+      client?.destroy();
+      await proxy.close();
+      for (const socket of upstreamSockets) socket.destroy();
+      await new Promise<void>((resolve) => upstream.close(() => resolve()));
+    }
+  });
 
   it.runIf(Boolean(process.env.PAPERCLIP_TEST_BWRAP))(
     "allows only configured network targets through the proxy bridge",
