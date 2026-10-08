@@ -164,6 +164,37 @@ describe("managed AI connections", () => {
     } finally { probe.mockRestore(); }
   });
 
+  it("keeps Copilot model discovery behind shared installation and agent configuration authority", async () => {
+    const { errorHandler } = await import("../middleware/index.js");
+    const owner = "copilot-discovery-owner", audience = "copilot-discovery-audience";
+    await db.insert(companyMemberships).values([owner, audience].map(principalId => ({ companyId, principalId, principalType: "user", status: "active", membershipRole: "member" })));
+    await db.insert(principalPermissionGrants).values([owner, audience].map(principalId => ({ companyId, principalId, principalType: "user", permissionKey: "agents:create" })));
+    const token = "github_pat_fixture_shared_discovery";
+    const account = await service.save(companyId, owner, { provider: "github", method: "api_key", ownership: "shared", name: "Shared discovery", apiKey: token, agentIds: [], allAgents: false }, token);
+    await db.insert(connectionGrantMembers).values([owner, audience].map(subjectId => ({ companyId, grantId: account.grantId, subjectType: "user", subjectId })));
+    const binding = { provider: "github", method: "api_key", mode: "shared", ...account };
+    const probe = vi.spyOn(copilotProbe, "probeCopilotConnection").mockResolvedValue({ status: "verified", version: "1.0.88", profileDigest: "fixture-profile", promptSent: false, models: [{ id: "gpt-5.6-luna", label: "GPT" }] });
+    const app = express(); app.use(express.json());
+    app.use((req, _res, next) => { req.actor = { type: "board", source: "session", userId: String(req.headers["x-test-user"] ?? audience), companyIds: [companyId], memberships: [{ companyId, membershipRole: "member", status: "active" }] }; next(); });
+    app.use("/api", agentRoutes(db)); app.use(errorHandler);
+    const url = `/api/companies/${companyId}/adapters/paperclip_runner/models`;
+    const query = { provider: "acpx", acpxAgent: "copilot", aiConnection: JSON.stringify(binding) };
+    try {
+      const denied = await request(app).get(url).query(query);
+      expect(denied.status, JSON.stringify(denied.body)).toBe(403);
+      expect(denied.body.error).toContain("not permitted for this agent");
+      expect(probe).not.toHaveBeenCalled();
+      const allowed = await request(app).get(url).set("x-test-user", owner).query(query);
+      expect(allowed.status, JSON.stringify(allowed.body)).toBe(200);
+      expect(probe).toHaveBeenCalledExactlyOnceWith(db, companyId, token, null, undefined, { pluginWorkerManager: undefined });
+      probe.mockClear();
+      const foreign = await request(app).get(url).set("x-test-user", owner).query({ ...query, agentId: randomUUID() });
+      expect(foreign.status).toBe(404);
+      expect(probe).not.toHaveBeenCalled();
+      expect(JSON.stringify([denied.body, allowed.body, foreign.body])).not.toContain(token);
+    } finally { probe.mockRestore(); }
+  });
+
   it("preserves repository GitHub credentials for managed non-Copilot execution", async () => {
     const owner = "repo-github-owner";
     await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
