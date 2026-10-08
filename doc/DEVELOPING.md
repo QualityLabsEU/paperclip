@@ -1226,6 +1226,15 @@ all service instances share in-flight materialization. Existing public helpers
 and the workspace validation error class remain available from `heartbeat.ts`.
 Keep workspace policy changes separate from scheduling and run execution changes.
 
+Run preparation is in `server/src/services/heartbeat/run-preparation.ts`. It owns
+issue and wake context, responsible-user resolution, routine environment snapshots,
+skill mentions, adapter environment configuration, and MCP/tool access setup.
+`createHeartbeatRunPreparation(db)` binds the context loaders to a service's database
+without doing database work during construction. `heartbeat.ts` keeps queueing,
+dispatch, retries, cancellation, and execution order, and re-exports the existing
+public helpers and configuration-incomplete error class. Keep preparation policy
+changes in this module and its tests.
+
 ## Wake Context Delivery
 
 Built-in adapters deliver wake context through the run prompt, including structured
