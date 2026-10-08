@@ -9,10 +9,11 @@ const secureUrl = z.string().url().refine(value => {
   return url.protocol === "wss:" && !url.username && !url.password && !url.search && !url.hash;
 }, "Expected a credential-free WSS URL");
 
-/** One remote Paperclip Runner execution attempt over PRP. Secrets are transient RPC input. */
+/** One provider-managed execution attempt with a Runner PRP connection. Secrets are transient RPC input. */
 export const environmentTaskOperationSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("submit"),
+    projectIds: z.array(z.string().uuid()).max(64).refine(ids => new Set(ids).size === ids.length, "Duplicate project IDs"),
     runner: z.object({
       /** Inclusive PRP version range supported by the submitting client. */
       protocolMin: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
@@ -63,7 +64,8 @@ export interface PluginEnvironmentTaskParams extends Omit<PluginEnvironmentDrive
   /** Null during cleanup after the associated run is deleted. */
   runId: string | null;
   agentId: string | null;
-  projectId: string | null;
+  /** Company-validated projects to prepare on submit; empty during cleanup. */
+  projectIds: string[];
   operation: PluginEnvironmentTaskOperation;
 }
 

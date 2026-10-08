@@ -1,17 +1,26 @@
-# Remote Paperclip Runner tasks
+# Environment task admission
 
-An environment driver can submit tasks directly to a remote Paperclip Runner
-and connect to it using Paperclip Runner Protocol (PRP). Declare `supportsTasks: true`
-on the driver and implement `onEnvironmentTask`. The worker advertises
-`environmentTask` during initialization. Both declarations must be present. The existing
+An environment driver admits tasks on provider-managed execution resources.
+Admission prepares the task's project and repository storage, starts Runner, and
+provides its Paperclip Runner Protocol (PRP) connection. The plugin owns resource
+preparation and task lifecycle. Declare `supportsTasks: true` on the driver and
+implement `onEnvironmentTask`. The worker advertises `environmentTask` during
+initialization. Both declarations must be present. The existing
 `environment.drivers.register` capability applies.
 
 The server-only `environmentRuntime.task({companyId, leaseId, operation})` method
 loads the persisted lease and its run. It resolves the exact plugin recorded at
-acquisition. It supplies the agent, issue, and project context. It does not accept
-these identities or the plugin identity from the operation. An environment edit
-cannot redirect an existing task to a replacement provider. The caller must
+acquisition. It supplies the agent and issue context and validates requested
+projects against the company. The persisted lease determines the plugin and
+execution identity. An environment edit cannot redirect an existing task to a
+replacement provider. The caller must
 already authorize access to the company.
+
+Submit includes `projectIds`, the projects whose storage the task needs. The host
+checks that every ID belongs to the task's company and passes the validated list
+to the plugin. The plugin resolves those projects into provider-specific storage
+and mount inputs. Project and repository volume preparation belongs to task
+admission; PRP carries the subsequent Runner session.
 
 This contract supplies execution capabilities. It does not select a provider for
 heartbeat runs, stage runtime assets, or replace native Runner startup. Consumers
@@ -25,10 +34,9 @@ the task's durable attempt ID. Save it before a remote call. Do not use a persis
 machine ID as this task ID. Multiple attempts can use the same underlying resource. Provider task IDs are
 opaque strings; each provider owns its addressing constraints.
 
-- `submit`: supplies Runner identity, harness, the client's supported PRP version
-  range (`runner.protocolMin` and `runner.protocolMax`, inclusive), and a transient
-  bootstrap ticket. The Runner run and lease IDs
-  must match the persisted host records. Only a running run with an active,
+- `submit`: supplies a unique list of up to 64 project UUIDs, Runner identity,
+  harness, the client's supported PRP version range (`runner.protocolMin` and `runner.protocolMax`, inclusive), and a transient
+  bootstrap ticket. The Runner run and lease IDs must match the persisted host records. Only a running run with an active,
   unexpired lease can submit.
 - `status`: returns the phase and optional exit code. Optional `executionStopped`
   is live provider evidence that the complete task process tree has stopped.
@@ -74,3 +82,4 @@ environment or run has been deleted. The corresponding `environmentId`, `runId`,
 and `agentId` can be null. Providers must use their persisted lease binding for
 cleanup; they must not need a current project or environment configuration.
 Submission and connection require the environment and running run to still exist.
+Cleanup receives an empty `projectIds` list and uses the persisted task binding.

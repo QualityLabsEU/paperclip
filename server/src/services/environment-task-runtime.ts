@@ -1,5 +1,5 @@
-import { and, eq } from "drizzle-orm";
-import { environmentLeases, environments, heartbeatRuns, issues, type Db } from "@paperclipai/db";
+import { and, eq, inArray } from "drizzle-orm";
+import { environmentLeases, environments, heartbeatRuns, issues, projects, type Db } from "@paperclipai/db";
 import { environmentTaskOperationSchema, parseEnvironmentTaskResult, type PluginEnvironmentTaskOperation } from "@paperclipai/plugin-sdk";
 import { pluginRegistryService } from "./plugin-registry.js";
 import type { PluginWorkerManager } from "./plugin-worker-manager.js";
@@ -39,9 +39,15 @@ export async function executeEnvironmentTask(db: Db, workers: PluginWorkerManage
       !workers.getWorker(plugin.id)?.supportedMethods.includes("environmentTask")) {
     throw new Error("Environment task provider unavailable");
   }
-  const project = operation.kind === "submit" && lease.issueId ? await db.select({ projectId: issues.projectId }).from(issues)
+  const issue = operation.kind === "submit" && lease.issueId ? await db.select({ id: issues.id }).from(issues)
     .where(and(eq(issues.id, lease.issueId), eq(issues.companyId, input.companyId))).limit(1).then(rows => rows[0]) : null;
-  if (operation.kind === "submit" && lease.issueId && !project) throw new Error("Environment task issue unavailable");
+  if (operation.kind === "submit" && lease.issueId && !issue) throw new Error("Environment task issue unavailable");
+  const projectIds = operation.kind === "submit" ? operation.projectIds : [];
+  if (projectIds.length > 0) {
+    const authorizedProjects = await db.select({ id: projects.id }).from(projects)
+      .where(and(eq(projects.companyId, input.companyId), inArray(projects.id, projectIds)));
+    if (authorizedProjects.length !== projectIds.length) throw new Error("Environment task project unavailable");
+  }
   // Provider identity comes from the lease. Editing the environment must never
   // redirect status or cleanup to a replacement plugin.
   const config = (environment?.config ?? {}) as Record<string, unknown>;
@@ -51,7 +57,7 @@ export async function executeEnvironmentTask(db: Db, workers: PluginWorkerManage
     const result = await workers.call(plugin.id, "environmentTask", {
       driverKey: metadata.driverKey, companyId: input.companyId, environmentId: environment?.id ?? null,
       issueId: lease.issueId, config: driverConfig,
-      taskId, runId: run?.id ?? null, agentId: run?.agentId ?? null, projectId: project?.projectId ?? null,
+      taskId, runId: run?.id ?? null, agentId: run?.agentId ?? null, projectIds,
       lease: { providerLeaseId: lease.providerLeaseId, metadata: lease.metadata ?? undefined }, operation,
     }, 15_000);
     return parseEnvironmentTaskResult(operation, taskId, result);

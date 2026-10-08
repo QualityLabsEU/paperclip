@@ -7,26 +7,28 @@ import { executeEnvironmentTask } from "../services/environment-task-runtime.js"
 const state = vi.hoisted(() => ({ plugin: {} as any }));
 vi.mock("../services/plugin-registry.js", () => ({ pluginRegistryService: () => ({ getById: vi.fn(async () => state.plugin) }) }));
 const leaseId = "10000000-0000-4000-8000-000000000001";
+const projectId = "10000000-0000-4000-8000-000000000002";
+const secondProjectId = "10000000-0000-4000-8000-000000000003";
 const row = () => ({
   lease: { id: leaseId, companyId: "company", environmentId: "environment", providerLeaseId: "attempt-1", heartbeatRunId: "run", issueId: "issue", status: "active", expiresAt: null as Date | null,
     metadata: { driver: "plugin", pluginId: "original", driverKey: "tasks" } },
   environment: { id: "environment", config: { pluginKey: "test.provider", driverKey: "tasks", driverConfig: {} } } as { id: string; config: Record<string, unknown> } | null,
   run: { id: "run", agentId: "agent", status: "running" } as { id: string; agentId: string; status: string } | null,
 });
-function database(value: ReturnType<typeof row> | null = row()) {
-  const results = [value ? [value] : [], [{ projectId: "project" }]];
-  const query: any = { from: () => query, leftJoin: () => query, where: vi.fn(() => query), limit: () => Promise.resolve(results.shift()) };
+function database(value: ReturnType<typeof row> | null = row(), projectRows = [{ id: projectId }]) {
+  const results = [value ? [value] : [], [{ id: "issue" }]];
+  const query: any = { from: () => query, leftJoin: () => query, where: vi.fn(() => query), limit: () => Promise.resolve(results.shift()), then: (resolve: (rows: typeof projectRows) => unknown) => Promise.resolve(projectRows).then(resolve) };
   return { db: { select: () => query } as unknown as Db, query };
 }
 function worker(result: unknown = { kind: "accepted", taskId: "attempt-1" }) {
   return { getWorker: vi.fn(() => ({ supportedMethods: ["environmentTask"] })), call: vi.fn(async () => result) };
 }
-const submit = { kind: "submit" as const, runner: { protocolMin: 1, protocolMax: 2, harness: "codex", runnerId: "runner", leaseId, runId: "run", sessionId: "session", turnId: "turn", itemId: "item" }, bootstrapTicket: "transient-test-ticket" };
+const submit = { kind: "submit" as const, projectIds: [projectId], runner: { protocolMin: 1, protocolMax: 2, harness: "codex", runnerId: "runner", leaseId, runId: "run", sessionId: "session", turnId: "turn", itemId: "item" }, bootstrapTicket: "transient-test-ticket" };
 
 beforeEach(() => {
   state.plugin = { id: "original", pluginKey: "test.provider", status: "ready", manifestJson: { capabilities: ["environment.drivers.register"], environmentDrivers: [{ driverKey: "tasks", supportsTasks: true }] } };
 });
-describe("remote Paperclip Runner tasks", () => {
+describe("environment task admission", () => {
   it("dispatches with host-derived scope and a persisted attempt identity", async () => {
     const { db, query } = database(); const workers = worker();
     await expect(executeEnvironmentTask(db, workers as never, { companyId: "company", leaseId, operation: submit })).resolves.toEqual({ kind: "accepted", taskId: "attempt-1" });
@@ -35,8 +37,29 @@ describe("remote Paperclip Runner tasks", () => {
     expect(scope.sql).toContain('"environment_leases"."id" =');
     expect(scope.params).toEqual([leaseId, "company"]);
     expect(workers.call).toHaveBeenCalledWith("original", "environmentTask", expect.objectContaining({
-      taskId: "attempt-1", companyId: "company", agentId: "agent", projectId: "project", runId: "run", operation: submit,
+      taskId: "attempt-1", companyId: "company", agentId: "agent", projectIds: [projectId], runId: "run", operation: submit,
     }), 15_000);
+  });
+  it("validates every requested project in the task company before dispatch", async () => {
+    const operation = { ...submit, projectIds: [projectId, secondProjectId] };
+    const { db, query } = database(row(), [{ id: projectId }, { id: secondProjectId }]);
+    const workers = worker();
+    await executeEnvironmentTask(db, workers as never, { companyId: "company", leaseId, operation });
+    expect(workers.call).toHaveBeenCalledWith("original", "environmentTask", expect.objectContaining({ projectIds: operation.projectIds }), 15_000);
+    const scope = new PgDialect().sqlToQuery(query.where.mock.calls[2][0]);
+    expect(scope.sql).toContain('"projects"."company_id" =');
+    expect(scope.params).toEqual(["company", projectId, secondProjectId]);
+    const rejected = worker();
+    await expect(executeEnvironmentTask(database(row(), [{ id: projectId }]).db, rejected as never, { companyId: "company", leaseId, operation })).rejects.toThrow("project unavailable");
+    expect(rejected.call).not.toHaveBeenCalled();
+  });
+  it("validates unique project IDs and allows tasks with no project mounts", async () => {
+    for (const projectIds of [[projectId, projectId], ["invalid"], Array(65).fill(projectId)]) {
+      expect(environmentTaskOperationSchema.safeParse({ ...submit, projectIds }).success).toBe(false);
+    }
+    const workers = worker();
+    await executeEnvironmentTask(database().db, workers as never, { companyId: "company", leaseId, operation: { ...submit, projectIds: [] } });
+    expect(workers.call).toHaveBeenCalledWith("original", "environmentTask", expect.objectContaining({ projectIds: [] }), 15_000);
   });
   it("rejects an absent or cross-company lease before calling a worker", async () => {
     const workers = worker();
@@ -62,7 +85,7 @@ describe("remote Paperclip Runner tasks", () => {
       const workers = worker(kind === "status" ? { kind: "status", taskId: "attempt-1", phase: "cancelled" } : undefined);
       await executeEnvironmentTask(database(value).db, workers as never, { companyId: "company", leaseId, operation: { kind } });
       expect(workers.call).toHaveBeenCalledWith("original", "environmentTask", expect.objectContaining({
-        config: {}, environmentId: null, runId: null, agentId: null, projectId: null,
+        config: {}, environmentId: null, runId: null, agentId: null, projectIds: [],
       }), 15_000);
     }
     await expect(executeEnvironmentTask(database(value).db, worker() as never, { companyId: "company", leaseId, operation: submit })).rejects.toThrow("not active");
