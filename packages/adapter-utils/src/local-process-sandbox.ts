@@ -44,7 +44,7 @@ interface NetworkAllowlistRule {
   port: string | null;
 }
 
-interface NetworkAllowlistProxy {
+export interface NetworkAllowlistProxy {
   close: () => Promise<void>;
 }
 
@@ -227,7 +227,7 @@ function connectProxyError(code: string, message: string): string {
   ].join("\r\n");
 }
 
-async function startNetworkAllowlistProxy(
+export async function startNetworkAllowlistProxy(
   allowlist: string[],
   trustedUrls: string[],
   socketPath: string,
@@ -268,8 +268,12 @@ async function startNetworkAllowlistProxy(
     });
     upstream.on("error", (error) => response.destroy(error));
     request.pipe(upstream);
+    request.on("close", () => {
+      if (!request.complete) upstream.destroy();
+    });
   });
   server.on("connect", (request, clientSocket, head) => {
+    clientSocket.on("error", () => clientSocket.destroy());
     const separator = request.url?.lastIndexOf(":") ?? -1;
     const hostname = separator > 0 ? request.url!.slice(0, separator).replace(/^\[|\]$/g, "") : "";
     const port = separator > 0 ? request.url!.slice(separator + 1) : "443";
