@@ -1495,11 +1495,13 @@ describe("sandbox callback bridge", () => {
       );
     }
 
-    // Both transports admit the full attachment workflow.
+    // Both transports admit the full attachment workflow, plus inline assets
+    // (images pasted into the agent's own issue) through the same content path.
     const http2Allowed: Array<{ method: string; path: string }> = [
       { method: "GET", path: "/api/issues/issue-1/attachments" },
       { method: "POST", path: "/api/companies/co-1/issues/issue-1/attachments" },
       { method: "GET", path: "/api/attachments/att-1/content" },
+      { method: "GET", path: "/api/assets/asset-1/content" },
     ];
     for (const request of http2Allowed) {
       expect(
@@ -1508,12 +1510,14 @@ describe("sandbox callback bridge", () => {
     }
 
     const http2Denied: Array<{ method: string; path: string }> = [
-      // Wrong method for each attachment rule.
+      // Wrong method for each attachment/asset rule.
       { method: "GET", path: "/api/companies/co-1/issues/issue-1/attachments" },
       { method: "POST", path: "/api/attachments/att-1/content" },
-      // Extra path segment for each attachment rule.
+      { method: "POST", path: "/api/assets/asset-1/content" },
+      // Extra path segment for each attachment/asset rule.
       { method: "POST", path: "/api/companies/co-1/issues/issue-1/attachments/att-1" },
       { method: "GET", path: "/api/attachments/att-1/content/extra" },
+      { method: "GET", path: "/api/assets/asset-1/content/extra" },
     ];
     for (const request of http2Denied) {
       expect(
@@ -1527,6 +1531,7 @@ describe("sandbox callback bridge", () => {
       { method: "GET", path: "/api/issues/issue-1/attachments" },
       { method: "POST", path: "/api/companies/co-1/issues/issue-1/attachments" },
       { method: "GET", path: "/api/attachments/att-1/content" },
+      { method: "GET", path: "/api/assets/asset-1/content" },
     ];
     for (const request of attachmentRequests) {
       expect(authorizeSandboxCallbackBridgeRequestWithRoutes(request)).toBeNull();
