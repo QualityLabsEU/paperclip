@@ -43,3 +43,12 @@ overrides:
   # range forces every consumer onto one resolution.
   "@codemirror/state": "^6.7.2"
   "@codemirror/view": "^6.43.11"
+  # Advisory-driven minimums for production-reachable transitive deps. undici
+  # is scoped to the jsdom path only: a blanket floor would major-jump the
+  # undici 5.x copy (@cursor/sdk → @connectrpc/connect-node) and the 6.x copy
+  # (@discordjs) that this workspace deliberately leaves on their own majors.
+  proxy-addr: ">=2.0.8"
+  path-to-regexp: ">=8.4.2"
+  "@modelcontextprotocol/sdk": ">=1.31.0"
+  fast-uri: "^3.1.7"
+  "jsdom>undici": ">=8.10.2"

@@ -119,7 +119,12 @@
       "react": "^19.2.8",
       "react-dom": "^19.2.8",
       "@codemirror/state": "^6.7.2",
-      "@codemirror/view": "^6.43.11"
+      "@codemirror/view": "^6.43.11",
+      "proxy-addr": ">=2.0.8",
+      "path-to-regexp": ">=8.4.2",
+      "@modelcontextprotocol/sdk": ">=1.31.0",
+      "fast-uri": "^3.1.7",
+      "jsdom>undici": ">=8.10.2"
     }
   }
 }
