@@ -174,6 +174,9 @@ export const DEFAULT_SANDBOX_CALLBACK_BRIDGE_ROUTE_ALLOWLIST: readonly SandboxCa
   { method: "GET", path: /^\/api\/issues\/[^/]+\/attachments$/ },
   { method: "POST", path: /^\/api\/companies\/[^/]+\/issues\/[^/]+\/attachments$/ },
   { method: "GET", path: /^\/api\/attachments\/[^/]+\/content$/ },
+  // Inline assets (images pasted into the agent's own issue) share the same
+  // run-scoped company authorization as attachments on the server side.
+  { method: "GET", path: /^\/api\/assets\/[^/]+\/content$/ },
 
   // Work products: publish branch/commit/artifact metadata for completed work.
   { method: "GET", path: /^\/api\/issues\/[^/]+\/work-products$/ },
