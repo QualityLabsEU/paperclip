@@ -39,6 +39,15 @@ export type HealthStatus = {
   devServer?: DevServerHealthStatus;
   cloud?: CloudInstanceHealthStatus;
   /**
+   * Which optional social sign-in providers this server registers
+   * (enabled/disabled only — never client ids or secrets). Absent when no
+   * provider is configured.
+   */
+  authProviders?: {
+    github?: boolean;
+    google?: boolean;
+  };
+  /**
    * Settings surfaces hidden by the hosting operator (keys from the shared
    * settings-visibility registry). Absent when nothing is hidden.
    */

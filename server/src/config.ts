@@ -7,6 +7,7 @@ import { config as loadDotenv } from "dotenv";
 import { resolvePaperclipEnvPath } from "./paths.js";
 import { maybeRepairLegacyWorktreeConfigAndEnvFiles } from "./worktree-config.js";
 import { shouldLoadWorkingDirectoryEnv } from "./env-file-policy.js";
+import { resolveSocialSsoConfig, type SocialSsoConfig } from "./auth/social-sso.js";
 import {
   AUTH_BASE_URL_MODES,
   BIND_MODES,
@@ -67,6 +68,12 @@ export interface Config {
   authPublicBaseUrl: string | undefined;
   chatWebhookPublicBaseUrl: string | undefined;
   authDisableSignUp: boolean;
+  /**
+   * Optional social sign-in providers. Each provider is configured only when
+   * its OAuth client pair is set; `null` entries leave that provider
+   * unregistered (the pre-SSO behavior). See auth/social-sso.ts.
+   */
+  authSocialSso: SocialSsoConfig;
   databaseMode: DatabaseMode;
   databaseUrl: string | undefined;
   databaseMigrationUrl: string | undefined;
@@ -227,6 +234,7 @@ export function loadConfig(): Config {
     disableSignUpFromEnv !== undefined
       ? disableSignUpFromEnv === "true"
       : (fileConfig?.auth?.disableSignUp ?? false);
+  const authSocialSso = resolveSocialSsoConfig(process.env);
   const allowedHostnamesFromEnvRaw = process.env.PAPERCLIP_ALLOWED_HOSTNAMES;
   const allowedHostnamesFromEnv = allowedHostnamesFromEnvRaw
     ? allowedHostnamesFromEnvRaw
@@ -328,6 +336,7 @@ export function loadConfig(): Config {
       process.env.PAPERCLIP_CHAT_WEBHOOK_PUBLIC_URL,
     ),
     authDisableSignUp,
+    authSocialSso,
     databaseMode: fileDatabaseMode,
     databaseUrl: process.env.DATABASE_URL ?? fileDbUrl,
     databaseMigrationUrl: process.env.DATABASE_MIGRATION_URL,

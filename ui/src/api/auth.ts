@@ -150,6 +150,13 @@ async function authPatch<T>(path: string, body: Record<string, unknown>, parse: 
   return parse(payload);
 }
 
+export type SocialSignInProvider = "github" | "google";
+
+export type SocialSignInStartResult = {
+  /** The provider's authorization URL to navigate the browser to. */
+  url: string;
+};
+
 export const authApi = {
   getSession: async (): Promise<AuthSession | null> => {
     const res = await fetch("/api/auth/get-session", {
@@ -175,6 +182,28 @@ export const authApi = {
 
   signUpEmail: async (input: { name: string; email: string; password: string }) => {
     await authPost("/sign-up/email", input);
+  },
+
+  /**
+   * Begin a social sign-in. The server answers with the provider's
+   * authorization URL; the caller navigates the browser there and the provider
+   * redirects back to the server's OAuth callback.
+   */
+  signInSocial: async (input: {
+    provider: SocialSignInProvider;
+    callbackURL?: string;
+  }): Promise<SocialSignInStartResult> => {
+    const payload = (await authPost("/sign-in/social", {
+      provider: input.provider,
+      callbackURL: input.callbackURL ?? "/",
+    })) as { url?: unknown } | null;
+    if (!payload || typeof payload.url !== "string") {
+      throw new Error("The server did not return a sign-in URL for this provider.");
+    }
+    // The caller always navigates the browser itself (the server is called
+    // without disableRedirect), so the response's `redirect` flag carries no
+    // information this client can act on and is intentionally not surfaced.
+    return { url: payload.url };
   },
 
   getProfile: async (): Promise<CurrentUserProfile> => {

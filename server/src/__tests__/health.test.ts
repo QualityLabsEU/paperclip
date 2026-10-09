@@ -93,6 +93,40 @@ describe("GET /health", () => {
     };
     expect(res.text).toBe(JSON.stringify(baseline));
     expect(Object.prototype.hasOwnProperty.call(res.body, "cloud")).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(res.body, "authProviders")).toBe(false);
+  });
+
+  it("reports configured social sign-in providers as booleans only", async () => {
+    const app = createApp(undefined, testServerInfo, undefined, {
+      PAPERCLIP_SSO_GITHUB_CLIENT_ID: "gh-client-id",
+      PAPERCLIP_SSO_GITHUB_CLIENT_SECRET: "gh-client-secret",
+      PAPERCLIP_SSO_GITHUB_ORGS: "acme-org",
+    });
+
+    const res = await request(app).get("/health");
+
+    expect(res.status).toBe(200);
+    expect(res.body.authProviders).toEqual({ github: true, google: false });
+    // Enabled/disabled flags only — client ids and gate lists never leak.
+    expect(res.text).not.toContain("gh-client-id");
+    expect(res.text).not.toContain("acme-org");
+  });
+
+  it("reports a provider unavailable when its client pair is set but its gate list is empty", async () => {
+    // A configured client pair without a gate list is a guaranteed-reject
+    // configuration (every social sign-up fails closed), so the provider must
+    // not be advertised as available.
+    const app = createApp(undefined, testServerInfo, undefined, {
+      PAPERCLIP_SSO_GITHUB_CLIENT_ID: "gh-client-id",
+      PAPERCLIP_SSO_GITHUB_CLIENT_SECRET: "gh-client-secret",
+      PAPERCLIP_SSO_GOOGLE_CLIENT_ID: "goog-client-id",
+      PAPERCLIP_SSO_GOOGLE_CLIENT_SECRET: "goog-client-secret",
+    });
+
+    const res = await request(app).get("/health");
+
+    expect(res.status).toBe(200);
+    expect(res.body.authProviders).toEqual({ github: false, google: false });
   });
 
   it("exposes public stack metadata on cloud-simulated health", async () => {

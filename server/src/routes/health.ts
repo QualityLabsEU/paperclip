@@ -29,6 +29,11 @@ import {
 import { instanceSettingsService } from "../services/instance-settings.js";
 import { isManagedWorkspaceInstance, resolveWorkspaceReadiness } from "../services/workspace-readiness.js";
 import {
+  isSocialSsoConfigured,
+  resolveSocialSsoConfig,
+  resolveSocialSsoProviderAvailability,
+} from "../auth/social-sso.js";
+import {
   resolveWorkspaceReadinessLocalToken,
   WORKSPACE_READINESS_TOKEN_HEADER,
   WORKSPACE_READINESS_USER_EMAIL_HEADER,
@@ -240,6 +245,17 @@ export function healthRoutes(
     const healthStatus =
       startupRecovery.phase === "ready" ? "ok" : "starting";
     const cloud = getCloudHealthStatus(runtimeEnv);
+    // Enabled/disabled flags for the optional social sign-in providers, so the
+    // login screen can offer only what this server can actually sign in. A
+    // provider whose gate list is empty is a guaranteed-reject configuration,
+    // so it reports as unavailable even though its client pair is set.
+    // Booleans only — client ids, secrets, and gate lists never leave the
+    // server — and omitted entirely when no provider is configured, so
+    // deployments without the env vars keep today's byte-identical responses.
+    const socialSso = resolveSocialSsoConfig(runtimeEnv);
+    const authProviders = isSocialSsoConfigured(socialSso)
+      ? resolveSocialSsoProviderAvailability(socialSso)
+      : undefined;
     // Operator-hidden settings ride every response (like `cloud`): the list
     // holds UI surface names only, and the settings nav needs it before any
     // fuller-detail fetch. Omitted entirely when nothing is hidden, so
@@ -279,6 +295,7 @@ export function healthRoutes(
               serverVersion: serverVersion,
               commit,
               serverInfo,
+              ...(authProviders ? { authProviders } : {}),
               ...(cloud ? { cloud } : {}),
               ...(hiddenSettings.length ? { hiddenSettings } : {}),
             }
@@ -286,6 +303,7 @@ export function healthRoutes(
               status: healthStatus,
               deploymentMode: opts.deploymentMode,
               commit,
+              ...(authProviders ? { authProviders } : {}),
               ...(cloud ? { cloud } : {}),
               ...(hiddenSettings.length ? { hiddenSettings } : {}),
             },
@@ -396,6 +414,7 @@ export function healthRoutes(
         commit,
         bootstrapStatus,
         bootstrapInviteActive,
+        ...(authProviders ? { authProviders } : {}),
         ...(redactedDatabaseBackup ? { databaseBackup: redactedDatabaseBackup } : {}),
         ...(redactedWarnings ? { warnings: redactedWarnings } : {}),
         ...(devServer ? { devServer } : {}),
@@ -420,6 +439,7 @@ export function healthRoutes(
       authReady: opts.authReady,
       bootstrapStatus,
       bootstrapInviteActive,
+      ...(authProviders ? { authProviders } : {}),
       features: {
         companyDeletionEnabled: opts.companyDeletionEnabled,
       },

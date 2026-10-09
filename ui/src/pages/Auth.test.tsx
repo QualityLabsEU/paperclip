@@ -11,12 +11,21 @@ import { AuthPage } from "./Auth";
 const getSessionMock = vi.hoisted(() => vi.fn());
 const signInEmailMock = vi.hoisted(() => vi.fn());
 const signUpEmailMock = vi.hoisted(() => vi.fn());
+const signInSocialMock = vi.hoisted(() => vi.fn());
+const healthGetMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../api/auth", () => ({
   authApi: {
     getSession: () => getSessionMock(),
     signInEmail: (input: unknown) => signInEmailMock(input),
     signUpEmail: (input: unknown) => signUpEmailMock(input),
+    signInSocial: (input: unknown) => signInSocialMock(input),
+  },
+}));
+
+vi.mock("../api/health", () => ({
+  healthApi: {
+    get: () => healthGetMock(),
   },
 }));
 
@@ -88,6 +97,10 @@ describe("AuthPage", () => {
     getSessionMock.mockResolvedValue(null);
     signInEmailMock.mockResolvedValue(undefined);
     signUpEmailMock.mockResolvedValue(undefined);
+    signInSocialMock.mockReset();
+    // No social providers configured by default: health answers without the
+    // authProviders block, exactly like a pre-SSO server.
+    healthGetMock.mockResolvedValue({ status: "ok", deploymentMode: "authenticated" });
   });
 
   afterEach(() => {
@@ -216,6 +229,10 @@ describe("AuthPage", () => {
   });
 
   it("invalidates anonymous health metadata after sign-in", async () => {
+    // The auth page now subscribes to the health query to learn which social
+    // providers are configured. Keep the refetch pending so the seeded data
+    // (and its post-sign-in invalidation) stays observable.
+    healthGetMock.mockReturnValue(new Promise(() => undefined));
     const { root, queryClient } = await mount();
     queryClient.setQueryData(queryKeys.health, {
       status: "ok",
@@ -248,6 +265,109 @@ describe("AuthPage", () => {
       password: "supersecret",
     });
     expect(queryClient.getQueryState(queryKeys.health)?.isInvalidated).toBe(true);
+
+    await act(async () => {
+      root.unmount();
+    });
+  });
+
+  it("renders no social sign-in buttons when the server reports none configured", async () => {
+    const { root } = await mount();
+
+    expect(container.textContent).not.toContain("Sign in with GitHub");
+    expect(container.textContent).not.toContain("Sign in with Google");
+
+    await act(async () => {
+      root.unmount();
+    });
+  });
+
+  it("renders only the social buttons the server reports as configured", async () => {
+    healthGetMock.mockResolvedValue({
+      status: "ok",
+      deploymentMode: "authenticated",
+      authProviders: { github: true, google: false },
+    });
+    const { root } = await mount();
+
+    expect(container.textContent).toContain("Sign in with GitHub");
+    expect(container.textContent).not.toContain("Sign in with Google");
+
+    await act(async () => {
+      root.unmount();
+    });
+  });
+
+  it("starts a GitHub social sign-in and navigates to the returned URL", async () => {
+    healthGetMock.mockResolvedValue({
+      status: "ok",
+      deploymentMode: "authenticated",
+      authProviders: { github: true, google: true },
+    });
+    signInSocialMock.mockResolvedValue({
+      url: "https://github.com/login/oauth/authorize?client_id=gh-test",
+    });
+    const assignMock = vi.fn();
+    // jsdom cannot navigate; stand in for the assignment the page performs.
+    const originalLocation = window.location;
+    Object.defineProperty(window, "location", {
+      value: { ...originalLocation, assign: assignMock },
+      configurable: true,
+    });
+    try {
+      const { root } = await mount();
+
+      expect(container.textContent).toContain("Sign in with GitHub");
+      expect(container.textContent).toContain("Sign in with Google");
+
+      const githubButton = Array.from(container.querySelectorAll("button")).find(
+        (button) => button.textContent === "Sign in with GitHub",
+      );
+      expect(githubButton).not.toBeNull();
+
+      await act(async () => {
+        githubButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      });
+      await flushReact();
+      await flushReact();
+
+      expect(signInSocialMock).toHaveBeenCalledWith({ provider: "github", callbackURL: "/" });
+      expect(assignMock).toHaveBeenCalledWith(
+        "https://github.com/login/oauth/authorize?client_id=gh-test",
+      );
+
+      await act(async () => {
+        root.unmount();
+      });
+    } finally {
+      Object.defineProperty(window, "location", {
+        value: originalLocation,
+        configurable: true,
+      });
+    }
+  });
+
+  it("surfaces a social sign-in failure in the alert region", async () => {
+    healthGetMock.mockResolvedValue({
+      status: "ok",
+      deploymentMode: "authenticated",
+      authProviders: { github: true },
+    });
+    signInSocialMock.mockRejectedValue(new Error("The server did not return a sign-in URL for this provider."));
+    const { root } = await mount();
+
+    const githubButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent === "Sign in with GitHub",
+    );
+    await act(async () => {
+      githubButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await flushReact();
+    await flushReact();
+
+    const alert = container.querySelector('[role="alert"]') as HTMLElement;
+    expect(alert).not.toBeNull();
+    expect(alert.textContent).toContain("did not return a sign-in URL");
 
     await act(async () => {
       root.unmount();

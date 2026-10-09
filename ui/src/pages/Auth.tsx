@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "@/lib/router";
-import { authApi } from "../api/auth";
+import { authApi, type SocialSignInProvider } from "../api/auth";
+import { healthApi } from "../api/health";
 import { queryKeys } from "../lib/queryKeys";
 import { getRememberedInvitePath } from "../lib/invite-memory";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,18 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { PaperclipLockup } from "../components/PaperclipLockup";
 
 type AuthMode = "sign_in" | "sign_up";
+
+type SocialProviderButton = {
+  provider: SocialSignInProvider;
+  label: string;
+};
+
+// Rendered only for providers the server reports as configured (health
+// `authProviders` carries enabled/disabled flags, never client values).
+const SOCIAL_PROVIDER_BUTTONS: SocialProviderButton[] = [
+  { provider: "github", label: "Sign in with GitHub" },
+  { provider: "google", label: "Sign in with Google" },
+];
 
 export function AuthPage() {
   const queryClient = useQueryClient();
@@ -31,6 +44,29 @@ export function AuthPage() {
     queryKey: queryKeys.auth.session,
     queryFn: () => authApi.getSession(),
     retry: false,
+  });
+
+  const { data: health } = useQuery({
+    queryKey: queryKeys.health,
+    queryFn: () => healthApi.get(),
+    retry: false,
+  });
+
+  const socialProviders = health?.authProviders;
+  const socialButtons = SOCIAL_PROVIDER_BUTTONS.filter(
+    (button) => socialProviders?.[button.provider] === true,
+  );
+
+  const socialSignIn = useMutation({
+    mutationFn: (provider: SocialSignInProvider) =>
+      authApi.signInSocial({ provider, callbackURL: nextPath }),
+    onSuccess: (result) => {
+      setError(null);
+      window.location.assign(result.url);
+    },
+    onError: (err) => {
+      setError(err instanceof Error ? err.message : "Authentication failed");
+    },
   });
 
   useEffect(() => {
@@ -184,6 +220,35 @@ export function AuthPage() {
                   : "Create Account"}
             </Button>
           </form>
+
+          {socialButtons.length > 0 && (
+            <div className="mt-5">
+              <div className="relative my-4" aria-hidden="true">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t border-border" />
+                </div>
+                <div className="relative flex justify-center text-xs">
+                  <span className="bg-background px-2 text-muted-foreground">or</span>
+                </div>
+              </div>
+              <div className="space-y-2">
+                {socialButtons.map((button) => (
+                  <Button
+                    key={button.provider}
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    disabled={socialSignIn.isPending}
+                    onClick={() => socialSignIn.mutate(button.provider)}
+                  >
+                    {socialSignIn.isPending && socialSignIn.variables === button.provider
+                      ? "Redirecting…"
+                      : button.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="mt-5 text-sm text-muted-foreground">
             {mode === "sign_in" ? "Need an account?" : "Already have an account?"}{" "}
