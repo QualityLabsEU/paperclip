@@ -492,6 +492,94 @@ describeEmbeddedPostgres("plugin tenant isolation (company_id FK)", () => {
     }
   });
 
+  it("pluginRegistryService.upsertEntity survives concurrent upserts of the same company-scoped tuple", async () => {
+    const pluginId = await seedPlugin();
+    const companyA = await seedCompany();
+    const registry = pluginRegistryService(db);
+
+    // Warm two pool connections so both racing selects are in flight before
+    // either upsert reaches its insert.
+    await Promise.all([
+      db.select({ id: pluginEntities.id }).from(pluginEntities).limit(1),
+      db.select({ id: pluginEntities.id }).from(pluginEntities).limit(1),
+    ]);
+
+    // Two plugin actions race on the same (companyId, pluginId, entityType,
+    // externalId). With a select-then-insert upsert both selects miss, both
+    // inserts race, and the loser violates plugin_entities_external_idx
+    // (SQLSTATE 23505), surfacing to the plugin action as an HTTP 502. Both
+    // upserts must resolve and converge on a single row instead.
+    const [first, second] = await Promise.all([
+      registry.upsertEntity(pluginId, {
+        companyId: companyA,
+        entityType: "issue",
+        scopeKind: "company",
+        scopeId: companyA,
+        externalId: "ext-race",
+        title: "first",
+        status: "open",
+        data: {},
+      }),
+      registry.upsertEntity(pluginId, {
+        companyId: companyA,
+        entityType: "issue",
+        scopeKind: "company",
+        scopeId: companyA,
+        externalId: "ext-race",
+        title: "second",
+        status: "open",
+        data: {},
+      }),
+    ]);
+
+    expect(first?.id).toBeTruthy();
+    expect(second?.id).toBe(first?.id);
+
+    const rows = await db.select().from(pluginEntities);
+    expect(rows).toHaveLength(1);
+    expect(["first", "second"]).toContain(rows[0]?.title);
+  });
+
+  it("pluginRegistryService.upsertEntity survives concurrent instance-scope (NULL companyId) upserts", async () => {
+    const pluginId = await seedPlugin();
+    const registry = pluginRegistryService(db);
+
+    await Promise.all([
+      db.select({ id: pluginEntities.id }).from(pluginEntities).limit(1),
+      db.select({ id: pluginEntities.id }).from(pluginEntities).limit(1),
+    ]);
+
+    const [first, second] = await Promise.all([
+      registry.upsertEntity(pluginId, {
+        companyId: null,
+        entityType: "cron",
+        scopeKind: "instance",
+        scopeId: null,
+        externalId: "cron-race",
+        title: "first",
+        status: "open",
+        data: {},
+      }),
+      registry.upsertEntity(pluginId, {
+        companyId: null,
+        entityType: "cron",
+        scopeKind: "instance",
+        scopeId: null,
+        externalId: "cron-race",
+        title: "second",
+        status: "open",
+        data: {},
+      }),
+    ]);
+
+    expect(first?.id).toBeTruthy();
+    expect(second?.id).toBe(first?.id);
+
+    const rows = await db.select().from(pluginEntities);
+    expect(rows).toHaveLength(1);
+    expect(["first", "second"]).toContain(rows[0]?.title);
+  });
+
   it("plugin_entities unique index treats NULL companyId as equal (NULLS NOT DISTINCT) so instance-scope dedup holds", async () => {
     const pluginId = await seedPlugin();
 
